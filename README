@@ -1,0 +1,2 @@
+We need to do:
+	pyuic4 -o pulnix6740_ui.py pulnix6740.ui

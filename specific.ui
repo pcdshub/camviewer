@@ -1,0 +1,435 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Dialog</class>
+ <widget class="QDialog" name="Dialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>354</width>
+    <height>633</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Dialog</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QGroupBox" name="gigeBox">
+     <property name="title">
+      <string>GigE Camera Settings</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="cmlabelG">
+        <property name="text">
+         <string>Camera Mode</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <widget class="QComboBox" name="cameramodeG">
+        <item>
+         <property name="text">
+          <string>Free Run</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Sync In 1</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Sync In 2</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Sync In 3</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Sync In 4</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Fixed Rate</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Software</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="gainlabel">
+        <property name="text">
+         <string>Gain</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QLineEdit" name="gainG"/>
+      </item>
+      <item row="2" column="0" colspan="2">
+       <widget class="QLabel" name="label_5">
+        <property name="text">
+         <string>Acquisition Time (s)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2">
+       <widget class="QLineEdit" name="timeG"/>
+      </item>
+      <item row="3" column="0" colspan="2">
+       <widget class="QLabel" name="label_6">
+        <property name="text">
+         <string>Acquisition Period (s)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="2">
+       <widget class="QLineEdit" name="periodG"/>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="pulnixBox">
+     <property name="title">
+      <string>Pulnix Camera Settings</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_2">
+      <item row="0" column="0">
+       <widget class="QLabel" name="cmlabelP">
+        <property name="text">
+         <string>Camera Mode</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <widget class="QComboBox" name="cameramodeP">
+        <item>
+         <property name="text">
+          <string>Async (Triggered)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Manual (Free Run)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Direct</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="2">
+       <widget class="QLabel" name="gainlabel_2">
+        <property name="text">
+         <string>Gain A (66-488)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QLineEdit" name="gainAP"/>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="gainlabel_3">
+        <property name="text">
+         <string>Gain B (66-488)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2">
+       <widget class="QLineEdit" name="gainBP"/>
+      </item>
+      <item row="3" column="0" colspan="2">
+       <widget class="QLabel" name="label_7">
+        <property name="text">
+         <string>Acquisition Time (s)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="2">
+       <widget class="QComboBox" name="timeP">
+        <item>
+         <property name="text">
+          <string>1/250</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/500</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/1000</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/2000</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/4000</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/8000</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/16000</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/32000</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/64000</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Pulse</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="opalBox">
+     <property name="title">
+      <string>Opal Camera Settings</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_3">
+      <item row="0" column="0">
+       <widget class="QLabel" name="cmlabelO">
+        <property name="text">
+         <string>Camera Mode</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="3">
+       <widget class="QComboBox" name="cameramodeO">
+        <item>
+         <property name="text">
+          <string>Free Run</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Normal (Triggered)</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="2">
+       <widget class="QLabel" name="gainlabel_4">
+        <property name="text">
+         <string>Gain (100-3200)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="3">
+       <widget class="QLineEdit" name="gainO"/>
+      </item>
+      <item row="2" column="0" colspan="2">
+       <widget class="QLabel" name="label_10">
+        <property name="text">
+         <string>Acquisition Time (x 10us)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="3">
+       <widget class="QLineEdit" name="timeO"/>
+      </item>
+      <item row="3" column="0" colspan="3">
+       <widget class="QLabel" name="label_9">
+        <property name="text">
+         <string>Acquisition Period (x 10us)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="3">
+       <widget class="QLineEdit" name="periodO"/>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="up900Box">
+     <property name="title">
+      <string>Uniq UP-900 Camera Settings</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_4">
+      <item row="0" column="0">
+       <widget class="QLabel" name="gainlabel_5">
+        <property name="text">
+         <string>Gain (0 - 1023)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="gainU"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_8">
+        <property name="text">
+         <string>Acquisition Time (s)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="timeU">
+        <item>
+         <property name="text">
+          <string>1/15</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/30</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/60</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/125</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/250</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/500</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/1000</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/2000</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/3000</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/4000</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/5000</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/6000</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/7500</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/10000</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/15000</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>1/31000</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Apply|QDialogButtonBox::Close|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>Dialog</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>248</x>
+     <y>254</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>157</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>Dialog</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>316</x>
+     <y>260</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>286</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>

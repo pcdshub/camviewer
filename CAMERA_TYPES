@@ -1,0 +1,53 @@
+LIF - A camera supporting a connection to LIVE_IMAGE_FULL, with N_OF_COL
+      and N_OF_ROW being the image size.
+AVG - A camera supporting LIVE_IMAGE_FULL and an on-IOC averaged AVG_IMAGE.
+      N_OF_COL and N_OF_ROW are the image size, and AVERAGER.A is the number
+      of frames to average.
+IC  - A camera supporting a connection to IMAGE_CMPX, a compressed image.
+      Control of the compression is via SHIFT.VAL (bit shift), ROI_X, ROI_Y,
+      ROI_XNP, and ROI_YNP.  Images are <= 512x512.  Actual size is given
+      by COMPRESSOR.VALE (rows) and COMPRESSOR.VALF (cols)
+GE  - A gigE camera.  The image data is bytes in ArrayData, and the dimensions
+      are in ArraySize0_RBV, ArraySize1_RBV, and ArraySize2_RBV.  If color,
+      these are 3, X, Y, and if B/W, these are X, Y, 0.  No EVR!
+MCC - Image is IMAGE, N_OF_COL, N_OF_ROW, and N_OF_BITS.  Or is this the ROI image?
+      and so ROI_X,ROI_XNP, ROI_Y, ROI_YNP are the actual size of IMAGE?
+-----------------------------------------------------------
+We are now dealing with some camera-specific control information as well.  In
+the GE case, these PVs have a different basename than the image PVs, so we have
+added the "IMAGE;CONTROL" syntax to the camera config file to specify the two
+base names.  If the name has no semicolon, it will be assumed that the control
+PVs and the image PVs have the same base.
+
+For a GE camera, the PVs of interest are:
+	TriggerMode{,_RBV}     - The triggering mode (Free Run, Sync In {1-4},
+                                 Fixed Rate, Software)
+	Gain{,_RBV}            - The camera gain.
+        AcquireTime{,_RBV}     - The acquisition time (s).
+        AcquirePeriod{,_RBV}   - The time between acquisitions (s).
+	Cross{1,2}{X,Y}{,_RBV} - The global marker positions IN LANDSCAPE COORDINATES.
+
+For an AVG camera, we have:
+	Cross{1,2}{X,Y}{,_RBV} - The global marker positions IN LANDSCAPE COORDINATES.
+
+For an AVG Pulnix, we have:
+	Gain                   - The camera gain (0-100).
+	Gain:Offset            - The difference in gain on the two halves. (A-, B+).
+	Gain{A,B}              - The actual gains (between 0x42 (66) and 0x1e8 (488)).
+	ShutterMode	       - Async=0 (triggered), Manual=1 (freerun), or Direct=2
+				 (# of scan lines).
+	Shutter		       - Speed (inverse 250, 500, 1000, 2000, 4000, 8000, 16000,
+			 	 32000, 64000 or pulse for 0-9).
+
+For an AVG Opal, we have:
+	{Set,}GA               - The camera gain  (100-3200, representing 1x to 32x).
+	{Set,}IT               - Integration time (0-32000 * 10us, if MO0)
+	{Set,}FP               - Frame period     (0-32000 * 10us, if MO0)
+	{Set,}MO               - Acquisition mode (0=continuous, 1=normal)
+	{Set,}CCE	       - Exposure mode (n;m where n=4 is external I/O, 0-3 are CCn,
+				 CameraLink Control signals, and m=0 is start on rising or
+				 m=1 falling edge and end on reverse) Default: 4;0
+	{Set,}CCFS	       - Readout control (n;m where n=0-3 are CCN, 4 is external I/O,
+				 5 is software, and m=0 is start readout on falling or m=1
+				 rising edge) Default: 0;0
+

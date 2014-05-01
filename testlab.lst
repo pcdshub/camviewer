@@ -1,0 +1,4 @@
+# Type, Camera PV prefix, EVR PV prefix, Description, Lens PV
+#   EVR PV with blank value ("") means the same EVR as previous camera
+AVG, TST:CAM:05:CAM, TST:CAM:05:EVR,  AMO S&D Opal-1k
+AVG, TST:CAM:04:CAM, TST:CAM:04:EVR,  Gateway Test TL6740

@@ -1,0 +1,5 @@
+# Type, Camera PV prefix, EVR PV prefix, Description, Lens PV
+#   EVR PV with blank value ("") means the same EVR as previous camera
+GE,  LAS:GIGE:AMO:01,, AMO GigE #1,
+GE,  LAS:GIGE:SXR:01,, SXR GigE #1,
+
