@@ -5,4 +5,4 @@ setenv EPICS_CA_MAX_ARRAY_BYTES 8388608
 limit coredumpsize unlimited
 rehash
 
-./pulnix6740.pyw $*
+./camviewer.pyw $*

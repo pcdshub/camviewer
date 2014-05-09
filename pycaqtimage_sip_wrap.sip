@@ -1,4 +1,4 @@
-%Module pycaqtpulnix6740 0
+%Module pycaqtimage 0
 
 %Import QtGui/QtGuimod.sip
 

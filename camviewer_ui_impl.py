@@ -7,7 +7,7 @@
 # So we have three types of coordinates: true screen, transformed screen, and image, with the last
 # two being aligned.
 #
-from pulnix6740_ui import Ui_MainWindow
+from camviewer_ui import Ui_MainWindow
 from Pv import Pv
 from xtcrdr import xtcrdr
 from dialogs import advdialog
@@ -18,7 +18,7 @@ from dialogs import xtcrdrdialog
 from dialogs import timeoutdialog
 from dialogs import forcedialog
 
-import pycaqtpulnix6740
+import pycaqtimage
 import pyca
 import sys
 import math
@@ -280,7 +280,7 @@ class GraphicUserInterface(QMainWindow):
     self.useSyntheticData   = int(useSyntheticData)      
     self.camerListFilename  = camerListFilename
       
-    self.imageBuffer = pycaqtpulnix6740.pyCreateImageBuffer(self.ui.display_image.image,
+    self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image,
                                                             self.useSyntheticData)
 
     self.updateRoiText()
@@ -572,16 +572,16 @@ class GraphicUserInterface(QMainWindow):
       self.xpad = (newy - newx) / 2
       self.maxd = newy
     self.ui.display_image.setImageSize(reset)
-    self.imageBuffer = pycaqtpulnix6740.pyCreateImageBuffer(self.ui.display_image.image,
+    self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image,
                                                               self.useSyntheticData)
     if self.camera != None:
       if self.isColor:
-        self.camera.processor  = pycaqtpulnix6740.pyCreateColorImagePvCallbackFunc(self.imageBuffer)
+        self.camera.processor  = pycaqtimage.pyCreateColorImagePvCallbackFunc(self.imageBuffer)
 #        self.ui.grayScale.setVisible(True)
       else:
-        self.camera.processor  = pycaqtpulnix6740.pyCreateImagePvCallbackFunc(self.imageBuffer)
+        self.camera.processor  = pycaqtimage.pyCreateImagePvCallbackFunc(self.imageBuffer)
 #        self.ui.grayScale.setVisible(False)
-      pycaqtpulnix6740.pySetImageBufferGray(self.imageBuffer, self.ui.grayScale.isChecked())
+      pycaqtimage.pySetImageBufferGray(self.imageBuffer, self.ui.grayScale.isChecked())
     self.ui.projH.setImageSize(reset)
     self.ui.projV.setImageSize(reset)
     sizeProjX       = QSize(self.maxd, self.projsize)
@@ -638,7 +638,7 @@ class GraphicUserInterface(QMainWindow):
       if self.avgState == SINGLE_FRAME:
         self.connectCamera(self.cameraBase + ":LIVE_IMAGE_FULL", self.index)
         if self.isColor:
-          pycaqtpulnix6740.pySetImageBufferGray(self.imageBuffer, self.ui.grayScale.isChecked())
+          pycaqtimage.pySetImageBufferGray(self.imageBuffer, self.ui.grayScale.isChecked())
       elif self.avgState == REMOTE_AVERAGE:
         self.connectCamera(self.cameraBase + ":AVG_IMAGE", self.index)
       elif self.avgState == LOCAL_AVERAGE:
@@ -877,7 +877,7 @@ class GraphicUserInterface(QMainWindow):
     self.updateMarkerValue()
     
   def updateMarkerValue(self):          
-    lValue = pycaqtpulnix6740.pyGetPixelValue(self.imageBuffer, self.ui.display_image.cursorPos, self.ui.display_image.lMarker[0], self.ui.display_image.lMarker[1],
+    lValue = pycaqtimage.pyGetPixelValue(self.imageBuffer, self.ui.display_image.cursorPos, self.ui.display_image.lMarker[0], self.ui.display_image.lMarker[1],
       self.ui.display_image.lMarker[2], self.ui.display_image.lMarker[3])
       
     self.averageCur = lValue[5]
@@ -918,7 +918,7 @@ class GraphicUserInterface(QMainWindow):
     if self.cfg == None: self.dumpConfig()
 
   def onCheckGrayUpdate(self, newval):
-    pycaqtpulnix6740.pySetImageBufferGray(self.imageBuffer, newval)
+    pycaqtimage.pySetImageBufferGray(self.imageBuffer, newval)
     if self.cfg == None: self.dumpConfig()
 
   def onCheckDisplayUpdate(self, newval):
@@ -930,7 +930,7 @@ class GraphicUserInterface(QMainWindow):
           self.connectCamera(self.cameraBase + ":LIVE_IMAGE_FULL", self.index)
         self.avgState = SINGLE_FRAME
       if self.isColor:
-        pycaqtpulnix6740.pySetImageBufferGray(self.imageBuffer, self.ui.grayScale.isChecked())
+        pycaqtimage.pySetImageBufferGray(self.imageBuffer, self.ui.grayScale.isChecked())
     elif self.ui.rem_avg.isChecked():
       if self.avgState != REMOTE_AVERAGE:
         self.connectCamera(self.cameraBase + ":AVG_IMAGE", self.index)
@@ -1135,12 +1135,12 @@ class GraphicUserInterface(QMainWindow):
   def setColorMap(self):
     if self.colorMap != "gray":
       fnColorMap = self.cwd + "/" + self.colorMap + ".txt"
-      pycaqtpulnix6740.pydspl_setup_color_map(fnColorMap, self.iRangeMin, self.iRangeMax, self.iScaleIndex)
+      pycaqtimage.pydspl_setup_color_map(fnColorMap, self.iRangeMin, self.iRangeMax, self.iScaleIndex)
     else:
-      pycaqtpulnix6740.pydspl_setup_gray(self.iRangeMin, self.iRangeMax, self.iScaleIndex)
+      pycaqtimage.pydspl_setup_gray(self.iRangeMin, self.iRangeMax, self.iScaleIndex)
     # If the image isn't frozen, this isn't really necessary.  But it bothers me when it *is*
     # frozen!
-    pycaqtpulnix6740.pyRecolorImageBuffer(self.imageBuffer)
+    pycaqtimage.pyRecolorImageBuffer(self.imageBuffer)
     self.ui.display_image.update()
     if self.cfg == None: self.dumpConfig()
       
@@ -1199,13 +1199,13 @@ class GraphicUserInterface(QMainWindow):
         raise Exception, "No File Name Specified"
       
       if fileName.lower().endswith(".raw"):
-        bSaveOk = pycaqtpulnix6740.pySaveRawImageData(self.imageBuffer, self.isportrait, fileName)
+        bSaveOk = pycaqtimage.pySaveRawImageData(self.imageBuffer, self.isportrait, fileName)
         if not bSaveOk:
           raise Exception, "Failed to Save to Raw File %s" % (fileName)
         QMessageBox.information(self, "File Save Succeeded", "Image has been saved to a 16-bit raw file: %s" % (fileName) )
         print 'Saved to a 16-bit raw file %s' %(fileName)            
       else:      
-        imageData = pycaqtpulnix6740.pyGetImageData8bit(self.imageBuffer, self.isportrait)
+        imageData = pycaqtimage.pyGetImageData8bit(self.imageBuffer, self.isportrait)
         if self.isportrait:
           image = Image.new('L', (self.x, self.y))
         else:
@@ -1273,9 +1273,9 @@ class GraphicUserInterface(QMainWindow):
       except:
         self.average = 1
         self.ui.average.setText("1")
-      pycaqtpulnix6740.pySetFrameAverage(self.average, self.imageBuffer)
+      pycaqtimage.pySetFrameAverage(self.average, self.imageBuffer)
     else:
-      pycaqtpulnix6740.pySetFrameAverage(1, self.imageBuffer)
+      pycaqtimage.pySetFrameAverage(1, self.imageBuffer)
 
   # Note: this function is called by the CA library, from another thread
   def sizeCallback(self, exception=None):           
@@ -1359,7 +1359,7 @@ class GraphicUserInterface(QMainWindow):
   def updateProj(self):
     try:
       (roiMean, roiVar, projXmin, projXmax, projYmin, projYmax) = \
-        pycaqtpulnix6740.pyUpdateProj( self.imageBuffer, self.isportrait, self.iScaleIndex,
+        pycaqtimage.pyUpdateProj( self.imageBuffer, self.isportrait, self.iScaleIndex,
         self.ui.display_image.lMarker[0], self.ui.display_image.lMarker[1], self.ui.display_image.lMarker[2],  self.ui.display_image.lMarker[3],
         self.ui.checkBoxProjLine1.isChecked(), self.ui.checkBoxProjLine2.isChecked(), 
         self.ui.checkBoxProjLine3.isChecked(), self.ui.checkBoxProjLine4.isChecked(), 
@@ -1859,7 +1859,7 @@ class GraphicUserInterface(QMainWindow):
       self.camtype = [sType]
     else:
       self.camtype = caget(self.cameraBase + ":ID")
-      if self.camtype != None:
+      if self.camtype != None and self.camtype != "":
         self.camtype = self.camtype.split()
       else:
         self.camtype = ["unknown"]
@@ -1987,10 +1987,10 @@ class GraphicUserInterface(QMainWindow):
     self.lastGetDone     = True
     self.ui.label_connected.setText("YES")
     if self.isColor:
-      self.camera.processor  = pycaqtpulnix6740.pyCreateColorImagePvCallbackFunc(self.imageBuffer)
+      self.camera.processor  = pycaqtimage.pyCreateColorImagePvCallbackFunc(self.imageBuffer)
       self.ui.grayScale.setVisible(True)
     else:
-      self.camera.processor  = pycaqtpulnix6740.pyCreateImagePvCallbackFunc(self.imageBuffer)
+      self.camera.processor  = pycaqtimage.pyCreateImagePvCallbackFunc(self.imageBuffer)
       self.ui.grayScale.setVisible(False)
     self.notify.monitor_cb = self.haveImageCallback
     self.camera.getevt_cb = self.imagePvUpdateCallback

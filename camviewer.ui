@@ -17,7 +17,7 @@
    </sizepolicy>
   </property>
   <property name="windowTitle">
-   <string>Pulnix 6740 Camera</string>
+   <string>Camera Viewer</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <property name="sizePolicy">

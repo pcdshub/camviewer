@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from pulnix6740_ui_impl import GraphicUserInterface
+from camviewer_ui_impl import GraphicUserInterface
 from PyQt4.QtGui import QApplication
 
 import pyca

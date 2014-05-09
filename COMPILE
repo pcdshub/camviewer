@@ -1,5 +1,5 @@
 make x86_64-linux-opt
-pyuic4 -o pulnix6740_ui.py pulnix6740.ui
+pyuic4 -o camviewer_ui.py camviewer.ui
 pyuic4 -o advanced_ui.py advanced.ui
 pyuic4 -o markers_ui.py markers.ui
 pyuic4 -o specific_ui.py specific.ui
