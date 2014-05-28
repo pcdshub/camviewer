@@ -150,6 +150,7 @@ class GraphicUserInterface(QMainWindow):
     self.putlensPv       = None
     self.rowPv           = None
     self.colPv           = None
+    self.scale           = 1
     self.shiftPv         = None
     self.iocRoiXPv       = None
     self.iocRoiYPv       = None
@@ -1286,8 +1287,8 @@ class GraphicUserInterface(QMainWindow):
 
   def onSizeUpdate(self):
     try:
-      newx = self.colPv.value
-      newy = self.rowPv.value
+      newx = self.colPv.value / self.scale
+      newy = self.rowPv.value / self.scale
       if newx != self.x or newy != self.y:
         self.setImageSize(newx, newy, False)
     except:
@@ -1871,6 +1872,7 @@ class GraphicUserInterface(QMainWindow):
       return
 
     # Try to get the camera size!
+    self.scale = 1
     if sType == "IC":
       if "Z" in self.lFlags[index]:
         self.rowPv     = self.connectPv(self.cameraBase + ":IMAGE:DoPrj.NOVA")
@@ -1946,6 +1948,8 @@ class GraphicUserInterface(QMainWindow):
         self.bits = 12              # Sigh.  This is probably more than enough.
       self.isColor = False
     else:
+      if sType == "LIO":
+        self.scale = 2
       self.rowPv = self.connectPv(self.cameraBase + ":N_OF_ROW")
       self.colPv = self.connectPv(self.cameraBase + ":N_OF_COL")
       self.ui.groupBoxIOC.setVisible(False)
@@ -1997,8 +2001,8 @@ class GraphicUserInterface(QMainWindow):
     self.rowPv.monitor_cb = self.sizeCallback
     self.colPv.monitor_cb = self.sizeCallback
     # Now, before we monitor, update the camera size!
-    print "Setting imagesize to (%d, %d)" % (self.colPv.value, self.rowPv.value)
-    self.setImageSize(self.colPv.value, self.rowPv.value, True)
+    print "Setting imagesize to (%d, %d)" % (self.colPv.value / self.scale, self.rowPv.value / self.scale)
+    self.setImageSize(self.colPv.value / self.scale, self.rowPv.value / self.scale, True)
     self.updateMarkerText(True, True, 0, 15)
     self.notify.monitor(pyca.DBE_VALUE, False, 1) # Just 1 pixel, so a new image is available.
     self.rowPv.monitor(pyca.DBE_VALUE)
@@ -2083,6 +2087,8 @@ class GraphicUserInterface(QMainWindow):
     
     if sType == "AVG" or sType == "LIF":
       self.connectCamera(sCameraPv + ":LIVE_IMAGE_FULL", index)
+    elif sType == "LIO":
+      self.connectCamera(sCameraPv + ":LIVE_IMAGE_12B", index)
     elif sType == "IC":
       self.connectCamera(sCameraPv + ":IMAGE_CMPX", index)
     elif sType == "GE":
@@ -2322,7 +2328,7 @@ class GraphicUserInterface(QMainWindow):
       self.ui.projectionFrame.setFixedSize(QSize(self.projsize, self.projsize))
       self.ui.projectionFrame_left.setFixedWidth(self.projsize)
       self.ui.projectionFrame_right.setFixedHeight(self.projsize)
-      self.setImageSize(self.colPv.value, self.rowPv.value, False)
+      self.setImageSize(self.colPv.value / self.scale, self.rowPv.value / self.scale, False)
       if self.cfg == None:
         if setmin:
           self.forceMinSize()
