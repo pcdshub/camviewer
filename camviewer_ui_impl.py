@@ -1451,7 +1451,7 @@ class GraphicUserInterface(QMainWindow):
       iCamera = -1
       for sCamera in lCameraListLine:
         sCamera = sCamera.lstrip()
-        if sCamera.startswith("#"):
+        if sCamera.startswith("#") or sCamera == "":
           continue
         iCamera += 1
         
