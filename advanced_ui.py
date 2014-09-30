@@ -2,8 +2,8 @@
 
 # Form implementation generated from reading ui file 'advanced.ui'
 #
-# Created: Wed Jan 15 13:49:59 2014
-#      by: PyQt4 UI code generator 4.9.1
+# Created: Mon Sep 15 15:38:31 2014
+#      by: PyQt4 UI code generator 4.10.4
 #
 # WARNING! All changes made in this file will be lost!
 
@@ -12,7 +12,16 @@ from PyQt4 import QtCore, QtGui
 try:
     _fromUtf8 = QtCore.QString.fromUtf8
 except AttributeError:
-    _fromUtf8 = lambda s: s
+    def _fromUtf8(s):
+        return s
+
+try:
+    _encoding = QtGui.QApplication.UnicodeUTF8
+    def _translate(context, text, disambig):
+        return QtGui.QApplication.translate(context, text, disambig, _encoding)
+except AttributeError:
+    def _translate(context, text, disambig):
+        return QtGui.QApplication.translate(context, text, disambig)
 
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
@@ -58,10 +67,10 @@ class Ui_Dialog(object):
         QtCore.QMetaObject.connectSlotsByName(Dialog)
 
     def retranslateUi(self, Dialog):
-        Dialog.setWindowTitle(QtGui.QApplication.translate("Dialog", "Dialog", None, QtGui.QApplication.UnicodeUTF8))
-        self.label.setText(QtGui.QApplication.translate("Dialog", "Viewing Area Width (> 400 pixels)", None, QtGui.QApplication.UnicodeUTF8))
-        self.label_3.setText(QtGui.QApplication.translate("Dialog", "Viewing Area Height (> 400 pixels)", None, QtGui.QApplication.UnicodeUTF8))
-        self.label_2.setText(QtGui.QApplication.translate("Dialog", "Projection Size (> 250 pixels)", None, QtGui.QApplication.UnicodeUTF8))
-        self.configCheckBox.setText(QtGui.QApplication.translate("Dialog", "Display Camera Configuration on Main Screen", None, QtGui.QApplication.UnicodeUTF8))
-        self.showevr.setText(QtGui.QApplication.translate("Dialog", "Open Evr", None, QtGui.QApplication.UnicodeUTF8))
+        Dialog.setWindowTitle(_translate("Dialog", "Dialog", None))
+        self.label.setText(_translate("Dialog", "Viewing Area Width (> 400 pixels)", None))
+        self.label_3.setText(_translate("Dialog", "Viewing Area Height (> 400 pixels)", None))
+        self.label_2.setText(_translate("Dialog", "Projection Size (> 250 pixels)", None))
+        self.configCheckBox.setText(_translate("Dialog", "Display Camera Configuration on Main Screen", None))
+        self.showevr.setText(_translate("Dialog", "Open Evr", None))
 

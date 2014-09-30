@@ -1,0 +1,14 @@
+# Supports Averaging, Camera PV, EVR PV prefix, Description, Lens PV
+#   EVR PV with blank value ("") means the same EVR as previous camera
+GE,  MEC:GIGE:IMAGE1, MEC:GIGE:CAM1, MEC Questar 1, MEC:TC1:MMS:20 
+GE,  MEC:GIGE:IMAGE2, MEC:GIGE:CAM2, MEC Questar 2, MEC:TC1:MMS:21
+GE,  MEC:GIGE:IMAGE3, MEC:GIGE:CAM3, GigE3
+GE,  MEC:GIGE:IMAGE4, MEC:GIGE:CAM4, GigE4
+GE,  MEC:GIGE:05:IMAGE1;MEC:GIGE:05, GigE5, GigE5 (Time Tool)
+GE,  MEC:GIGE:06:IMAGE1;MEC:GIGE:06, GigE6, GigE6
+ 
+ 
+ 
+ 
+ 
+ 

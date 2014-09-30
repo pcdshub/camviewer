@@ -1717,6 +1717,12 @@ ProjVmin\</string>
         <property name="title">
          <string>Marker</string>
         </property>
+        <property name="checkable">
+         <bool>false</bool>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
         <layout class="QVBoxLayout" name="horizontalLayoutMarker">
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_Marker1">
@@ -2901,7 +2907,7 @@ ProjVmin\</string>
      <x>0</x>
      <y>0</y>
      <width>1218</width>
-     <height>23</height>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuDisplay">
@@ -3021,7 +3027,7 @@ ProjVmin\</string>
     <bool>true</bool>
    </property>
    <property name="checked">
-    <bool>true</bool>
+    <bool>false</bool>
    </property>
    <property name="text">
     <string>Configuration</string>
@@ -3032,7 +3038,7 @@ ProjVmin\</string>
     <bool>true</bool>
    </property>
    <property name="checked">
-    <bool>true</bool>
+    <bool>false</bool>
    </property>
    <property name="text">
     <string>Projection</string>
@@ -3171,6 +3177,9 @@ ProjVmin\</string>
    </property>
   </action>
   <action name="actionMS">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>Marker Settings</string>
    </property>
