@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'camviewer.ui'
 #
-# Created: Mon Sep 15 16:25:43 2014
+# Created: Tue Sep 30 13:42:12 2014
 #      by: PyQt4 UI code generator 4.10.4
 #
 # WARNING! All changes made in this file will be lost!
@@ -1469,10 +1469,14 @@ class Ui_MainWindow(object):
         self.actionReconnect.setObjectName(_fromUtf8("actionReconnect"))
         self.actionForce = QtGui.QAction(MainWindow)
         self.actionForce.setObjectName(_fromUtf8("actionForce"))
+        self.showmarkers = QtGui.QAction(MainWindow)
+        self.showmarkers.setCheckable(True)
+        self.showmarkers.setObjectName(_fromUtf8("showmarkers"))
         self.menuDisplay.addAction(self.showconf)
         self.menuDisplay.addAction(self.showproj)
         self.menuDisplay.addAction(self.showexpert)
         self.menuDisplay.addAction(self.showspecific)
+        self.menuDisplay.addAction(self.showmarkers)
         self.menuData_Processing.addAction(self.FileSave)
         self.menuData_Processing.addAction(self.PostElog)
         self.menuOrientation.addAction(self.portrait)
@@ -1714,6 +1718,7 @@ class Ui_MainWindow(object):
         self.actionGlobalMarkers.setText(_translate("MainWindow", "Use Global Markers", None))
         self.actionReconnect.setText(_translate("MainWindow", "Reconnect", None))
         self.actionForce.setText(_translate("MainWindow", "Force Disconnects", None))
+        self.showmarkers.setText(_translate("MainWindow", "Markers", None))
 
 from ProjV import ProjV
 from DisplayImage import DisplayImage

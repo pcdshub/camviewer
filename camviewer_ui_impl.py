@@ -432,6 +432,7 @@ class GraphicUserInterface(QMainWindow):
     self.connect(self.ui.showspecific, QtCore.SIGNAL("triggered()"), self.doShowSpecific)
     self.connect(self.ui.actionGlobalMarkers, QtCore.SIGNAL("triggered()"), self.onGlobMarks)
     self.connect(self.advdialog.ui.showevr, QtCore.SIGNAL("clicked()"), self.onOpenEvr)
+    self.connect(self.ui.showmarkers, QtCore.SIGNAL("triggered()"), self.doShowMarkers)
     self.onExpertMode()
 
     self.connect(self.advdialog.ui.buttonBox, QtCore.SIGNAL("clicked(QAbstractButton *)"), self.onAdvanced)
@@ -533,6 +534,11 @@ class GraphicUserInterface(QMainWindow):
         cameraIndex = 0
       self.ui.comboBoxCamera.setCurrentIndex(int(cameraIndex))
     except: pass
+
+    self.advdialog.ui.configCheckBox.setChecked(True)
+    self.setDispSpec(int(self.advdialog.ui.configCheckBox.isChecked()))
+    self.ui.showmarkers.setChecked(False)
+    self.doShowMarkers()
 
   def closeEvent(self, event):
     if (self.cameraBase != ""):
@@ -2201,6 +2207,11 @@ class GraphicUserInterface(QMainWindow):
     except:
       pass
 
+  def doShowMarkers(self):
+      if self.ui.showmarkers.isChecked():
+          self.ui.groupBoxMarker.show()
+      else:
+          self.ui.groupBoxMarker.hide()
   #
   # Connect a gui element to two PVs, pvname for read, writepvname for writing.
   # The writepvname is actually just saved, but a monitor is setup for the read

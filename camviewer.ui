@@ -2918,6 +2918,7 @@ ProjVmin\</string>
     <addaction name="showproj"/>
     <addaction name="showexpert"/>
     <addaction name="showspecific"/>
+    <addaction name="showmarkers"/>
    </widget>
    <widget class="QMenu" name="menuData_Processing">
     <property name="title">
@@ -3268,6 +3269,14 @@ ProjVmin\</string>
   <action name="actionForce">
    <property name="text">
     <string>Force Disconnects</string>
+   </property>
+  </action>
+  <action name="showmarkers">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Markers</string>
    </property>
   </action>
  </widget>
