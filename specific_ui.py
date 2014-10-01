@@ -2,8 +2,8 @@
 
 # Form implementation generated from reading ui file 'specific.ui'
 #
-# Created: Mon Sep 15 15:38:32 2014
-#      by: PyQt4 UI code generator 4.10.4
+# Created: Mon Apr 28 12:15:26 2014
+#      by: PyQt4 UI code generator 4.9.1
 #
 # WARNING! All changes made in this file will be lost!
 
@@ -12,16 +12,7 @@ from PyQt4 import QtCore, QtGui
 try:
     _fromUtf8 = QtCore.QString.fromUtf8
 except AttributeError:
-    def _fromUtf8(s):
-        return s
-
-try:
-    _encoding = QtGui.QApplication.UnicodeUTF8
-    def _translate(context, text, disambig):
-        return QtGui.QApplication.translate(context, text, disambig, _encoding)
-except AttributeError:
-    def _translate(context, text, disambig):
-        return QtGui.QApplication.translate(context, text, disambig)
+    _fromUtf8 = lambda s: s
 
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
@@ -183,61 +174,61 @@ class Ui_Dialog(object):
         QtCore.QMetaObject.connectSlotsByName(Dialog)
 
     def retranslateUi(self, Dialog):
-        Dialog.setWindowTitle(_translate("Dialog", "Dialog", None))
-        self.gigeBox.setTitle(_translate("Dialog", "GigE Camera Settings", None))
-        self.cmlabelG.setText(_translate("Dialog", "Camera Mode", None))
-        self.cameramodeG.setItemText(0, _translate("Dialog", "Free Run", None))
-        self.cameramodeG.setItemText(1, _translate("Dialog", "Sync In 1", None))
-        self.cameramodeG.setItemText(2, _translate("Dialog", "Sync In 2", None))
-        self.cameramodeG.setItemText(3, _translate("Dialog", "Sync In 3", None))
-        self.cameramodeG.setItemText(4, _translate("Dialog", "Sync In 4", None))
-        self.cameramodeG.setItemText(5, _translate("Dialog", "Fixed Rate", None))
-        self.cameramodeG.setItemText(6, _translate("Dialog", "Software", None))
-        self.gainlabel.setText(_translate("Dialog", "Gain", None))
-        self.label_5.setText(_translate("Dialog", "Acquisition Time (s)", None))
-        self.label_6.setText(_translate("Dialog", "Acquisition Period (s)", None))
-        self.pulnixBox.setTitle(_translate("Dialog", "Pulnix Camera Settings", None))
-        self.cmlabelP.setText(_translate("Dialog", "Camera Mode", None))
-        self.cameramodeP.setItemText(0, _translate("Dialog", "Async (Triggered)", None))
-        self.cameramodeP.setItemText(1, _translate("Dialog", "Manual (Free Run)", None))
-        self.cameramodeP.setItemText(2, _translate("Dialog", "Direct", None))
-        self.gainlabel_2.setText(_translate("Dialog", "Gain A (66-488)", None))
-        self.gainlabel_3.setText(_translate("Dialog", "Gain B (66-488)", None))
-        self.label_7.setText(_translate("Dialog", "Acquisition Time (s)", None))
-        self.timeP.setItemText(0, _translate("Dialog", "1/250", None))
-        self.timeP.setItemText(1, _translate("Dialog", "1/500", None))
-        self.timeP.setItemText(2, _translate("Dialog", "1/1000", None))
-        self.timeP.setItemText(3, _translate("Dialog", "1/2000", None))
-        self.timeP.setItemText(4, _translate("Dialog", "1/4000", None))
-        self.timeP.setItemText(5, _translate("Dialog", "1/8000", None))
-        self.timeP.setItemText(6, _translate("Dialog", "1/16000", None))
-        self.timeP.setItemText(7, _translate("Dialog", "1/32000", None))
-        self.timeP.setItemText(8, _translate("Dialog", "1/64000", None))
-        self.timeP.setItemText(9, _translate("Dialog", "Pulse", None))
-        self.opalBox.setTitle(_translate("Dialog", "Opal Camera Settings", None))
-        self.cmlabelO.setText(_translate("Dialog", "Camera Mode", None))
-        self.cameramodeO.setItemText(0, _translate("Dialog", "Free Run", None))
-        self.cameramodeO.setItemText(1, _translate("Dialog", "Normal (Triggered)", None))
-        self.gainlabel_4.setText(_translate("Dialog", "Gain (100-3200)", None))
-        self.label_10.setText(_translate("Dialog", "Acquisition Time (x 10us)", None))
-        self.label_9.setText(_translate("Dialog", "Acquisition Period (x 10us)", None))
-        self.up900Box.setTitle(_translate("Dialog", "Uniq UP-900 Camera Settings", None))
-        self.gainlabel_5.setText(_translate("Dialog", "Gain (0 - 1023)", None))
-        self.label_8.setText(_translate("Dialog", "Acquisition Time (s)", None))
-        self.timeU.setItemText(0, _translate("Dialog", "1/15", None))
-        self.timeU.setItemText(1, _translate("Dialog", "1/30", None))
-        self.timeU.setItemText(2, _translate("Dialog", "1/60", None))
-        self.timeU.setItemText(3, _translate("Dialog", "1/125", None))
-        self.timeU.setItemText(4, _translate("Dialog", "1/250", None))
-        self.timeU.setItemText(5, _translate("Dialog", "1/500", None))
-        self.timeU.setItemText(6, _translate("Dialog", "1/1000", None))
-        self.timeU.setItemText(7, _translate("Dialog", "1/2000", None))
-        self.timeU.setItemText(8, _translate("Dialog", "1/3000", None))
-        self.timeU.setItemText(9, _translate("Dialog", "1/4000", None))
-        self.timeU.setItemText(10, _translate("Dialog", "1/5000", None))
-        self.timeU.setItemText(11, _translate("Dialog", "1/6000", None))
-        self.timeU.setItemText(12, _translate("Dialog", "1/7500", None))
-        self.timeU.setItemText(13, _translate("Dialog", "1/10000", None))
-        self.timeU.setItemText(14, _translate("Dialog", "1/15000", None))
-        self.timeU.setItemText(15, _translate("Dialog", "1/31000", None))
+        Dialog.setWindowTitle(QtGui.QApplication.translate("Dialog", "Dialog", None, QtGui.QApplication.UnicodeUTF8))
+        self.gigeBox.setTitle(QtGui.QApplication.translate("Dialog", "GigE Camera Settings", None, QtGui.QApplication.UnicodeUTF8))
+        self.cmlabelG.setText(QtGui.QApplication.translate("Dialog", "Camera Mode", None, QtGui.QApplication.UnicodeUTF8))
+        self.cameramodeG.setItemText(0, QtGui.QApplication.translate("Dialog", "Free Run", None, QtGui.QApplication.UnicodeUTF8))
+        self.cameramodeG.setItemText(1, QtGui.QApplication.translate("Dialog", "Sync In 1", None, QtGui.QApplication.UnicodeUTF8))
+        self.cameramodeG.setItemText(2, QtGui.QApplication.translate("Dialog", "Sync In 2", None, QtGui.QApplication.UnicodeUTF8))
+        self.cameramodeG.setItemText(3, QtGui.QApplication.translate("Dialog", "Sync In 3", None, QtGui.QApplication.UnicodeUTF8))
+        self.cameramodeG.setItemText(4, QtGui.QApplication.translate("Dialog", "Sync In 4", None, QtGui.QApplication.UnicodeUTF8))
+        self.cameramodeG.setItemText(5, QtGui.QApplication.translate("Dialog", "Fixed Rate", None, QtGui.QApplication.UnicodeUTF8))
+        self.cameramodeG.setItemText(6, QtGui.QApplication.translate("Dialog", "Software", None, QtGui.QApplication.UnicodeUTF8))
+        self.gainlabel.setText(QtGui.QApplication.translate("Dialog", "Gain", None, QtGui.QApplication.UnicodeUTF8))
+        self.label_5.setText(QtGui.QApplication.translate("Dialog", "Acquisition Time (s)", None, QtGui.QApplication.UnicodeUTF8))
+        self.label_6.setText(QtGui.QApplication.translate("Dialog", "Acquisition Period (s)", None, QtGui.QApplication.UnicodeUTF8))
+        self.pulnixBox.setTitle(QtGui.QApplication.translate("Dialog", "Pulnix Camera Settings", None, QtGui.QApplication.UnicodeUTF8))
+        self.cmlabelP.setText(QtGui.QApplication.translate("Dialog", "Camera Mode", None, QtGui.QApplication.UnicodeUTF8))
+        self.cameramodeP.setItemText(0, QtGui.QApplication.translate("Dialog", "Async (Triggered)", None, QtGui.QApplication.UnicodeUTF8))
+        self.cameramodeP.setItemText(1, QtGui.QApplication.translate("Dialog", "Manual (Free Run)", None, QtGui.QApplication.UnicodeUTF8))
+        self.cameramodeP.setItemText(2, QtGui.QApplication.translate("Dialog", "Direct", None, QtGui.QApplication.UnicodeUTF8))
+        self.gainlabel_2.setText(QtGui.QApplication.translate("Dialog", "Gain A (66-488)", None, QtGui.QApplication.UnicodeUTF8))
+        self.gainlabel_3.setText(QtGui.QApplication.translate("Dialog", "Gain B (66-488)", None, QtGui.QApplication.UnicodeUTF8))
+        self.label_7.setText(QtGui.QApplication.translate("Dialog", "Acquisition Time (s)", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeP.setItemText(0, QtGui.QApplication.translate("Dialog", "1/250", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeP.setItemText(1, QtGui.QApplication.translate("Dialog", "1/500", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeP.setItemText(2, QtGui.QApplication.translate("Dialog", "1/1000", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeP.setItemText(3, QtGui.QApplication.translate("Dialog", "1/2000", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeP.setItemText(4, QtGui.QApplication.translate("Dialog", "1/4000", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeP.setItemText(5, QtGui.QApplication.translate("Dialog", "1/8000", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeP.setItemText(6, QtGui.QApplication.translate("Dialog", "1/16000", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeP.setItemText(7, QtGui.QApplication.translate("Dialog", "1/32000", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeP.setItemText(8, QtGui.QApplication.translate("Dialog", "1/64000", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeP.setItemText(9, QtGui.QApplication.translate("Dialog", "Pulse", None, QtGui.QApplication.UnicodeUTF8))
+        self.opalBox.setTitle(QtGui.QApplication.translate("Dialog", "Opal Camera Settings", None, QtGui.QApplication.UnicodeUTF8))
+        self.cmlabelO.setText(QtGui.QApplication.translate("Dialog", "Camera Mode", None, QtGui.QApplication.UnicodeUTF8))
+        self.cameramodeO.setItemText(0, QtGui.QApplication.translate("Dialog", "Free Run", None, QtGui.QApplication.UnicodeUTF8))
+        self.cameramodeO.setItemText(1, QtGui.QApplication.translate("Dialog", "Normal (Triggered)", None, QtGui.QApplication.UnicodeUTF8))
+        self.gainlabel_4.setText(QtGui.QApplication.translate("Dialog", "Gain (100-3200)", None, QtGui.QApplication.UnicodeUTF8))
+        self.label_10.setText(QtGui.QApplication.translate("Dialog", "Acquisition Time (x 10us)", None, QtGui.QApplication.UnicodeUTF8))
+        self.label_9.setText(QtGui.QApplication.translate("Dialog", "Acquisition Period (x 10us)", None, QtGui.QApplication.UnicodeUTF8))
+        self.up900Box.setTitle(QtGui.QApplication.translate("Dialog", "Uniq UP-900 Camera Settings", None, QtGui.QApplication.UnicodeUTF8))
+        self.gainlabel_5.setText(QtGui.QApplication.translate("Dialog", "Gain (0 - 1023)", None, QtGui.QApplication.UnicodeUTF8))
+        self.label_8.setText(QtGui.QApplication.translate("Dialog", "Acquisition Time (s)", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(0, QtGui.QApplication.translate("Dialog", "1/15", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(1, QtGui.QApplication.translate("Dialog", "1/30", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(2, QtGui.QApplication.translate("Dialog", "1/60", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(3, QtGui.QApplication.translate("Dialog", "1/125", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(4, QtGui.QApplication.translate("Dialog", "1/250", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(5, QtGui.QApplication.translate("Dialog", "1/500", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(6, QtGui.QApplication.translate("Dialog", "1/1000", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(7, QtGui.QApplication.translate("Dialog", "1/2000", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(8, QtGui.QApplication.translate("Dialog", "1/3000", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(9, QtGui.QApplication.translate("Dialog", "1/4000", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(10, QtGui.QApplication.translate("Dialog", "1/5000", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(11, QtGui.QApplication.translate("Dialog", "1/6000", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(12, QtGui.QApplication.translate("Dialog", "1/7500", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(13, QtGui.QApplication.translate("Dialog", "1/10000", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(14, QtGui.QApplication.translate("Dialog", "1/15000", None, QtGui.QApplication.UnicodeUTF8))
+        self.timeU.setItemText(15, QtGui.QApplication.translate("Dialog", "1/31000", None, QtGui.QApplication.UnicodeUTF8))
 
