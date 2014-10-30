@@ -511,7 +511,7 @@ class GraphicUserInterface(QMainWindow):
     self.cameraQualifier = ""
     if cameraPv != None:
       try:
-        idx = self.lCtrlList.index(cameraPv)
+        idx = self.lCameraList.index(cameraPv)
         print "Camera PV %s --> index %d" % (cameraPv, idx)
         cameraIndex = idx
       except:
@@ -520,7 +520,7 @@ class GraphicUserInterface(QMainWindow):
           print "Cannot find camera PV %s!" % cameraPv
         else:
           try:
-            idx = self.lCtrlList.index(m.group(1))
+            idx = self.lCameraList.index(m.group(1))
             print "Camera PV %s --> index %d" % (cameraPv, idx)
             cameraIndex = idx
             self.cameraQualifier = m.group(2)
