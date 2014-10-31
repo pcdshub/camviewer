@@ -146,6 +146,7 @@ class GraphicUserInterface(QMainWindow):
     self.notify          = None
     self.haveNewImage    = False
     self.lastGetDone     = True
+    self.wantNewImage    = True
     self.lensPv          = None
     self.putlensPv       = None
     self.rowPv           = None
@@ -1301,10 +1302,21 @@ class GraphicUserInterface(QMainWindow):
       if self.notify.secs != self.lastimagetime[0] or self.notify.nsec != self.lastimagetime[1]:
         self.lastimagetime = [self.notify.secs, self.notify.nsec]
         self.haveNewImage = True
+        self.wantImage(False)
 
-  # This is called when we want a new image.
-  def wantImage(self):
-    if self.haveNewImage and self.lastGetDone and self.camera != None:
+  # This is called when we might want a new image.
+  #
+  # So when *do* we want a new image?  When:
+  #     - Our timer goes off (we call this routine without a parameter
+  #       and so set wantNewImage True)
+  #     - We have finished processing the previous image (imagePvUpdateCallback
+  #       has set lastGetDone True)
+  #     - We have a new image in the IOC (haveImageCallback has received
+  #       a new image timestamp and has set haveNewImage True).
+  # 
+  def wantImage(self, want=True):
+    self.wantNewImage = want
+    if self.wantNewImage and self.haveNewImage and self.lastGetDone and self.camera != None:
       try:
         self.camera.get()
         pyca.flush_io()
@@ -1321,7 +1333,7 @@ class GraphicUserInterface(QMainWindow):
       currentTime       =  time.time()
       self.dataUpdates  += 1
       self.event.emit(QtCore.SIGNAL("onImageUpdate")) # Send out the signal to notify windows update (in the GUI thread)
-      self.wantImage()
+      self.wantImage(False)
     else:
       print "imagePvUpdateCallback(): %-30s " %(self.name), exception
 
