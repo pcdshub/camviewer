@@ -1866,6 +1866,10 @@ class GraphicUserInterface(QMainWindow):
       self.xtcrdrdialog.hide()
     self.xtcrdr = None
 
+    self.cfgname = self.cameraBase + "," + sType
+    if self.lFlags[index] != "":
+      self.cfgname += "," + self.lFlags[index]
+
     # Set camera type
     print "Setting camtype for %s ..." % ( sType )
     if sType == "GE" or sType == "XTC":
@@ -2695,7 +2699,8 @@ class GraphicUserInterface(QMainWindow):
 
   def dumpConfig(self):
     if self.camera != None:
-      f = open(self.cfgdir + self.cameraBase, "w")
+      print "Dump to %s" % self.cfgname
+      f = open(self.cfgdir + self.cfgname, "w")
       g = open(self.cfgdir + "GLOBAL", "w")
 
       f.write("projsize   " + str(self.projsize) + "\n")
@@ -2744,6 +2749,11 @@ class GraphicUserInterface(QMainWindow):
       f.close()
       g.close()
 
+      settings = QtCore.QSettings("SLAC", "CamViewer");
+      settings.setValue("geometry/%s" % self.cfgname, self.saveGeometry())
+      settings.setValue("windowState/%s" % self.cfgname, self.saveState())
+
+
   def getConfig(self):
     if self.camera == None:
       return
@@ -2765,11 +2775,14 @@ class GraphicUserInterface(QMainWindow):
             pass
 
     # Read the config file
-    if not self.cfg.read(self.cfgdir + self.cameraBase):
-      # Bail if we can't find it
-      self.dumpConfig()
-      self.cfg = None
-      return
+    if not self.cfg.read(self.cfgdir + self.cfgname):
+      print "Couldn't read %s!" % self.cfgname
+      # OK, didn't work, look for an old one.
+      if not self.cfg.read(self.cfgdir + self.cameraBase):
+        # Bail if we can't find it
+        self.dumpConfig()
+        self.cfg = None
+        return
 
     # I think we're going to assume that since we've written this file, it's correct.
     # Do, or do not.  There is no try.
@@ -2895,3 +2908,6 @@ class GraphicUserInterface(QMainWindow):
       self.xtcdir = os.getenv("HOME")
     self.cfg = None
 
+    settings = QtCore.QSettings("SLAC", "CamViewer");
+    self.restoreGeometry(settings.value("%s/geometry" % self.cfgname).toByteArray());
+    self.restoreState(settings.value("%s/windowState" % self.cfgname).toByteArray());
