@@ -2909,5 +2909,5 @@ class GraphicUserInterface(QMainWindow):
     self.cfg = None
 
     settings = QtCore.QSettings("SLAC", "CamViewer");
-    self.restoreGeometry(settings.value("%s/geometry" % self.cfgname).toByteArray());
-    self.restoreState(settings.value("%s/windowState" % self.cfgname).toByteArray());
+    self.restoreGeometry(settings.value("geometry/%s" % self.cfgname).toByteArray());
+    self.restoreState(settings.value("windowState/%s" % self.cfgname).toByteArray());
