@@ -1964,7 +1964,7 @@ class GraphicUserInterface(QMainWindow):
         self.bits = 12              # Sigh.  This is probably more than enough.
       self.isColor = False
     else:
-      if sType == "LIO":
+      if sType == "LIO" or sType == "LI":
         self.scale = 2
       self.rowPv = self.connectPv(self.cameraBase + ":N_OF_ROW")
       self.colPv = self.connectPv(self.cameraBase + ":N_OF_COL")
@@ -2105,6 +2105,8 @@ class GraphicUserInterface(QMainWindow):
       self.connectCamera(sCameraPv + ":LIVE_IMAGE_FULL", index)
     elif sType == "LIO":
       self.connectCamera(sCameraPv + ":LIVE_IMAGE_12B", index)
+    elif sType == "LI":
+      self.connectCamera(sCameraPv + ":LIVE_IMAGE", index)
     elif sType == "IC":
       self.connectCamera(sCameraPv + ":IMAGE_CMPX", index)
     elif sType == "GE":
@@ -2699,7 +2701,6 @@ class GraphicUserInterface(QMainWindow):
 
   def dumpConfig(self):
     if self.camera != None:
-      print "Dump to %s" % self.cfgname
       f = open(self.cfgdir + self.cfgname, "w")
       g = open(self.cfgdir + "GLOBAL", "w")
 
@@ -2776,7 +2777,6 @@ class GraphicUserInterface(QMainWindow):
 
     # Read the config file
     if not self.cfg.read(self.cfgdir + self.cfgname):
-      print "Couldn't read %s!" % self.cfgname
       # OK, didn't work, look for an old one.
       if not self.cfg.read(self.cfgdir + self.cameraBase):
         # Bail if we can't find it
