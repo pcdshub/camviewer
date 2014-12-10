@@ -104,7 +104,7 @@ LOCAL_AVERAGE  = 2
 
 class GraphicUserInterface(QMainWindow):
   def __init__(self, app, cwd, instrument, cameraIndex, cameraPv, useSyntheticData,
-               camerListFilename, cfgdir, activedir, rate, idle):
+               camerListFilename, cfgdir, activedir, rate, idle, options):
     QMainWindow.__init__(self)
     self.app = app
     self.cwd = cwd
@@ -114,6 +114,7 @@ class GraphicUserInterface(QMainWindow):
     self.fixname = False
     self.instrument = instrument
     self.description = "%s:%d" % (os.uname()[1], os.getpid())
+    self.options = options
 
     # View parameters
     self.viewwidth  = 640    # Size of our viewing area.
@@ -429,6 +430,7 @@ class GraphicUserInterface(QMainWindow):
 
     self.connect(self.ui.showconf,   QtCore.SIGNAL("triggered()"), self.doShowConf)
     self.connect(self.ui.showproj,   QtCore.SIGNAL("triggered()"), self.doShowProj)
+    self.connect(self.ui.showmarker,   QtCore.SIGNAL("triggered()"), self.doShowMarker)
     self.connect(self.ui.showexpert, QtCore.SIGNAL("triggered()"), self.onExpertMode)
     self.connect(self.ui.showspecific, QtCore.SIGNAL("triggered()"), self.doShowSpecific)
     self.connect(self.ui.actionGlobalMarkers, QtCore.SIGNAL("triggered()"), self.onGlobMarks)
@@ -604,10 +606,19 @@ class GraphicUserInterface(QMainWindow):
     self.ui.projH.setVisible(v)
     self.ui.projV.setVisible(v)
     self.ui.projectionFrame.setVisible(v)
-#   self.ui.groupBoxMarker.setVisible(v and self.ui.showconf.isChecked())
     if self.cfg == None:
       self.forceMinSize()
       # print "done doShowProj"
+      self.dumpConfig()
+
+  def doShowMarker(self):
+    v = self.ui.showmarker.isChecked()
+    self.doingresize     = True
+    self.ui.groupBoxMarker.setVisible(v)
+    self.ui.RightPanel.invalidate()
+    if self.cfg == None:
+      self.forceMinSize()
+      # print "done doShowMarker"
       self.dumpConfig()
 
   def doShowConf(self):
@@ -616,9 +627,9 @@ class GraphicUserInterface(QMainWindow):
     self.ui.groupBoxAverage.setVisible(v)
     self.ui.groupBoxCamera.setVisible(v)
     self.ui.groupBoxColor.setVisible(v)
-#   self.ui.groupBoxMarker.setVisible(v and self.ui.showproj.isChecked())
     self.ui.groupBoxZoom.setVisible(v)
     self.ui.groupBoxROI.setVisible(v)
+    self.ui.RightPanel.invalidate()
     if self.lType[self.index] == "IC":
       self.ui.groupBoxIOC.setVisible(v)
       self.ui.shiftWidget.setVisible(v and self.shiftPv != None)
@@ -2359,8 +2370,11 @@ class GraphicUserInterface(QMainWindow):
         newwidth = int(self.advdialog.ui.viewWidth.text())
         newheight = int(self.advdialog.ui.viewHeight.text())
         newproj = int(self.advdialog.ui.projSize.text())
-        self.changeSize(newwidth, newheight, newproj, False, True)
         self.setDispSpec(int(self.advdialog.ui.configCheckBox.isChecked()))
+        self.changeSize(newwidth, newheight, newproj, False, False)
+        self.advdialog.ui.viewWidth.setText(str(self.viewwidth))
+        self.advdialog.ui.viewHeight.setText(str(self.viewheight))
+        self.advdialog.ui.projSize.setText(str(self.projsize))
       except:
         print "onAdvanced threw an exception"
     if role == QDialogButtonBox.RejectRole or role == QDialogButtonBox.AcceptRole:
@@ -2697,6 +2711,9 @@ class GraphicUserInterface(QMainWindow):
         self.ui.RightPanel.addWidget(self.specificdialog.ui.opalBox)
         self.ui.RightPanel.addItem(spc)
         self.specificdialog.ui.verticalLayout.removeWidget(self.specificdialog.ui.buttonBox)
+      self.ui.RightPanel.invalidate()
+      self.adjustSize()
+      self.update()
       self.dispspec = v
 
   def dumpConfig(self):
@@ -2709,6 +2726,7 @@ class GraphicUserInterface(QMainWindow):
       f.write("viewheight " + str(self.viewheight) + "\n")
       g.write("config     " + str(int(self.ui.showconf.isChecked())) + "\n")
       g.write("projection " + str(int(self.ui.showproj.isChecked())) + "\n")
+      g.write("markers    " + str(int(self.ui.showmarker.isChecked())) + "\n")
       f.write("lportrait  " + str(int(self.isportrait)) + "\n")
       g.write("portrait   " + str(int(self.isportrait)) + "\n")
       f.write("autorange  " + str(int(self.ui.checkBoxProjAutoRange.isChecked())) + "\n")
@@ -2762,8 +2780,20 @@ class GraphicUserInterface(QMainWindow):
     if not self.cfg.read(self.cfgdir + "GLOBAL"):
       self.cfg.add("config", "1")
       self.cfg.add("projection", "1")
+      self.cfg.add("markers", "1")
       self.cfg.add("portrait", "1")
       self.cfg.add("dispspec", "0")
+    if self.options != None:
+      # Let the command line options override the config file!
+      if self.options.config != None:
+        self.cfg.add("config", self.options.config)
+      if self.options.proj != None:
+        self.cfg.add("projection", self.options.proj)
+      if self.options.marker != None:
+        self.cfg.add("markers", self.options.marker)
+      if self.options.camcfg != None:
+        self.cfg.add("dispspec", self.options.camcfg)
+      self.options = None
     if not self.fixname:
       # OK, old school!  Get rid of all of the final ":.*" from each camera!
       self.fixname = True
@@ -2792,12 +2822,17 @@ class GraphicUserInterface(QMainWindow):
     self.advdialog.ui.viewWidth.setText(newwidth)
     self.advdialog.ui.viewHeight.setText(newheight)
     self.advdialog.ui.projSize.setText(newproj)
-    self.changeSize(int(newwidth), int(newheight), int(newproj), True, False)
     self.ui.showconf.setChecked(int(self.cfg.config))
     self.doShowConf()
     self.ui.showproj.setChecked(int(self.cfg.projection))
     self.doShowProj()
     # These are new fields, so they might not be in old configs!
+    try:
+      mk = int(self.cfg.markers)
+    except:
+      mk = 1
+    self.ui.showmarker.setChecked(mk)
+    self.doShowMarker()
     try:
       dc = int(self.cfg.dispspec)
     except:
@@ -2897,6 +2932,7 @@ class GraphicUserInterface(QMainWindow):
     self.onVmarkerTextEnter(2)
     self.ui.textVmarker4.setText(self.cfg.pv4)
     self.onVmarkerTextEnter(3)
+    self.changeSize(int(newwidth), int(newheight), int(newproj), False, False)
     # Now, we do forceMin!!
     if int(orientation):
       self.portrait(True, True)

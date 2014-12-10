@@ -2910,6 +2910,7 @@ ProjVmin\</string>
     </property>
     <addaction name="showconf"/>
     <addaction name="showproj"/>
+    <addaction name="showmarker"/>
     <addaction name="showexpert"/>
     <addaction name="showspecific"/>
    </widget>
@@ -3259,6 +3260,17 @@ ProjVmin\</string>
   <action name="actionForce">
    <property name="text">
     <string>Force Disconnects</string>
+   </property>
+  </action>
+  <action name="showmarker">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Markers</string>
    </property>
   </action>
  </widget>

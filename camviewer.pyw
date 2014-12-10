@@ -16,7 +16,8 @@ if __name__ == '__main__':
 
   # Options( [mandatory list, optional list, switches list] )
   options = Options(['instrument'],
-                    ['camera', 'camerapv', 'pvlist', 'cfgdir', 'activedir', 'rate', 'idle'],
+                    ['camera', 'camerapv', 'pvlist', 'cfgdir', 'activedir', 'rate', 'idle',
+                     'config', 'proj', 'marker', 'camcfg'],
                     ['syn'])
   try:
     options.parse()
@@ -59,7 +60,7 @@ if __name__ == '__main__':
   app = QApplication([''])
   gui = GraphicUserInterface(app, cwd, options.instrument, camera, options.camerapv,
                              useSyntheticData, camerListFilename, cfgdir, activedir,
-                             rate, options.idle)
+                             rate, options.idle, options)
   try:
 #    sys.setcheckinterval(1000) # default is 100
     gui.show()

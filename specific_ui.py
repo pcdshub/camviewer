@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'specific.ui'
 #
-# Created: Mon Apr 28 12:15:26 2014
+# Created: Wed Dec 10 12:12:22 2014
 #      by: PyQt4 UI code generator 4.9.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -17,10 +17,17 @@ except AttributeError:
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
         Dialog.setObjectName(_fromUtf8("Dialog"))
-        Dialog.resize(354, 633)
+        Dialog.resize(318, 633)
         self.verticalLayout = QtGui.QVBoxLayout(Dialog)
         self.verticalLayout.setObjectName(_fromUtf8("verticalLayout"))
         self.gigeBox = QtGui.QGroupBox(Dialog)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.gigeBox.sizePolicy().hasHeightForWidth())
+        self.gigeBox.setSizePolicy(sizePolicy)
+        self.gigeBox.setMinimumSize(QtCore.QSize(300, 0))
+        self.gigeBox.setMaximumSize(QtCore.QSize(300, 16777215))
         self.gigeBox.setObjectName(_fromUtf8("gigeBox"))
         self.gridLayout = QtGui.QGridLayout(self.gigeBox)
         self.gridLayout.setObjectName(_fromUtf8("gridLayout"))
@@ -57,6 +64,13 @@ class Ui_Dialog(object):
         self.gridLayout.addWidget(self.periodG, 3, 2, 1, 1)
         self.verticalLayout.addWidget(self.gigeBox)
         self.pulnixBox = QtGui.QGroupBox(Dialog)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(30)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.pulnixBox.sizePolicy().hasHeightForWidth())
+        self.pulnixBox.setSizePolicy(sizePolicy)
+        self.pulnixBox.setMinimumSize(QtCore.QSize(300, 0))
+        self.pulnixBox.setMaximumSize(QtCore.QSize(300, 16777215))
         self.pulnixBox.setObjectName(_fromUtf8("pulnixBox"))
         self.gridLayout_2 = QtGui.QGridLayout(self.pulnixBox)
         self.gridLayout_2.setObjectName(_fromUtf8("gridLayout_2"))
@@ -99,6 +113,13 @@ class Ui_Dialog(object):
         self.gridLayout_2.addWidget(self.timeP, 3, 2, 1, 1)
         self.verticalLayout.addWidget(self.pulnixBox)
         self.opalBox = QtGui.QGroupBox(Dialog)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.opalBox.sizePolicy().hasHeightForWidth())
+        self.opalBox.setSizePolicy(sizePolicy)
+        self.opalBox.setMinimumSize(QtCore.QSize(300, 0))
+        self.opalBox.setMaximumSize(QtCore.QSize(300, 16777215))
         self.opalBox.setObjectName(_fromUtf8("opalBox"))
         self.gridLayout_3 = QtGui.QGridLayout(self.opalBox)
         self.gridLayout_3.setObjectName(_fromUtf8("gridLayout_3"))
@@ -130,6 +151,13 @@ class Ui_Dialog(object):
         self.gridLayout_3.addWidget(self.periodO, 3, 3, 1, 1)
         self.verticalLayout.addWidget(self.opalBox)
         self.up900Box = QtGui.QGroupBox(Dialog)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.up900Box.sizePolicy().hasHeightForWidth())
+        self.up900Box.setSizePolicy(sizePolicy)
+        self.up900Box.setMinimumSize(QtCore.QSize(300, 0))
+        self.up900Box.setMaximumSize(QtCore.QSize(300, 16777215))
         self.up900Box.setObjectName(_fromUtf8("up900Box"))
         self.gridLayout_4 = QtGui.QGridLayout(self.up900Box)
         self.gridLayout_4.setObjectName(_fromUtf8("gridLayout_4"))
