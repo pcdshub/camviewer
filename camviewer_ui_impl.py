@@ -474,6 +474,9 @@ class GraphicUserInterface(QMainWindow):
     self.connect(self.specificdialog.ui.cameramodeO, QtCore.SIGNAL("currentIndexChanged(int)"),
                  lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeO, n))
 
+    self.connect(self.specificdialog.ui.runButtonG, QtCore.SIGNAL("clicked()"),
+                 lambda : self.buttonWriteCallback(self.specificdialog.ui.runButtonG))
+
     self.connect(self.ui.IOC_RoiX,    QtCore.SIGNAL("returnPressed()"), self.onIOCROIX)
     self.connect(self.ui.IOC_RoiY,    QtCore.SIGNAL("returnPressed()"), self.onIOCROIY)
     self.connect(self.ui.IOC_RoiW,    QtCore.SIGNAL("returnPressed()"), self.onIOCROIW)
@@ -2291,6 +2294,26 @@ class GraphicUserInterface(QMainWindow):
     except:
       pass
 
+  def setupButtonMonitor(self, pvname, button, writepvname):
+    self.setupGUIMonitor(pvname, button, self.buttonMonitorCallback, writepvname)
+
+  def buttonMonitorCallback(self, exception, pv, button):
+    if exception is None:
+      if pv.value == 1:
+        button.setChecked(True)
+        button.setText("Running")
+      else:
+        button.setChecked(False)
+        button.setText("Stopped")
+
+  def buttonWriteCallback(self, button):
+    if button.isChecked():
+      button.setText("Running")
+      caput(button.writepvname, 1)
+    else:
+      button.setText("Stopped")
+      caput(button.writepvname, 0)
+
   def setupSpecific(self):
     self.specificdialog.ui.gigeBox.hide()
     self.specificdialog.ui.opalBox.hide()
@@ -2330,6 +2353,7 @@ class GraphicUserInterface(QMainWindow):
       self.setupLineEditMonitor(":Gain_RBV",          self.specificdialog.ui.gainG,       ":Gain")
       self.setupLineEditMonitor(":AcquireTime_RBV",   self.specificdialog.ui.timeG,       ":AcquireTime")
       self.setupLineEditMonitor(":AcquirePeriod_RBV", self.specificdialog.ui.periodG,     ":AcquirePeriod")
+      self.setupButtonMonitor  (":Acquire",           self.specificdialog.ui.runButtonG,  ":Acquire")
       return
 
   def changeSize(self, newwidth, newheight, newproj, settext, setmin):
@@ -2717,7 +2741,7 @@ class GraphicUserInterface(QMainWindow):
       self.dispspec = v
 
   def dumpConfig(self):
-    if self.camera != None:
+    if self.camera != None and self.options == None:
       f = open(self.cfgdir + self.cfgname, "w")
       g = open(self.cfgdir + "GLOBAL", "w")
 

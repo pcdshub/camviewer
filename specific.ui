@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>318</width>
-    <height>633</height>
+    <height>665</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -113,6 +113,16 @@
       </item>
       <item row="3" column="2">
        <widget class="QLineEdit" name="periodG"/>
+      </item>
+      <item row="4" column="0" colspan="2">
+       <widget class="QPushButton" name="runButtonG">
+        <property name="text">
+         <string>Done</string>
+        </property>
+        <property name="checkable">
+         <bool>true</bool>
+        </property>
+       </widget>
       </item>
      </layout>
     </widget>

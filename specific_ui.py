@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'specific.ui'
 #
-# Created: Wed Dec 10 12:12:22 2014
+# Created: Wed Dec 10 14:32:39 2014
 #      by: PyQt4 UI code generator 4.9.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -17,7 +17,7 @@ except AttributeError:
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
         Dialog.setObjectName(_fromUtf8("Dialog"))
-        Dialog.resize(318, 633)
+        Dialog.resize(318, 665)
         self.verticalLayout = QtGui.QVBoxLayout(Dialog)
         self.verticalLayout.setObjectName(_fromUtf8("verticalLayout"))
         self.gigeBox = QtGui.QGroupBox(Dialog)
@@ -62,6 +62,10 @@ class Ui_Dialog(object):
         self.periodG = QtGui.QLineEdit(self.gigeBox)
         self.periodG.setObjectName(_fromUtf8("periodG"))
         self.gridLayout.addWidget(self.periodG, 3, 2, 1, 1)
+        self.runButtonG = QtGui.QPushButton(self.gigeBox)
+        self.runButtonG.setCheckable(True)
+        self.runButtonG.setObjectName(_fromUtf8("runButtonG"))
+        self.gridLayout.addWidget(self.runButtonG, 4, 0, 1, 2)
         self.verticalLayout.addWidget(self.gigeBox)
         self.pulnixBox = QtGui.QGroupBox(Dialog)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Preferred)
@@ -215,6 +219,7 @@ class Ui_Dialog(object):
         self.gainlabel.setText(QtGui.QApplication.translate("Dialog", "Gain", None, QtGui.QApplication.UnicodeUTF8))
         self.label_5.setText(QtGui.QApplication.translate("Dialog", "Acquisition Time (s)", None, QtGui.QApplication.UnicodeUTF8))
         self.label_6.setText(QtGui.QApplication.translate("Dialog", "Acquisition Period (s)", None, QtGui.QApplication.UnicodeUTF8))
+        self.runButtonG.setText(QtGui.QApplication.translate("Dialog", "Done", None, QtGui.QApplication.UnicodeUTF8))
         self.pulnixBox.setTitle(QtGui.QApplication.translate("Dialog", "Pulnix Camera Settings", None, QtGui.QApplication.UnicodeUTF8))
         self.cmlabelP.setText(QtGui.QApplication.translate("Dialog", "Camera Mode", None, QtGui.QApplication.UnicodeUTF8))
         self.cameramodeP.setItemText(0, QtGui.QApplication.translate("Dialog", "Async (Triggered)", None, QtGui.QApplication.UnicodeUTF8))
