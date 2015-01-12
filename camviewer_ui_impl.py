@@ -2969,5 +2969,7 @@ class GraphicUserInterface(QMainWindow):
     self.cfg = None
 
     settings = QtCore.QSettings("SLAC", "CamViewer");
+    pos = self.pos()
     self.restoreGeometry(settings.value("geometry/%s" % self.cfgname).toByteArray());
+    self.move(pos)   # Just restore the size, keep the position!
     self.restoreState(settings.value("windowState/%s" % self.cfgname).toByteArray());
