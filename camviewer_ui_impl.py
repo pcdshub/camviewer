@@ -1391,7 +1391,7 @@ class GraphicUserInterface(QMainWindow):
         self.ui.checkBoxProjLine1.isChecked(), self.ui.checkBoxProjLine2.isChecked(), 
         self.ui.checkBoxProjLine3.isChecked(), self.ui.checkBoxProjLine4.isChecked(), 
         self.ui.checkBoxProjRoi.isChecked(), self.ui.checkBoxProjAutoRange.isChecked(), self.iRangeMin, self.iRangeMax, 
-        self.ui.display_image.rectRoi, self.ui.display_image.rectZoom, self.imageProjX, self.imageProjY )
+        self.ui.display_image.rectRoi, self.ui.display_image.arectZoom, self.imageProjX, self.imageProjY )
       self.ui.projH.update()
       self.ui.projV.update()
             
@@ -1749,7 +1749,8 @@ class GraphicUserInterface(QMainWindow):
     self.updateMarkerText(True, True, 0, 1 << n)
     self.updateMarkerValue()
     self.updateall()
-    if self.cfg == None: self.dumpConfig()
+    if self.cfg == None:
+      self.dumpConfig()
 
   def updateCross3and4(self):
     try:
@@ -2838,6 +2839,13 @@ class GraphicUserInterface(QMainWindow):
         self.cfg = None
         return
 
+    # Set the window size
+    settings = QtCore.QSettings("SLAC", "CamViewer");
+    pos = self.pos()
+    self.restoreGeometry(settings.value("geometry/%s" % self.cfgname).toByteArray());
+    self.move(pos)   # Just restore the size, keep the position!
+    self.restoreState(settings.value("windowState/%s" % self.cfgname).toByteArray());
+
     # I think we're going to assume that since we've written this file, it's correct.
     # Do, or do not.  There is no try.
     newwidth = self.cfg.viewwidth
@@ -2956,20 +2964,9 @@ class GraphicUserInterface(QMainWindow):
     self.onVmarkerTextEnter(2)
     self.ui.textVmarker4.setText(self.cfg.pv4)
     self.onVmarkerTextEnter(3)
-    self.changeSize(int(newwidth), int(newheight), int(newproj), False, False)
-    # Now, we do forceMin!!
-    if int(orientation):
-      self.portrait(True, True)
-    else:
-      self.landscape(True, True)
+    self.changeSize(int(newwidth), int(newheight), int(newproj), False, False) 
     try:
       self.xtcdir = self.cfg.xtcdir
     except:
       self.xtcdir = os.getenv("HOME")
     self.cfg = None
-
-    settings = QtCore.QSettings("SLAC", "CamViewer");
-    pos = self.pos()
-    self.restoreGeometry(settings.value("geometry/%s" % self.cfgname).toByteArray());
-    self.move(pos)   # Just restore the size, keep the position!
-    self.restoreState(settings.value("windowState/%s" % self.cfgname).toByteArray());
