@@ -53,13 +53,33 @@ void pydspl_setup_color_map(const char* colormap, int iLimitLow, int iLimitHigh,
   const float  fLimitRange = (float) iLimitRange;
   for (; i<iLimitHigh; ++i) {
     int iIndex;
-    if ( iScaleIndex == 0 )
-      iIndex = (i - iLimitLow) * (MAX_INDEX_PLUS1-1) / iLimitRange;
-    else if ( iScaleIndex == 1 )
-      iIndex = (int) ( log2( 1 + (i - iLimitLow) / fLimitRange) * (MAX_INDEX_PLUS1-1) + 0.5);
-    else
-      iIndex = (int) ( (exp2( (i - iLimitLow) / fLimitRange) -1 ) * (MAX_INDEX_PLUS1-1) + 0.5);
-      
+    /*
+     * This switch needs to match the order in comboBoxScale in camviewer.ui!
+     */
+    switch (iScaleIndex) {
+    case 1: /* Log2 */
+        iIndex = (int) ( log2( 1 + (i - iLimitLow) / fLimitRange) * (MAX_INDEX_PLUS1-1) + 0.5);
+        break;
+    case 2: /* LogE */
+        iIndex = (int) ( log( 1 + (M_E - 1) * (i - iLimitLow) / fLimitRange) * (MAX_INDEX_PLUS1-1) + 0.5);
+        break;
+    case 3: /* Log10 */
+        iIndex = (int) ( log10( 1 + (10. - 1) * (i - iLimitLow) / fLimitRange) * (MAX_INDEX_PLUS1-1) + 0.5);
+        break;
+    case 4: /* Exp2 */
+        iIndex = (int) ( (exp2( (i - iLimitLow) / fLimitRange) - 1 ) * (MAX_INDEX_PLUS1-1) + 0.5);
+        break;
+    case 5: /* ExpE */
+        iIndex = (int) ( (exp( (i - iLimitLow) / fLimitRange) - 1 )/(M_E - 1) * (MAX_INDEX_PLUS1-1) + 0.5);
+        break;
+    case 6: /* Exp10 */
+        iIndex = (int) ( (exp10( (i - iLimitLow) / fLimitRange) - 1 )/(10. - 1) * (MAX_INDEX_PLUS1-1) + 0.5);
+        break;
+    case 0: /* Linear */
+    default:
+        iIndex = (i - iLimitLow) * (MAX_INDEX_PLUS1-1) / iLimitRange;
+        break;
+    }
     uint32_t colorVal  = gTempColorMap[iIndex];
     gColorMap[i] = colorVal;
   }

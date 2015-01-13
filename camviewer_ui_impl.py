@@ -2892,6 +2892,12 @@ class GraphicUserInterface(QMainWindow):
     self.updateall()
     self.ui.comboBoxColor.setCurrentIndex(self.ui.comboBoxColor.findText(self.cfg.colormap))
     self.colorMap = self.cfg.colormap.lower()
+    # OK, we're changing this to introduce more scales!  So,
+    # "Log Scale" --> "Log2 Scale" and "Exp Scale" --> "Exp2 Scale"
+    if self.cfg.colorscale[0] == "Log":
+      self.cfg.colorscale[0] = "Log2"
+    elif self.cfg.colorscale[0] == "Exp":
+      self.cfg.colorscale[0] = "Exp2"
     self.iScaleIndex = self.ui.comboBoxScale.findText(self.cfg.colorscale[0] + " " +
                                                       self.cfg.colorscale[1])
     self.ui.comboBoxScale.setCurrentIndex(self.iScaleIndex)

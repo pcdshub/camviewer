@@ -1184,12 +1184,32 @@ ProjVmin\</string>
            </item>
            <item>
             <property name="text">
-             <string>Log Scale</string>
+             <string>Log2 Scale</string>
             </property>
            </item>
            <item>
             <property name="text">
-             <string>Exp Scale</string>
+             <string>Loge Scale</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Log10 Scale</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Exp2 Scale</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Expe Scale</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Exp10 Scale</string>
             </property>
            </item>
           </widget>
