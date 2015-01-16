@@ -357,8 +357,8 @@ class DisplayImage(QWidget):
       posx = event.x()
       posy = event.y()
       
-    shiftRatioX = ( posx - self.rectImage.x() ) / self.arectImage.width()
-    shiftRatioY = ( posy - self.rectImage.y() ) / self.arectImage.height()
+    shiftRatioX = ( posx - self.rectImage.x() ) / self.rectImage.width()
+    shiftRatioY = ( posy - self.rectImage.y() ) / self.rectImage.height()
     imgx        = shiftRatioX * self.arectZoom.width () + self.arectZoom.x()
     imgy        = shiftRatioY * self.arectZoom.height() + self.arectZoom.y()
     

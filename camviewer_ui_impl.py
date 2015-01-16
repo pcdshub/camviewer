@@ -116,6 +116,14 @@ class GraphicUserInterface(QMainWindow):
     self.description = "%s:%d" % (os.uname()[1], os.getpid())
     self.options = options
 
+    if self.options.pos != None:
+      try:
+        p = self.options.pos.split(',')
+        p = QPoint(int(p[0]), int(p[1]))
+        self.move(p)
+      except:
+        pass
+
     # View parameters
     self.viewwidth  = 640    # Size of our viewing area.
     self.viewheight = 640    # Size of our viewing area.

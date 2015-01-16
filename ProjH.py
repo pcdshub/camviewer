@@ -32,7 +32,7 @@ class ProjH(QWidget):
       return
             
     painter = QPainter(self)        
-    rectZoom  = self.gui.ui.display_image.rectZoom                             # image
+    rectZoom  = self.gui.ui.display_image.arectZoom                             # image
     if self.gui.isportrait:
       painter.translate(self.center)    
       painter.rotate(90)
@@ -54,7 +54,7 @@ class ProjH(QWidget):
       painter.drawImage(rectImage, self.gui.imageProjX, rectProj)   
       
     #draw image marker lines      
-    rectZoom      = self.gui.ui.display_image.rectZoom      
+    rectZoom      = self.gui.ui.display_image.arectZoom      
     rectImage     = self.gui.ui.display_image.rectImage
     fZoomRatio    = self.gui.zoom
     lbProjChecked = [ self.gui.ui.checkBoxProjLine1.isChecked(), self.gui.ui.checkBoxProjLine2.isChecked(),      
@@ -103,7 +103,7 @@ class ProjH(QWidget):
       posy = event.y()
 
     rectImage = self.gui.ui.display_image.rectImage
-    rectZoom  = self.gui.ui.display_image.rectZoom
+    rectZoom  = self.gui.ui.display_image.arectZoom
     imgx = ( posx - rectImage.x() ) * \
         (rectZoom.width() / rectImage.width()) + rectZoom.x()
     imgy = ( posy - rectImage.y() ) * \
@@ -130,7 +130,7 @@ class ProjH(QWidget):
       posy = event.y()
 
     rectImage = self.gui.ui.display_image.rectImage
-    rectZoom  = self.gui.ui.display_image.rectZoom
+    rectZoom  = self.gui.ui.display_image.arectZoom
     imgx = ( posx - rectImage.x() ) * \
         (rectZoom.width() / rectImage.width()) + rectZoom.x()
     imgy = ( posy - rectImage.y() ) * \
