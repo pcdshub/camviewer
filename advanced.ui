@@ -17,7 +17,7 @@
    <item row="0" column="0" colspan="2">
     <widget class="QLabel" name="label">
      <property name="text">
-      <string>Viewing Area Width (&gt; 400 pixels)</string>
+      <string>Viewing Area Width (&gt; 450 pixels)</string>
      </property>
     </widget>
    </item>
@@ -27,7 +27,7 @@
    <item row="1" column="0" colspan="2">
     <widget class="QLabel" name="label_3">
      <property name="text">
-      <string>Viewing Area Height (&gt; 400 pixels)</string>
+      <string>Viewing Area Height (&gt; 450 pixels)</string>
      </property>
     </widget>
    </item>

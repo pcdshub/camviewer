@@ -19,10 +19,21 @@ class ProjV(QWidget):
     self.font   = QFont("Times New Roman", 10, QFont.Bold)
     self.penProjMarker \
                 = QPen(Qt.black, 1, Qt.DotLine, Qt.RoundCap, Qt.RoundJoin)    
+    self.hint = self.size()
+
+  def doResize(self, s=None):
+    if s == None:
+      s = self.size()
+    self.hint = s
+    self.updateGeometry()
+    self.resize(s)
+
+  def resizeEvent(self, ev):
+    self.setImageSize()
 
   def setImageSize(self, reset=True):
-    self.center = QPointF(self.width()/2, self.height()/2)     # screen
-    self.negcenter = QPointF(-self.height()/2, -self.width()/2) # screen
+    self.center = QPointF(self.gui.projsize/2, self.gui.viewheight/2)      # screen
+    self.negcenter = QPointF(-self.gui.viewheight/2, -self.gui.projsize/2) # screen
 
   def paintEvent(self, event):
     if not( 

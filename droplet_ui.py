@@ -2,8 +2,8 @@
 
 # Form implementation generated from reading ui file 'droplet.ui'
 #
-# Created: Wed Jul 24 13:19:32 2013
-#      by: PyQt4 UI code generator 4.7.4
+# Created: Fri Jan 23 14:31:32 2015
+#      by: PyQt4 UI code generator 4.7.2
 #
 # WARNING! All changes made in this file will be lost!
 

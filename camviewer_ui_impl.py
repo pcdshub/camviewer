@@ -9,7 +9,7 @@
 #
 from camviewer_ui import Ui_MainWindow
 from Pv import Pv
-from xtcrdr import xtcrdr
+#from xtcrdr import xtcrdr
 from dialogs import advdialog
 from dialogs import markerdialog
 from dialogs import specificdialog
@@ -108,6 +108,9 @@ class GraphicUserInterface(QMainWindow):
     QMainWindow.__init__(self)
     self.app = app
     self.cwd = cwd
+    self.rcnt = 0
+    self.resizing = False
+    self.startResize()
     self.cfgdir = cfgdir
     self.cfg = None
     self.activedir = activedir
@@ -128,8 +131,8 @@ class GraphicUserInterface(QMainWindow):
     self.viewwidth  = 640    # Size of our viewing area.
     self.viewheight = 640    # Size of our viewing area.
     self.projsize   = 300    # Size of our projection window.
-    self.minwidth   = 400
-    self.minheight  = 400
+    self.minwidth   = 450
+    self.minheight  = 450
     self.minproj    = 250
 
     # Default to VGA!
@@ -177,7 +180,6 @@ class GraphicUserInterface(QMainWindow):
     self.iRangeMax       = 1023
     self.zoom            = 1.0
     self.camactions      = []
-    self.doingresize     = False
     self.lastwidth       = 0
     self.useglobmarks    = False
     self.useglobmarks2   = False
@@ -207,6 +209,9 @@ class GraphicUserInterface(QMainWindow):
 
     self.ui         = Ui_MainWindow()
     self.ui.setupUi(self)
+    self.RPSpacer = QSpacerItem(20, 0, QSizePolicy.Minimum, QSizePolicy.Expanding)
+    self.ui.RightPanel.addItem(self.RPSpacer)
+
     self.ui.xmark = [self.ui.Disp_Xmark1, self.ui.Disp_Xmark2, self.ui.Disp_Xmark3, self.ui.Disp_Xmark4]
     self.ui.ymark = [self.ui.Disp_Ymark1, self.ui.Disp_Ymark2, self.ui.Disp_Ymark3, self.ui.Disp_Ymark4]
     self.ui.pBM   = [self.ui.pushButtonMarker1, self.ui.pushButtonMarker2,
@@ -264,7 +269,6 @@ class GraphicUserInterface(QMainWindow):
     self.ui.menuBar.removeAction(self.ui.menuPopup.menuAction())
     
     # Turn off the stuff we don't care about!
-    self.doingresize     = True
     self.ui.labelLens.setVisible(False)
     self.ui.horizontalSliderLens.setVisible(False)
     self.ui.lineEditLens.setVisible(False)
@@ -275,7 +279,6 @@ class GraphicUserInterface(QMainWindow):
     self.ui.groupBoxDrop.setVisible(False)
 
     # Resize the main window!
-    self.ui.display_image.forceResize(QSize(self.viewwidth, self.viewheight))
     self.ui.display_image.setImageSize(False)
     
     if self.isportrait:
@@ -298,10 +301,12 @@ class GraphicUserInterface(QMainWindow):
     self.updateMarkerText(True, True, 0, 15)
 
     sizeProjX       = QSize(self.viewwidth, self.projsize)
-    self.ui.projH.resize(sizeProjX)
+    self.ui.projH.doResize(sizeProjX)
 
     sizeProjY       = QSize(self.projsize, self.viewheight)
-    self.ui.projV.resize(sizeProjY)
+    self.ui.projV.doResize(sizeProjY)
+
+    self.ui.display_image.doResize(QSize(self.viewwidth, self.viewheight))
 
     sizeProjX       = QSize(self.maxd, self.projsize)
     self.imageProjX = QImage(sizeProjX, QImage.Format_RGB32) # image
@@ -398,7 +403,7 @@ class GraphicUserInterface(QMainWindow):
                    functools.partial(self.onVmarkerSet, i))
 
       self.connect(self.ui.tHM[i], QtCore.SIGNAL("returnPressed()"),
-                   functools.partial(self.onVmarkerTextEnter, i))
+                   functools.partial(self.onHmarkerTextEnter, i))
       self.connect(self.ui.tVM[i], QtCore.SIGNAL("returnPressed()"),
                    functools.partial(self.onVmarkerTextEnter, i))
     
@@ -547,6 +552,7 @@ class GraphicUserInterface(QMainWindow):
         cameraIndex = 0
       self.ui.comboBoxCamera.setCurrentIndex(int(cameraIndex))
     except: pass
+    self.finishResize()
 
   def closeEvent(self, event):
     if (self.cameraBase != ""):
@@ -561,17 +567,78 @@ class GraphicUserInterface(QMainWindow):
     self.xtcrdrdialog.close()
     QMainWindow.closeEvent(self, event)
 
-# def resizeEvent(self, ev):
-#   print "main resize (%d, %d)" % (ev.size().width(), ev.size().height())
+#
+# OK, what is going on here?
+#
+# When we want to do something that could cause a resize, we:
+#     - Call startResize(), which sets the size contraint to fixed and resizing to True.
+#     - Do the resize/hide/show/whatever.  The DisplayImage has its sizeHint() set to our view size.
+#     - Call finishResize().  If we are totally done with any enclosed operation, we call adjustSize()
+#       to force the window to recalculate/relayout.
+#
+# When the resize actually happens, we get a resize event, but this seems to be before most things
+# have settled down.  So we do a singleShot(0) timer to get a callback when everything is done.
+#
+#
+#
 
-  def forceMinSize(self):
-    #print "forceMinSize"
-    self.ui.display_image.forceResize(QSize(self.viewwidth, self.viewheight))
-    self.doingresize     = False
-    #self.resize(1,1)
-    self.adjustSize()
-    self.update()
-    #print "forceMinSize done"
+  def startResize(self):
+    if self.rcnt == 0:
+      self.layout().setSizeConstraint(QLayout.SetFixedSize)
+      self.resizing = True
+    self.rcnt += 1
+
+  def finishResize(self):
+    self.rcnt -= 1
+    if self.rcnt == 0:
+      self.adjustSize()
+
+  def resizeEvent(self, ev):
+    QtCore.QTimer.singleShot(0, self.completeResize)
+
+  def completeResize(self):
+    self.layout().setSizeConstraint(QLayout.SetDefaultConstraint)
+    self.setMaximumSize(QtCore.QSize(16777215, 16777215))
+    di = self.ui.display_image
+    dis = di.size()
+    if dis != di.hint:
+      if not self.resizing:
+        # We must really be resizing the window!
+        self.changeSize(dis.width(), dis.height(), self.projsize, True, False)
+        self.ui.display_image.hint = dis
+        return
+      else:
+        # See if we are limited by the right panel height or info width?
+        rps = self.ui.RightPanel.geometry()
+        info  = self.ui.info.geometry()
+        lph = info.height() + self.viewheight
+        if self.ui.showproj.isChecked():
+          lph += self.ui.projH.geometry().height()
+        spc = self.RPSpacer.geometry().height()
+        hlim = rps.height() - spc
+        if rps.width() > 0 and lph < hlim:
+          # Yeah, the right panel is keeping us from shrinking the window.
+          hlim -= info.height()
+          self.startResize()
+          self.changeSize(self.viewwidth, hlim, self.projsize, True)
+          self.finishResize()
+        elif abs(self.viewheight - dis.height()) <= 3:
+          # We're just off by a little bit!  Nudge the window into place!
+          newsize = QSize(self.width(), self.height() - (dis.height() - self.viewheight))
+          QtCore.QTimer.singleShot(0, lambda: self.resize(newsize))
+        else:
+          # We're just wrong.  Who knows why?  Just retry.
+          QtCore.QTimer.singleShot(0, self.delayedRetry)
+    else:
+      # We're good!
+      self.resizing = False 
+
+  def delayedRetry(self):
+    # Try the resize again...
+    self.startResize()
+    self.layout().invalidate()
+    self.ui.display_image.updateGeometry()
+    self.finishResize()
 
   def setImageSize(self, newx, newy, reset=True):
     if (newx == 0 or newy == 0):
@@ -613,28 +680,28 @@ class GraphicUserInterface(QMainWindow):
 
   def doShowProj(self):
     v = self.ui.showproj.isChecked()
-    self.doingresize     = True
+    self.startResize()
     self.ui.projH.setVisible(v)
     self.ui.projV.setVisible(v)
     self.ui.projectionFrame.setVisible(v)
+    self.finishResize()
     if self.cfg == None:
-      self.forceMinSize()
       # print "done doShowProj"
       self.dumpConfig()
 
   def doShowMarker(self):
     v = self.ui.showmarker.isChecked()
-    self.doingresize     = True
+    self.startResize()
     self.ui.groupBoxMarker.setVisible(v)
     self.ui.RightPanel.invalidate()
+    self.finishResize()
     if self.cfg == None:
-      self.forceMinSize()
       # print "done doShowMarker"
       self.dumpConfig()
 
   def doShowConf(self):
     v = self.ui.showconf.isChecked()
-    self.doingresize     = True
+    self.startResize()
     self.ui.groupBoxAverage.setVisible(v)
     self.ui.groupBoxCamera.setVisible(v)
     self.ui.groupBoxColor.setVisible(v)
@@ -646,8 +713,8 @@ class GraphicUserInterface(QMainWindow):
       self.ui.shiftWidget.setVisible(v and self.shiftPv != None)
     else:
       self.ui.groupBoxIOC.setVisible(False)
+    self.finishResize()
     if self.cfg == None:
-      self.forceMinSize()
       # print "done doShowConf"
       self.dumpConfig()
 
@@ -922,15 +989,7 @@ class GraphicUserInterface(QMainWindow):
     # Sigh.  This is the longest label... if it is too long, the window will resize.
     # This would be bad, because the display_image minimum size is small... so we
     # need to protect it a bit until things stabilize.
-    self.ui.display_image.setProtect(True)
     self.ui.labelMarkerInfo.setText(sMarkerInfoText)
-    QTimer.singleShot(0, self.finish_label_resize)
-
-  #
-  # And now, things have stabilized.
-  #
-  def finish_label_resize(self):
-    self.ui.display_image.setProtect(False)
 
   def updateall(self):
     self.updateProj()
@@ -1258,11 +1317,11 @@ class GraphicUserInterface(QMainWindow):
       else:
         print "Elog Post Failed"
   
-  def landscape(self, reorient=True, setmin=True):
+  def landscape(self, reorient=True):
     if self.isportrait:
       self.isportrait = False
       if reorient and (self.viewwidth != self.viewheight):
-        self.changeSize(self.viewheight, self.viewwidth, self.projsize, True, setmin)
+        self.changeSize(self.viewheight, self.viewwidth, self.projsize, True)
     self.ui.portrait.setChecked(False)
     self.ui.landscape.setChecked(True)
     self.updateMarkerText(True, True, 0, 15)
@@ -1272,11 +1331,11 @@ class GraphicUserInterface(QMainWindow):
     self.updateall()
     if self.cfg == None: self.dumpConfig()
 
-  def portrait(self, reorient=True, setmin=True):
+  def portrait(self, reorient=True):
     if not self.isportrait:
       self.isportrait = True
       if reorient and (self.viewwidth != self.viewheight):
-        self.changeSize(self.viewheight, self.viewwidth, self.projsize, True, setmin)
+        self.changeSize(self.viewheight, self.viewwidth, self.projsize, True)
     self.ui.portrait.setChecked(True)
     self.ui.landscape.setChecked(False)
     self.updateMarkerText(True, True, 0, 15)
@@ -1395,11 +1454,13 @@ class GraphicUserInterface(QMainWindow):
     try:
       (roiMean, roiVar, projXmin, projXmax, projYmin, projYmax) = \
         pycaqtimage.pyUpdateProj( self.imageBuffer, self.isportrait, self.iScaleIndex,
-        self.ui.display_image.lMarker[0], self.ui.display_image.lMarker[1], self.ui.display_image.lMarker[2],  self.ui.display_image.lMarker[3],
+        self.ui.display_image.lMarker[0], self.ui.display_image.lMarker[1],
+        self.ui.display_image.lMarker[2], self.ui.display_image.lMarker[3],
         self.ui.checkBoxProjLine1.isChecked(), self.ui.checkBoxProjLine2.isChecked(), 
         self.ui.checkBoxProjLine3.isChecked(), self.ui.checkBoxProjLine4.isChecked(), 
-        self.ui.checkBoxProjRoi.isChecked(), self.ui.checkBoxProjAutoRange.isChecked(), self.iRangeMin, self.iRangeMax, 
-        self.ui.display_image.rectRoi, self.ui.display_image.arectZoom, self.imageProjX, self.imageProjY )
+        self.ui.checkBoxProjRoi.isChecked(), self.ui.checkBoxProjAutoRange.isChecked(),
+        self.iRangeMin, self.iRangeMax, self.ui.display_image.rectRoi,
+        self.ui.display_image.arectZoom, self.imageProjX, self.imageProjY )
       self.ui.projH.update()
       self.ui.projV.update()
             
@@ -2104,6 +2165,7 @@ class GraphicUserInterface(QMainWindow):
     self.index = index
     self.cameraBase = sCameraPv
 
+    self.startResize()
     self.activeSet()
     self.timeoutdialog.newconn()
 
@@ -2114,8 +2176,6 @@ class GraphicUserInterface(QMainWindow):
     sLensPv = self.lLensList[index]
     sEvrPv  = self.lEvrList [index]
     sType   = self.lType[index]
-
-    self.doingresize     = True
 
     #
     # Look at self.cameraQualifier to choose which image to connect
@@ -2209,7 +2269,7 @@ class GraphicUserInterface(QMainWindow):
                              "Error", "Failed to connect to Lens [%d] %s" % (index, sLensPv),
                              QMessageBox.Ok, QMessageBox.Ok)
     self.setupSpecific()
-    self.forceMinSize()
+    self.finishResize()
 
   def onExpertMode(self):
     if self.ui.showexpert.isChecked():
@@ -2365,7 +2425,7 @@ class GraphicUserInterface(QMainWindow):
       self.setupButtonMonitor  (":Acquire",           self.specificdialog.ui.runButtonG,  ":Acquire")
       return
 
-  def changeSize(self, newwidth, newheight, newproj, settext, setmin):
+  def changeSize(self, newwidth, newheight, newproj, settext, doresize=True):
     # print "changeSize(%d, %d, %d)" % (newwidth, newheight, newproj)
     if( self.colPv == None or self.colPv == 0 or
         self.rowPv == None or self.rowPv == 0 ):
@@ -2381,19 +2441,19 @@ class GraphicUserInterface(QMainWindow):
         self.advdialog.ui.viewWidth.setText(str(self.viewwidth))
         self.advdialog.ui.viewHeight.setText(str(self.viewheight))
         self.advdialog.ui.projSize.setText(str(self.projsize))
-      size = QSize(self.viewwidth, self.viewheight)
-      self.ui.display_image.forceResize(size)
-      sizeProjX = QSize(self.viewwidth, self.projsize)
-      self.ui.projH.resize(sizeProjX)
-      sizeProjY = QSize(self.projsize, self.viewheight)
-      self.ui.projV.resize(sizeProjY)
-      self.ui.projectionFrame.setFixedSize(QSize(self.projsize, self.projsize))
-      self.ui.projectionFrame_left.setFixedWidth(self.projsize)
-      self.ui.projectionFrame_right.setFixedHeight(self.projsize)
+      if doresize:
+        self.startResize()
+        self.ui.display_image.doResize(QSize(self.viewwidth, self.viewheight))
+        sizeProjX = QSize(self.viewwidth, self.projsize)
+        self.ui.projH.doResize(sizeProjX)
+        sizeProjY = QSize(self.projsize, self.viewheight)
+        self.ui.projV.doResize(sizeProjY)
+        self.ui.projectionFrame.setFixedSize(QSize(self.projsize, self.projsize))
+        self.ui.projectionFrame_left.setFixedWidth(self.projsize)
+        self.ui.projectionFrame_right.setFixedHeight(self.projsize)
+        self.finishResize()
       self.setImageSize(self.colPv.value / self.scale, self.rowPv.value / self.scale, False)
       if self.cfg == None:
-        if setmin:
-          self.forceMinSize()
         self.dumpConfig()
 
   def onAdvanced(self, button):
@@ -2404,7 +2464,7 @@ class GraphicUserInterface(QMainWindow):
         newheight = int(self.advdialog.ui.viewHeight.text())
         newproj = int(self.advdialog.ui.projSize.text())
         self.setDispSpec(int(self.advdialog.ui.configCheckBox.isChecked()))
-        self.changeSize(newwidth, newheight, newproj, False, False)
+        self.changeSize(newwidth, newheight, newproj, False)
         self.advdialog.ui.viewWidth.setText(str(self.viewwidth))
         self.advdialog.ui.viewHeight.setText(str(self.viewheight))
         self.advdialog.ui.projSize.setText(str(self.projsize))
@@ -2858,6 +2918,10 @@ class GraphicUserInterface(QMainWindow):
     # Do, or do not.  There is no try.
     newwidth = self.cfg.viewwidth
     newheight = self.cfg.viewheight
+    if int(newwidth) < self.minwidth:
+      newwidth = str(self.minwidth)
+    if int(newheight) < self.minheight:
+      newheight = str(self.minheight)
     newproj = self.cfg.projsize
     self.advdialog.ui.viewWidth.setText(newwidth)
     self.advdialog.ui.viewHeight.setText(newheight)
@@ -2883,9 +2947,9 @@ class GraphicUserInterface(QMainWindow):
     except:
       orientation = self.cfg.portrait
     if int(orientation):
-      self.portrait(False, False)
+      self.portrait(False)
     else:
-      self.landscape(False, False)
+      self.landscape(False)
     self.ui.checkBoxProjAutoRange.setChecked(int(self.cfg.autorange))
     self.ui.checkBoxProjLine1.setChecked(int(self.cfg.proj1))
     self.ui.checkBoxProjLine2.setChecked(int(self.cfg.proj2))
@@ -2978,7 +3042,7 @@ class GraphicUserInterface(QMainWindow):
     self.onVmarkerTextEnter(2)
     self.ui.textVmarker4.setText(self.cfg.pv4)
     self.onVmarkerTextEnter(3)
-    self.changeSize(int(newwidth), int(newheight), int(newproj), False, False) 
+    self.changeSize(int(newwidth), int(newheight), int(newproj), False)
     try:
       self.xtcdir = self.cfg.xtcdir
     except:

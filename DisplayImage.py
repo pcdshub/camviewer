@@ -21,7 +21,7 @@ class DisplayImage(QWidget):
     self.center       = QPointF(self.width()/2, self.height()/2)    # true screen
     self.negcenter    = QPointF(-self.height()/2, -self.width()/2)  # true screen
     self.rectZoom     = QRectF(0, 0, self.gui.x, self.gui.y)            # image
-    self.arectZoom    = QRectF(0, 0, self.gui.x, self.gui.y)           # image
+    self.arectZoom    = QRectF(0, 0, self.gui.x, self.gui.y)            # image
     self.rectRoi      = QRectF(self.rectZoom)                           # image
     self.paintevents  = 0
     self.xoff         = QPointF(20, 0)
@@ -88,47 +88,13 @@ class DisplayImage(QWidget):
       self.gui.onfileSave()
 
   def resizeEvent(self, ev):
-    if self.gui.doingresize == False and self.pcnt == 0:
-      self.gui.changeSize(ev.size().width(), ev.size().height(), self.gui.projsize, True, True)
+    self.setZoom()
 
-  def setProtect(self, v):
-    if v:
-      self.pcnt += 1
-      self.setMinimumSize(self.hint)
-    else:
-      self.pcnt -= 1
-      self.setMinimumSize(QSize(self.gui.minheight, self.gui.minwidth))
-
-  def forceResize(self, size):
-    change = self.hint.width() != size.width() or self.hint.height() != size.height()
-    self.hint = size
-    self.setProtect(True)
-    if change:
-      self.updateGeometry()
-      p = self.parentWidget()
-      p.layout().invalidate()
-      while (p != None):
-        p.adjustSize()
-        p = p.parentWidget()
-    QTimer.singleShot(0, self.finish_resize)
-
-  def finish_resize(self):
-    self.pcnt -= 1
-    if self.width() != self.hint.width() or self.height() != self.hint.height():
-      # We aren't what we want to be.
-      if self.retry == False:
-        # First time through, try to force the issue.
-        self.retry = True
-        self.forceResize(self.hint)
-        self.gui.resize(1, 1)
-      else:
-        # Second time through, if you can't beat'em, join'em!
-        self.retry = False
-        self.gui.changeSize(self.width(), self.height(), self.gui.projsize, True, True)
-    else:
-      # Life is good.
-      self.retry = False
-      self.setMinimumSize(QSize(self.gui.minheight, self.gui.minwidth))
+  def doResize(self, s=None):
+    if s == None:
+      s = self.size()
+    self.hint = s
+    self.updateGeometry()
 
   def sizeHint(self):
     return self.hint
@@ -415,10 +381,10 @@ class DisplayImage(QWidget):
     h = self.pHeight()
     w = self.pWidth()
 
-    fWidthRatio   = w  / self.rectZoom.width()
-    fHeightRatio  = h / self.rectZoom.height()
+    fWidthRatio   = w  / self.arectZoom.width()
+    fHeightRatio  = h / self.arectZoom.height()
     
-    if abs(fWidthRatio - fHeightRatio) < 0.1:
+    if abs((fWidthRatio - fHeightRatio)/fWidthRatio) < 0.01:
       self.gui.zoom = w / self.arectZoom.width()
       return
       

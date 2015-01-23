@@ -18,11 +18,22 @@ class ProjH(QWidget):
     self.negcenter = QPointF(-self.height()/2, -self.width()/2)    # screen
     self.font   = QFont("Times New Roman", 10, QFont.Bold)
     self.penProjMarker \
-                = QPen(Qt.black, 1, Qt.DotLine, Qt.RoundCap, Qt.RoundJoin)    
+                = QPen(Qt.black, 1, Qt.DotLine, Qt.RoundCap, Qt.RoundJoin)
+    self.hint = self.size()
+
+  def doResize(self, s=None):
+    if s == None:
+      s = self.size()
+    self.hint = s
+    self.updateGeometry()
+    self.resize(s)
+
+  def sizeHint(self):
+    return self.hint
 
   def setImageSize(self, reset=True):
-    self.center = QPointF(self.width()/2, self.height()/2)      # screen
-    self.negcenter = QPointF(-self.height()/2, -self.width()/2) # screen
+    self.center = QPointF(self.gui.viewwidth/2, self.gui.projsize/2)      # screen
+    self.negcenter = QPointF(-self.gui.projsize/2, -self.gui.viewwidth/2) # screen
 
   def paintEvent(self, event):
     if not( 
@@ -32,7 +43,7 @@ class ProjH(QWidget):
       return
             
     painter = QPainter(self)        
-    rectZoom  = self.gui.ui.display_image.arectZoom                             # image
+    rectZoom  = self.gui.ui.display_image.arectZoom                         # image
     if self.gui.isportrait:
       painter.translate(self.center)    
       painter.rotate(90)
