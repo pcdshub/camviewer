@@ -2027,12 +2027,14 @@ class GraphicUserInterface(QMainWindow):
         self.rowPv = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
         self.colPv = self.connectPv(self.cameraBase + ":ArraySize0_RBV")
         self.isColor = False
-        self.bits = caget(self.cameraBase + ":BIT_DEPTH")
+        self.bits = caget(self.cameraBase + ":BitsPerPixel_RBV")
         if self.bits == None:
-          if self.lFlags[index] == "":
-            self.bits = 8
-          else:
-            self.bits = int(self.lFlags[index])
+          self.bits = caget(self.cameraBase + ":BIT_DEPTH")
+          if self.bits == None:
+            if self.lFlags[index] == "":
+              self.bits = 8
+            else:
+              self.bits = int(self.lFlags[index])
         self.ui.groupBoxIOC.setVisible(False)
     elif sType == "MCC":
       self.rowPv = self.connectPv(self.cameraBase + ":ROI_YNP")
