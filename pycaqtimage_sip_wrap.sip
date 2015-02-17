@@ -1220,12 +1220,13 @@ PyObject* pyGetImageData( PyObject* pyImageBuffer, bool bPortrait )
   return pyImageData;
 }
 
-PyObject* pyGetImageData8bit( PyObject* pyImageBuffer, bool bPortrait )
+PyObject* pyGetImageData8bit( PyObject* pyImageBuffer, bool bPortrait, int depth )
 {
   ImageBuffer*    imageBuffer  = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );    
   const int       iWidth       = imageBuffer->imageDisp->width();
   const int       iHeight      = imageBuffer->imageDisp->height(); 
-  const int       iNumPixels   = iWidth * iHeight;    
+  const int       iNumPixels   = iWidth * iHeight;
+  const int       max_index1   = (1 << depth);
   PyObject*       pyImageData  = PyTuple_New(iNumPixels);
   
   if ( bPortrait )
@@ -1236,14 +1237,14 @@ PyObject* pyGetImageData8bit( PyObject* pyImageBuffer, bool bPortrait )
     {
       const uint32_t* pImageData = pImageDataLine;
       for (int iY=0; iY < iHeight; ++iY, ++iPixel, pImageData -= iWidth) 
-        PyTuple_SetItem(pyImageData, iPixel, PyInt_FromLong(*pImageData * 256/MAX_INDEX_PLUS1));
+        PyTuple_SetItem(pyImageData, iPixel, PyInt_FromLong(*pImageData * 256/max_index1));
     }
   }
   else
   {
     const uint32_t* pImageData  = imageBuffer->imageData;           
     for (int iPixel=0; iPixel<iNumPixels; iPixel++, ++pImageData) 
-      PyTuple_SetItem(pyImageData, iPixel, PyInt_FromLong(*pImageData * 256/MAX_INDEX_PLUS1));
+      PyTuple_SetItem(pyImageData, iPixel, PyInt_FromLong(*pImageData * 256/max_index1));
   }
   
   return pyImageData;
@@ -1278,7 +1279,7 @@ PyObject* pySaveRawImageData( PyObject* pyImageBuffer, bool bPortrait, const cha
   }
     
     
-  int fd = creat(sFileName, O_CREAT | O_WRONLY | O_TRUNC | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+  int fd = open(sFileName, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
   if (fd == -1)
     Py_RETURN_FALSE;
     
@@ -1321,5 +1322,5 @@ SIP_PYOBJECT pyGetPixelValue    (SIP_PYOBJECT pyImageBuffer, QPointF* cursor,
                                   QPointF* marker3, QPointF* marker4);
 SIP_PYOBJECT pySetFrameAverage  (int iAverage, SIP_PYOBJECT pyImageBuffer);
 SIP_PYOBJECT pyGetImageData     (SIP_PYOBJECT pyImageBuffer, bool bPortrait);
-SIP_PYOBJECT pyGetImageData8bit (SIP_PYOBJECT pyImageBuffer, bool bPortrait);
+SIP_PYOBJECT pyGetImageData8bit (SIP_PYOBJECT pyImageBuffer, bool bPortrait, int depth);
 SIP_PYOBJECT pySaveRawImageData (SIP_PYOBJECT pyImageBuffer, bool bPortrait, const char* sFileName);

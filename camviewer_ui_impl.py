@@ -1288,13 +1288,14 @@ class GraphicUserInterface(QMainWindow):
         QMessageBox.information(self, "File Save Succeeded", "Image has been saved to a 16-bit raw file: %s" % (fileName) )
         print 'Saved to a 16-bit raw file %s' %(fileName)            
       else:      
-        imageData = pycaqtimage.pyGetImageData8bit(self.imageBuffer, self.isportrait)
+        imageData = pycaqtimage.pyGetImageData8bit(self.imageBuffer, self.isportrait, self.bits)
         if self.isportrait:
-          image = Image.new('L', (self.x, self.y))
+          image = Image.new('L', (self.y, self.x))
         else:
           image = Image.new('L', (self.x, self.y))
-        image.putdata(imageData)      
-        try: image.save(fileName)
+        image.putdata(imageData)
+        try:
+          image.save(fileName)
         except:
           raise Exception, "File type not supported: %s" % (fileName)
         QMessageBox.information(self, "File Save Succeeded", "Image has been saved to an 8-bit image file: %s" % (fileName) )
