@@ -2053,8 +2053,13 @@ class GraphicUserInterface(QMainWindow):
     else:
       if sType == "LIO" or sType == "LI":
         self.scale = 2
-      self.rowPv = self.connectPv(self.cameraBase + ":N_OF_ROW")
-      self.colPv = self.connectPv(self.cameraBase + ":N_OF_COL")
+      if sType == "LIX":
+        self.scale = 2
+        self.colPv = self.connectPv(self.cameraBase + ":ROI_XNP")
+        self.rowPv = self.connectPv(self.cameraBase + ":ROI_YNP")
+      else:
+        self.rowPv = self.connectPv(self.cameraBase + ":N_OF_ROW")
+        self.colPv = self.connectPv(self.cameraBase + ":N_OF_COL")
       self.ui.groupBoxIOC.setVisible(False)
       if self.simtype == None:
         self.bits = caget(self.cameraBase + ":N_OF_BITS")
@@ -2189,7 +2194,7 @@ class GraphicUserInterface(QMainWindow):
     
     if sType == "AVG" or sType == "LIF":
       self.connectCamera(sCameraPv + ":LIVE_IMAGE_FULL", index)
-    elif sType == "LIO":
+    elif sType == "LIO" or sType == "LIX":
       self.connectCamera(sCameraPv + ":LIVE_IMAGE_12B", index)
     elif sType == "LI":
       self.connectCamera(sCameraPv + ":LIVE_IMAGE", index)
