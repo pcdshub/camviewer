@@ -8,7 +8,7 @@
 # two being aligned.
 #
 from camviewer_ui import Ui_MainWindow
-from Pv import Pv
+from psp.Pv import Pv
 #from xtcrdr import xtcrdr
 from dialogs import advdialog
 from dialogs import markerdialog
@@ -1619,11 +1619,6 @@ class GraphicUserInterface(QMainWindow):
         pass
     return None
 
-  def constantPv(self, name, value):
-    pv = Pv(name, True)
-    pv.setvalue(value)
-    return pv
-
   def xtcdirinit(self):
     self.xtcrdrdialog.ui.currentdir.setText(self.xtcdir)
     self.xtcrdrdialog.ui.xtcfile.clear()
@@ -2028,14 +2023,14 @@ class GraphicUserInterface(QMainWindow):
         self.rowPv = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
         self.colPv = self.connectPv(self.cameraBase + ":ArraySize0_RBV")
         self.isColor = False
-        self.bits = caget(self.cameraBase + ":BitsPerPixel_RBV")
-        if self.bits == None:
-          self.bits = caget(self.cameraBase + ":BIT_DEPTH")
+        if self.lFlags[index] != "":
+          self.bits = int(self.lFlags[index])
+        else:
+          self.bits = caget(self.cameraBase + ":BitsPerPixel_RBV")
           if self.bits == None:
-            if self.lFlags[index] == "":
+            self.bits = caget(self.cameraBase + ":BIT_DEPTH")
+            if self.bits == None:
               self.bits = 8
-            else:
-              self.bits = int(self.lFlags[index])
         self.ui.groupBoxIOC.setVisible(False)
     elif sType == "MCC":
       self.rowPv = self.connectPv(self.cameraBase + ":ROI_YNP")
