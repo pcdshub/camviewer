@@ -97,6 +97,49 @@ class cfginfo():
     else:
       raise AttributeError
 
+class FilterObject(QObject):
+  def __init__(self, app, main):
+    QObject.__init__(self, main)
+    self.app = app
+    self.main = main
+    self.app.installEventFilter(self)
+    sizePolicy = QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+    sizePolicy.setHorizontalStretch(0)
+    sizePolicy.setVerticalStretch(0)
+    self.renderlabel = QLabel()
+    self.renderlabel.setSizePolicy(sizePolicy)
+    self.renderlabel.setMinimumSize(QtCore.QSize(0, 20))
+    self.renderlabel.setMaximumSize(QtCore.QSize(16777215, 100))
+    self.last = QtCore.QPoint(0,0)
+
+  def eventFilter(self, obj, event):
+    if event.type() == QtCore.QEvent.MouseButtonPress and event.button() == QtCore.Qt.MidButton:
+      p = event.globalPos()
+      w = self.app.widgetAt(p)
+      if w == obj and self.last != p:
+        self.last = p
+        try:
+          t = w.writepvname
+        except:
+          t = None
+        if t == None:
+          try:
+            t = w.readpvname
+          except:
+            t = None
+        if t == None:
+          return False
+        mimeData = QtCore.QMimeData()
+        mimeData.setText(t)
+        self.renderlabel.setText(t)
+        self.renderlabel.adjustSize()
+        pixmap = QPixmap(self.renderlabel.size())
+        self.renderlabel.render(pixmap)
+        drag = QDrag(self.main)
+        drag.setMimeData(mimeData)
+        drag.setPixmap(pixmap)
+        drag.exec_(QtCore.Qt.CopyAction)
+    return False
 
 SINGLE_FRAME   = 0
 REMOTE_AVERAGE = 1
@@ -553,6 +596,7 @@ class GraphicUserInterface(QMainWindow):
       self.ui.comboBoxCamera.setCurrentIndex(int(cameraIndex))
     except: pass
     self.finishResize()
+    self.efilter = FilterObject(self.app, self)
 
   def closeEvent(self, event):
     if (self.cameraBase != ""):
@@ -1883,6 +1927,14 @@ class GraphicUserInterface(QMainWindow):
     self.globmarkpvs[3].monitor_cb = self.cross2mon
     for i in self.globmarkpvs:
       i.monitor(pyca.DBE_VALUE)
+    self.ui.Disp_Xmark1.readpvname = self.globmarkpvs[0].name
+    self.markerdialog.ui.Disp_Xmark1.readpvname = self.globmarkpvs[0].name
+    self.ui.Disp_Ymark1.readpvname = self.globmarkpvs[1].name
+    self.markerdialog.ui.Disp_Ymark1.readpvname = self.globmarkpvs[1].name
+    self.ui.Disp_Xmark2.readpvname = self.globmarkpvs[2].name
+    self.markerdialog.ui.Disp_Xmark2.readpvname = self.globmarkpvs[2].name
+    self.ui.Disp_Ymark2.readpvname = self.globmarkpvs[3].name
+    self.markerdialog.ui.Disp_Ymark2.readpvname = self.globmarkpvs[3].name
     return True
 
   def connectMarkerPVs2(self):
@@ -1898,9 +1950,25 @@ class GraphicUserInterface(QMainWindow):
     self.globmarkpvs2[3].monitor_cb = self.cross4Ymon
     for i in self.globmarkpvs2:
       i.monitor(pyca.DBE_VALUE)
+    self.ui.Disp_Xmark3.readpvname = self.globmarkpvs2[0].name
+    self.markerdialog.ui.Disp_Xmark3.readpvname = self.globmarkpvs2[0].name
+    self.ui.Disp_Ymark3.readpvname = self.globmarkpvs2[1].name
+    self.markerdialog.ui.Disp_Ymark3.readpvname = self.globmarkpvs2[1].name
+    self.ui.Disp_Xmark4.readpvname = self.globmarkpvs2[2].name
+    self.markerdialog.ui.Disp_Xmark4.readpvname = self.globmarkpvs2[2].name
+    self.ui.Disp_Ymark4.readpvname = self.globmarkpvs2[3].name
+    self.markerdialog.ui.Disp_Ymark4.readpvname = self.globmarkpvs2[3].name
     return True
 
   def disconnectMarkerPVs(self):
+    self.ui.Disp_Xmark1.readpvname = None
+    self.markerdialog.ui.Disp_Xmark1.readpvname = None
+    self.ui.Disp_Ymark1.readpvname = None
+    self.markerdialog.ui.Disp_Ymark1.readpvname = None
+    self.ui.Disp_Xmark2.readpvname = None
+    self.markerdialog.ui.Disp_Xmark2.readpvname = None
+    self.ui.Disp_Ymark2.readpvname = None
+    self.markerdialog.ui.Disp_Ymark2.readpvname = None
     for i in self.globmarkpvs:
       try:
         i.disconnect()
@@ -1910,6 +1978,14 @@ class GraphicUserInterface(QMainWindow):
     return False
 
   def disconnectMarkerPVs2(self):
+    self.ui.Disp_Xmark3.readpvname = None
+    self.markerdialog.ui.Disp_Xmark3.readpvname = None
+    self.ui.Disp_Ymark3.readpvname = None
+    self.markerdialog.ui.Disp_Ymark3.readpvname = None
+    self.ui.Disp_Xmark4.readpvname = None
+    self.markerdialog.ui.Disp_Xmark4.readpvname = None
+    self.ui.Disp_Ymark4.readpvname = None
+    self.markerdialog.ui.Disp_Ymark4.readpvname = None
     for i in self.globmarkpvs2:
       try:
         i.disconnect()
@@ -1918,6 +1994,40 @@ class GraphicUserInterface(QMainWindow):
     self.globmarkpvs2 = []
     return False
 
+  def setupDrags(self):
+    if self.camera != None:
+      self.ui.display_image.readpvname = self.camera.name
+    else:
+      self.ui.display_image.readpvname = None
+    if self.iocRoiXPv != None:
+      self.ui.IOC_RoiX.readpvname = self.iocRoiXPv.name
+    else:
+      self.ui.IOC_RoiX.readpvname = None
+    if self.iocRoiYPv != None:
+      self.ui.IOC_RoiY.readpvname = self.iocRoiYPv.name
+    else:
+      self.ui.IOC_RoiY.readpvname = None
+    if self.iocRoiWPv != None:
+      self.ui.IOC_RoiW.readpvname = self.iocRoiWPv.name
+    else:
+      self.ui.IOC_RoiW.readpvname = None
+    if self.iocRoiHPv != None:
+      self.ui.IOC_RoiH.readpvname = self.iocRoiHPv.name
+    else:
+      self.ui.IOC_RoiH.readpvname = None
+    if self.shiftPv != None:
+      self.ui.shiftSlider.readpvname = self.shiftPv.name
+      self.ui.shiftText.readpvname = self.shiftPv.name
+    else:
+      self.ui.shiftSlider.readpvname = None
+      self.ui.shiftText.readpvname = None
+    if self.lensPv != None:
+      self.ui.horizontalSliderLens.readpvname = self.lensPv.name
+      self.ui.lineEditLens.readpvname = self.lensPv.name
+    else:
+      self.ui.horizontalSliderLens.readpvname = None
+      self.ui.lineEditLens.readpvname = None
+    
   def connectCamera(self, sCameraPv, index, sNotifyPv=None):
     timeout = 1.0
     self.camera    = self.disconnectPv(self.camera)
@@ -2272,6 +2382,7 @@ class GraphicUserInterface(QMainWindow):
                              "Error", "Failed to connect to Lens [%d] %s" % (index, sLensPv),
                              QMessageBox.Ok, QMessageBox.Ok)
     self.setupSpecific()
+    self.setupDrags()
     self.finishResize()
 
   def onExpertMode(self):
@@ -2316,7 +2427,8 @@ class GraphicUserInterface(QMainWindow):
         gui.writepvname = None
       else:
         gui.writepvname = self.ctrlBase + writepvname
-      pv = Pv(self.ctrlBase + pvname)
+      gui.readpvname = self.ctrlBase + pvname
+      pv = Pv(gui.readpvname)
       pv.connect(1.0)
       pv.monitor_cb = lambda e=None: callback(e, pv, gui)
       pv.monitor(pyca.DBE_VALUE)

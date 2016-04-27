@@ -1,3 +1,4 @@
+#!/bin/bash
 export PSPKG_RELEASE=controls-0.0.6
 source $PSPKG_ROOT/etc/set_env.sh
 make
