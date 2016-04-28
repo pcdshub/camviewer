@@ -101,6 +101,7 @@ class FilterObject(QObject):
   def __init__(self, app, main):
     QObject.__init__(self, main)
     self.app = app
+    self.clip = app.clipboard()
     self.main = main
     self.app.installEventFilter(self)
     sizePolicy = QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
@@ -129,6 +130,7 @@ class FilterObject(QObject):
             t = None
         if t == None:
           return False
+        self.clip.setText(t, QClipboard.Selection)
         mimeData = QtCore.QMimeData()
         mimeData.setText(t)
         self.renderlabel.setText(t)
@@ -2027,6 +2029,10 @@ class GraphicUserInterface(QMainWindow):
     else:
       self.ui.horizontalSliderLens.readpvname = None
       self.ui.lineEditLens.readpvname = None
+    if self.avgPv != None:
+      self.ui.remote_average.readpvname = self.avgPv.name
+    else:
+      self.ui.remote_average.readpvname = None
     
   def connectCamera(self, sCameraPv, index, sNotifyPv=None):
     timeout = 1.0
