@@ -9,3 +9,6 @@ limit coredumpsize unlimited
 rehash
 
 ./camviewer.pyw $* >& /tmp/camviewer.pyw.`date +%y-%m-%d_%T` &
+echo Launching camviewer w/ $*
+echo Log file: /tmp/camviewer.pyw.`date +%y-%m-%d_%T`
+
