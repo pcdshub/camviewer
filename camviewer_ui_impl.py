@@ -2068,7 +2068,7 @@ class GraphicUserInterface(QMainWindow):
 
     # Set camera type
     print "Setting camtype for %s ..." % ( sType )
-    if sType == "GE" or sType == "XTC":
+    if sType == "GE" or sType == "XTC" or sType == "DREC":
       self.camtype = [sType]
     else:
       self.camtype = caget(self.cameraBase + ":ID")
@@ -2160,6 +2160,12 @@ class GraphicUserInterface(QMainWindow):
         self.bits = None
       if (self.bits == None):
         self.bits = 12              # Sigh.  This is probably more than enough.
+      self.isColor = False
+    elif sType == "DREC":
+      self.rowPv = self.connectPv(self.cameraBase + ".CROW")
+      self.colPv = self.connectPv(self.cameraBase + ".CCOL")
+      self.bits = caget(self.cameraBase + ".CBIT")
+      self.ui.groupBoxIOC.setVisible(False)
       self.isColor = False
     else:
       if sType == "LIO" or sType == "LI":
@@ -2318,6 +2324,8 @@ class GraphicUserInterface(QMainWindow):
     elif sType == "MCC":
 #     self.connectCamera(sCameraPv + ":IMAGE", index)
       self.connectCamera(sCameraPv + ":BUFD_IMG", index)
+    elif sType == "DREC":
+      self.connectCamera(sCameraPv + ".ISLO", index)
 
     if sType == "AVG":
       self.ui.rem_avg.setVisible(True)
