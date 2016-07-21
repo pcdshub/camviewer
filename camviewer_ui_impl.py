@@ -572,22 +572,29 @@ class GraphicUserInterface(QMainWindow):
     self.connect(self.xtcrdrdialog.ui.skipButton, QtCore.SIGNAL("clicked()"), self.onXtcrdrSkip)
     self.connect(self.xtcrdrdialog.ui.backButton, QtCore.SIGNAL("clicked()"), self.onXtcrdrBack)
 
-    self.cameraQualifier = ""
     if cameraPv != None:
       try:
         idx = self.lCameraList.index(cameraPv)
         print "Camera PV %s --> index %d" % (cameraPv, idx)
         cameraIndex = idx
       except:
+        # Can't find an exact match.  Strip off the end, and look for the same base.
         m=re.search("(.*):([^:]*)$", cameraPv)
         if m == None:
           print "Cannot find camera PV %s!" % cameraPv
         else:
           try:
-            idx = self.lCameraList.index(m.group(1))
+            pvname = m.group(1)
+            pvnamelen = len(pvname)
+            idx = -1
+            for i in range(len(self.lCameraList)):
+              if self.lCameraList[i][:pvnamelen] == pvname:
+                idx = i
+                break
+            if idx < -1:
+              raise Exception, "No match"
             print "Camera PV %s --> index %d" % (cameraPv, idx)
             cameraIndex = idx
-            self.cameraQualifier = m.group(2)
           except:
             print "Cannot find camera PV %s!" % cameraPv
     try:
@@ -2301,13 +2308,6 @@ class GraphicUserInterface(QMainWindow):
     sLensPv = self.lLensList[index]
     sEvrPv  = self.lEvrList [index]
     sType   = self.lType[index]
-
-    #
-    # Look at self.cameraQualifier to choose which image to connect
-    # to!  This is only for the initial connection, so after we
-    # look at it, clear it!
-    #
-    self.cameraQualifier = ""
     
     if sType == "AVG" or sType == "LIF":
       self.connectCamera(sCameraPv + ":LIVE_IMAGE_FULL", index)
