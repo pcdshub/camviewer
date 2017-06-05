@@ -149,7 +149,7 @@ LOCAL_AVERAGE  = 2
 
 class GraphicUserInterface(QMainWindow):
   def __init__(self, app, cwd, instrument, cameraIndex, cameraPv, useSyntheticData,
-               camerListFilename, cfgdir, activedir, rate, idle, options):
+               cameraListFilename, cfgdir, activedir, rate, idle, options):
     QMainWindow.__init__(self)
     self.app = app
     self.cwd = cwd
@@ -337,7 +337,7 @@ class GraphicUserInterface(QMainWindow):
     self.connect(self.ui.comboBoxScale,  QtCore.SIGNAL("currentIndexChanged(int)"), self.onComboBoxScaleIndexChanged)
     
     self.useSyntheticData   = int(useSyntheticData)      
-    self.camerListFilename  = camerListFilename
+    self.cameraListFilename  = cameraListFilename
       
     self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image,
                                                             self.useSyntheticData)
@@ -1578,6 +1578,21 @@ class GraphicUserInterface(QMainWindow):
 
     # Also, check if someone is requesting us to disconnect!
     self.activeCheck()
+
+  def readCameraFile(self, fn):
+    dir = os.path.dirname(fn)  # Strip off filename!
+    raw = open(fn,"r").readlines()
+    lines = []
+    for l in raw:
+      s = l.split()
+      if s[0] == "include":
+        if s[1][0] != '/':
+          lines.extend(self.readCameraFile(dir + "/" + s[1]))
+        else:
+          lines.extend(self.readCameraFile(s[1]))
+      else:
+        lines.append(l)
+    return lines
     
   def updateCameraCombo(self):
     self.lType       = []
@@ -1591,11 +1606,11 @@ class GraphicUserInterface(QMainWindow):
     self.ui.menuCameras.clear()
     sEvr = ""
     try:
-      if (self.camerListFilename[0] == '/'):
-        fnCameraList = self.camerListFilename
+      if (self.cameraListFilename[0] == '/'):
+        fnCameraList = self.cameraListFilename
       else:
-        fnCameraList = self.cwd + "/" + self.camerListFilename
-      lCameraListLine = open( fnCameraList,"r").readlines()      
+        fnCameraList = self.cwd + "/" + self.cameraListFilename
+      lCameraListLine = self.readCameraFile(fnCameraList)
       self.lCameraList = []
       iCamera = -1
       for sCamera in lCameraListLine:
