@@ -1585,7 +1585,7 @@ class GraphicUserInterface(QMainWindow):
     lines = []
     for l in raw:
       s = l.split()
-      if s[0] == "include":
+      if len(s) >= 1 and s[0] == "include":
         if s[1][0] != '/':
           lines.extend(self.readCameraFile(dir + "/" + s[1]))
         else:
@@ -1677,6 +1677,7 @@ class GraphicUserInterface(QMainWindow):
       #import traceback
       #traceback.print_exc(file=sys.stdout)
       print '!! Failed to read camera pv list from \"%s\"' % (fnCameraList)
+      sys.exit(0)
 
   def disconnectPv(self, pv):
     if pv != None:
