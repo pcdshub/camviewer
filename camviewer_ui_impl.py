@@ -148,7 +148,7 @@ REMOTE_AVERAGE = 1
 LOCAL_AVERAGE  = 2
 
 class GraphicUserInterface(QMainWindow):
-  def __init__(self, app, cwd, instrument, cameraIndex, cameraPv, useSyntheticData,
+  def __init__(self, app, cwd, instrument, camera, cameraPv, useSyntheticData,
                cameraListFilename, cfgdir, activedir, rate, idle, options):
     QMainWindow.__init__(self)
     self.app = app
@@ -572,6 +572,17 @@ class GraphicUserInterface(QMainWindow):
     self.connect(self.xtcrdrdialog.ui.skipButton, QtCore.SIGNAL("clicked()"), self.onXtcrdrSkip)
     self.connect(self.xtcrdrdialog.ui.backButton, QtCore.SIGNAL("clicked()"), self.onXtcrdrBack)
 
+    if camera != None:
+      try:
+        cameraIndex = int(camera)
+      except:
+        # OK, I suppose it's a name!  Default to 0, then look for it!
+        cameraIndex = 0
+        for i in range(len(self.lCameraDesc)):
+          if self.lCameraDesc[i].find(camera) >= 0:
+            cameraIndex = i
+            break
+        
     if cameraPv != None:
       try:
         idx = self.lCameraList.index(cameraPv)
@@ -597,6 +608,7 @@ class GraphicUserInterface(QMainWindow):
             cameraIndex = idx
           except:
             print "Cannot find camera PV %s!" % cameraPv
+
     try:
       self.ui.comboBoxCamera.setCurrentIndex(-1)
       if cameraIndex < 0 or cameraIndex >= len(self.lCameraList):

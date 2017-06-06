@@ -6,4 +6,4 @@ setenv EPICS_CA_MAX_ARRAY_BYTES 10000000
 limit coredumpsize unlimited
 rehash
 
-./camviewer.pyw $*
+./camviewer.pyw $argv:q

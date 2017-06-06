@@ -25,7 +25,6 @@ if __name__ == '__main__':
     options.usage(str(msg))
     sys.exit()
     
-  camera             = 0   if ( options.camera == None ) else int(options.camera)
   useSyntheticData   = 0   if ( options.syn    == None ) else 1
   rate               = 5.0 if ( options.rate   == None ) else float(options.rate)
   cameraListFilename = 'camera.lst' if (options.pvlist == None) else options.pvlist
@@ -58,7 +57,7 @@ if __name__ == '__main__':
 
   QApplication.setGraphicsSystem("raster")
   app = QApplication([''])
-  gui = GraphicUserInterface(app, cwd, options.instrument, camera, options.camerapv,
+  gui = GraphicUserInterface(app, cwd, options.instrument, options.camera, options.camerapv,
                              useSyntheticData, cameraListFilename, cfgdir, activedir,
                              rate, options.idle, options)
   try:

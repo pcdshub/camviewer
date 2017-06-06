@@ -8,7 +8,7 @@ setenv EPICS_CA_MAX_ARRAY_BYTES 10000000
 limit coredumpsize unlimited
 rehash
 
-./camviewer.pyw $* >& /tmp/camviewer.pyw.`date +%y-%m-%d_%T` &
-echo Launching camviewer w/ $*
+./camviewer.pyw $argv:q >& /tmp/camviewer.pyw.`date +%y-%m-%d_%T` &
+echo Launching camviewer w/ $argv:q
 echo Log file: /tmp/camviewer.pyw.`date +%y-%m-%d_%T`
 
