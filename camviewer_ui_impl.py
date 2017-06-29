@@ -206,6 +206,7 @@ class GraphicUserInterface(QMainWindow):
     self.wantNewImage    = True
     self.lensPv          = None
     self.putlensPv       = None
+    self.nordPv          = None
     self.rowPv           = None
     self.colPv           = None
     self.scale           = 1
@@ -1465,7 +1466,7 @@ class GraphicUserInterface(QMainWindow):
     self.wantNewImage = want
     if self.wantNewImage and self.haveNewImage and self.lastGetDone and self.camera != None:
       try:
-        self.camera.get()
+        self.camera.get(count=int(self.nordPv.value))
         pyca.flush_io()
       except:
         pass
@@ -1834,20 +1835,23 @@ class GraphicUserInterface(QMainWindow):
     except:
       pass
   
-  def connectPv(self, name, timeout=5.0):
+  def connectPv(self, name, timeout=5.0, count=None):
     try:
       if self.simtype == None:
         pv = Pv(name)
+        pv.count = count
         try:
           pv.connect(timeout)
-        except:
+        except Exception as exc:
+          print exc
           QMessageBox.critical(None,
                                "Error", "Failed to connect to PV %s" % (name),
                                QMessageBox.Ok, QMessageBox.Ok)
           return None
         try:
-          pv.get(False, timeout)
-        except:
+          pv.get(False, timeout, count=count)
+        except Exception as exc:
+          print exc
           QMessageBox.critical(None,
                                "Error", "Connected, but unable to read PV %s" % (name),
                                QMessageBox.Ok, QMessageBox.Ok)
@@ -1874,7 +1878,8 @@ class GraphicUserInterface(QMainWindow):
           print "Do we need to simulate %s?" % name
         return pv
         
-    except:
+    except Exception as exc:
+      print exc
       QMessageBox.critical(None,
                            "Error", "Failed to connect to PV %s" % (name),
                            QMessageBox.Ok, QMessageBox.Ok)
@@ -2073,6 +2078,7 @@ class GraphicUserInterface(QMainWindow):
     timeout = 1.0
     self.camera    = self.disconnectPv(self.camera)
     self.notify    = self.disconnectPv(self.notify)
+    self.nordPv    = self.disconnectPv(self.nordPv)
     self.rowPv     = self.disconnectPv(self.rowPv)
     self.colPv     = self.disconnectPv(self.colPv)
     self.shiftPv   = self.disconnectPv(self.shiftPv)
@@ -2113,7 +2119,8 @@ class GraphicUserInterface(QMainWindow):
         self.camtype = ["unknown"]
 
     # Try to connect to the camera
-    self.camera = self.connectPv(sCameraPv)
+    self.nordPv = self.connectPv(sCameraPv + ".NORD")
+    self.camera = self.connectPv(sCameraPv, count=int(self.nordPv.value))
     if self.camera == None:
       self.ui.label_connected.setText("NO")
       return
@@ -2244,9 +2251,9 @@ class GraphicUserInterface(QMainWindow):
       return
 
     if (sNotifyPv == None):
-      self.notify = self.connectPv(sCameraPv)
+      self.notify = self.connectPv(sCameraPv, count=1)
     else:
-      self.notify = self.connectPv(sNotifyPv)
+      self.notify = self.connectPv(sNotifyPv, count=1)
     self.haveNewImage    = False
     self.lastGetDone     = True
     self.ui.label_connected.setText("YES")
