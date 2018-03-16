@@ -573,6 +573,8 @@ class GraphicUserInterface(QMainWindow):
     self.connect(self.xtcrdrdialog.ui.skipButton, QtCore.SIGNAL("clicked()"), self.onXtcrdrSkip)
     self.connect(self.xtcrdrdialog.ui.backButton, QtCore.SIGNAL("clicked()"), self.onXtcrdrBack)
 
+    # Sigh, we might change this if taking a one-liner!
+    camera = options.camera
     if camera != None:
       try:
         cameraIndex = int(camera)
@@ -1619,11 +1621,15 @@ class GraphicUserInterface(QMainWindow):
     self.ui.menuCameras.clear()
     sEvr = ""
     try:
-      if (self.cameraListFilename[0] == '/'):
-        fnCameraList = self.cameraListFilename
+      if self.options.oneline != None:
+        lCameraListLine = [self.options.oneline]
+        self.options.camera = "0"
       else:
-        fnCameraList = self.cwd + "/" + self.cameraListFilename
-      lCameraListLine = self.readCameraFile(fnCameraList)
+        if (self.cameraListFilename[0] == '/'):
+          fnCameraList = self.cameraListFilename
+        else:
+          fnCameraList = self.cwd + "/" + self.cameraListFilename
+        lCameraListLine = self.readCameraFile(fnCameraList)
       self.lCameraList = []
       iCamera = -1
       for sCamera in lCameraListLine:
