@@ -1,4 +1,4 @@
-#!/bin/tcsh
+#!/bin/tcsh -f
 set h = $0:h
 if ($h != $0) cd $h
 setenv PSPKG_ROOT /reg/common/package
@@ -8,7 +8,7 @@ setenv EPICS_CA_MAX_ARRAY_BYTES 10000000
 limit coredumpsize unlimited
 rehash
 
+echo Launching camviewer w/ $argv:q from `pwd`
 ./camviewer.pyw $argv:q >& /tmp/camviewer.pyw.`date +%y-%m-%d_%T` &
-echo Launching camviewer w/ $argv:q
 echo Log file: /tmp/camviewer.pyw.`date +%y-%m-%d_%T`
 
