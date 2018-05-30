@@ -148,6 +148,7 @@ REMOTE_AVERAGE = 1
 LOCAL_AVERAGE  = 2
 
 class GraphicUserInterface(QMainWindow):
+#  def __init__(self, app, cwd, instrument, cameraIndex, cameraPv, useSyntheticData,...)
   def __init__(self, app, cwd, instrument, camera, cameraPv, useSyntheticData,
                cameraListFilename, cfgdir, activedir, rate, idle, options):
     QMainWindow.__init__(self)
@@ -1466,7 +1467,7 @@ class GraphicUserInterface(QMainWindow):
   # 
   def wantImage(self, want=True):
     self.wantNewImage = want
-    if self.wantNewImage and self.haveNewImage and self.lastGetDone and self.camera != None:
+    if self.wantNewImage and self.haveNewImage and self.lastGetDone and self.camera != None and self.nordPv != None:
       try:
         self.camera.get(count=int(self.nordPv.value))
         pyca.flush_io()
@@ -1489,8 +1490,11 @@ class GraphicUserInterface(QMainWindow):
 
   # Note: this function is triggered by getting a new image.
   def onImageUpdate(self):
+    # Guard against camera going away on shutdown or while switching cameras
+    if not self.camera:
+        return
     try:
-      #print "\noIU: %d.%09d" % (self.camera.secs, self.camera.nsec)
+      print "\nonImageUpdate: New image ts %d.%09d" % (self.camera.secs, self.camera.nsec)
       self.dispUpdates += 1
       if self.useglobmarks2:
         self.updateCross3and4()
