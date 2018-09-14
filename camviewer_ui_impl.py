@@ -3060,7 +3060,6 @@ class GraphicUserInterface(QMainWindow):
         self.cfg.add("markers", self.options.marker)
       if self.options.camcfg != None:
         self.cfg.add("dispspec", self.options.camcfg)
-      self.options = None
     if not self.fixname:
       # OK, old school!  Get rid of all of the final ":.*" from each camera!
       self.fixname = True
@@ -3081,6 +3080,14 @@ class GraphicUserInterface(QMainWindow):
         self.cfg = None
         return
 
+    # Let command line options override local config file
+    if self.options != None:
+      if self.options.lportrait != None:
+        self.cfg.add("lportrait", self.options.lportrait)
+      if self.options.cmap != None:
+        self.cfg.add("colormap", self.options.cmap)
+      self.options = None
+  
     # Set the window size
     settings = QtCore.QSettings("SLAC", "CamViewer");
     pos = self.pos()
