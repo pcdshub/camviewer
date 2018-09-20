@@ -1468,7 +1468,7 @@ class GraphicUserInterface(QMainWindow):
   # 
   def wantImage(self, want=True):
     self.wantNewImage = want
-    if self.wantNewImage and self.haveNewImage and self.lastGetDone and self.camera != None and self.nordPv != None:
+    if self.wantNewImage and self.haveNewImage and self.lastGetDone and self.camera != None:
       try:
         if self.nordPv:
           self.count = int(self.nordPv.value)
@@ -1497,7 +1497,6 @@ class GraphicUserInterface(QMainWindow):
     if not self.camera:
         return
     try:
-      print "\nonImageUpdate: New image ts %d.%09d" % (self.camera.secs, self.camera.nsec)
       self.dispUpdates += 1
       if self.useglobmarks2:
         self.updateCross3and4()
