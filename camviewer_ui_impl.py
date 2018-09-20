@@ -208,6 +208,7 @@ class GraphicUserInterface(QMainWindow):
     self.lensPv          = None
     self.putlensPv       = None
     self.nordPv          = None
+    self.count           = None
     self.rowPv           = None
     self.colPv           = None
     self.scale           = 1
@@ -1469,7 +1470,9 @@ class GraphicUserInterface(QMainWindow):
     self.wantNewImage = want
     if self.wantNewImage and self.haveNewImage and self.lastGetDone and self.camera != None and self.nordPv != None:
       try:
-        self.camera.get(count=int(self.nordPv.value))
+        if self.nordPv:
+          self.count = int(self.nordPv.value)
+        self.camera.get(count=self.count)
         pyca.flush_io()
       except:
         pass
@@ -2129,8 +2132,13 @@ class GraphicUserInterface(QMainWindow):
         self.camtype = ["unknown"]
 
     # Try to connect to the camera
-    self.nordPv = self.connectPv(sCameraPv + ".NORD")
-    self.camera = self.connectPv(sCameraPv, count=int(self.nordPv.value))
+    try:
+      self.nordPv = self.connectPv(sCameraPv + ".NORD")
+      self.count = int(self.nordPv.value)
+    except:
+      self.nordPv = None
+      self.count = None
+    self.camera = self.connectPv(sCameraPv, count=self.count)
     if self.camera == None:
       self.ui.label_connected.setText("NO")
       return
