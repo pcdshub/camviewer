@@ -3083,6 +3083,28 @@ class GraphicUserInterface(QMainWindow):
       # OK, didn't work, look for an old one.
       if not self.cfg.read(self.cfgdir + self.cameraBase):
         # Bail if we can't find it
+        # But first, let's immediately process the command line options, if any.
+        mk = int(self.cfg.markers)
+        self.ui.showmarker.setChecked(mk)
+        self.doShowMarker()
+        dc = int(self.cfg.dispspec)
+        self.setDispSpec(dc)
+        self.ui.showconf.setChecked(int(self.cfg.config))
+        self.doShowConf()
+        self.ui.showproj.setChecked(int(self.cfg.projection))
+        self.doShowProj()
+        if self.options != None:
+          if self.options.lportrait != None:
+            if int(self.options.lportrait):
+              self.portrait(False)
+            else:
+              self.landscape(False)
+          if self.options.cmap != None:
+            self.ui.comboBoxColor.setCurrentIndex(self.ui.comboBoxColor.findText(self.options.cmap))
+            self.colorMap = self.options.cmap.lower()
+            self.ui.grayScale.setChecked(True)  # If we want a color map, force gray scale!
+            self.setColorMap()
+          self.options = None
         self.dumpConfig()
         self.cfg = None
         return
