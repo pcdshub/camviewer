@@ -16,8 +16,9 @@ if __name__ == '__main__':
 
   # Options( [mandatory list, optional list, switches list] )
   options = Options(['instrument'],
-                    ['camera', 'camerapv', 'pvlist', 'cfgdir', 'activedir', 'rate', 'idle',
-                     'config', 'proj', 'marker', 'camcfg', 'pos', 'oneline', 'lportrait', 'cmap'],
+                    ['camera', 'camerapv', 'pvlist', 'cfgdir', 'activedir',
+                     'rate', 'idle', 'config', 'proj', 'marker', 'camcfg',
+                     'pos', 'oneline', 'lportrait', 'cmap'],
                     ['syn'])
   try:
     options.parse()

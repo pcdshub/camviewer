@@ -635,6 +635,8 @@ class GraphicUserInterface(QMainWindow):
     self.specificdialog.close()
     self.dropletdialog.close()
     self.xtcrdrdialog.close()
+    if self.cfg == None:
+      self.dumpConfig()
     QMainWindow.closeEvent(self, event)
 
 #
