@@ -9,3 +9,5 @@ pyuic4 -o specific_ui.py specific.ui
 pyuic4 -o droplet_ui.py droplet.ui
 pyuic4 -o xtcrdr_ui.py xtcrdr.ui
 pyuic4 -o timeout_ui.py timeout.ui
+
+pyrcc4 -o icon_rc.py icon.qrc
