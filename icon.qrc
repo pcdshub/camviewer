@@ -1,0 +1,12 @@
+<RCC>
+  <qresource prefix="icons">
+    <file>icon0.xpm</file>
+    <file>icon0F.xpm</file>
+    <file>icon90.xpm</file>
+    <file>icon90F.xpm</file>
+    <file>icon180.xpm</file>
+    <file>icon180F.xpm</file>
+    <file>icon270.xpm</file>
+    <file>icon270F.xpm</file>
+  </qresource>
+</RCC>

@@ -19,14 +19,13 @@ if __name__ == '__main__':
                     ['camera', 'camerapv', 'pvlist', 'cfgdir', 'activedir',
                      'rate', 'idle', 'config', 'proj', 'marker', 'camcfg',
                      'pos', 'oneline', 'lportrait', 'cmap'],
-                    ['syn'])
+                    [])
   try:
     options.parse()
   except Exception, msg:
     options.usage(str(msg))
     sys.exit()
     
-  useSyntheticData   = 0   if ( options.syn    == None ) else 1
   rate               = 5.0 if ( options.rate   == None ) else float(options.rate)
   cameraListFilename = 'camera.lst' if (options.pvlist == None) else options.pvlist
 
@@ -59,7 +58,7 @@ if __name__ == '__main__':
   QApplication.setGraphicsSystem("raster")
   app = QApplication([''])
   gui = GraphicUserInterface(app, cwd, options.instrument, options.camera, options.camerapv,
-                             useSyntheticData, cameraListFilename, cfgdir, activedir,
+                             cameraListFilename, cfgdir, activedir,
                              rate, options.idle, options)
   try:
 #    sys.setcheckinterval(1000) # default is 100

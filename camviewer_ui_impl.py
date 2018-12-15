@@ -36,6 +36,7 @@ from PyQt4.QtCore import QTime, QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObj
 import DisplayImage
 import ProjV
 import ProjH
+import param
 
 #
 # Utility functions to put/get Pv values.
@@ -148,8 +149,9 @@ REMOTE_AVERAGE = 1
 LOCAL_AVERAGE  = 2
 
 class GraphicUserInterface(QMainWindow):
-#  def __init__(self, app, cwd, instrument, cameraIndex, cameraPv, useSyntheticData,...)
-  def __init__(self, app, cwd, instrument, camera, cameraPv, useSyntheticData,
+
+#  def __init__(self, app, cwd, instrument, cameraIndex, cameraPv, ...)
+  def __init__(self, app, cwd, instrument, camera, cameraPv,
                cameraListFilename, cfgdir, activedir, rate, idle, options):
     QMainWindow.__init__(self)
     self.app = app
@@ -182,11 +184,7 @@ class GraphicUserInterface(QMainWindow):
     self.minproj    = 250
 
     # Default to VGA!
-    self.x = 640
-    self.y = 480
-    self.ypad = (self.x - self.y) / 2
-    self.xpad = 0
-    self.maxd = self.x
+    param.setImageSize(640, 480)
     self.isColor = False
     self.bits = 10
     self.maxcolor = 1023
@@ -196,7 +194,7 @@ class GraphicUserInterface(QMainWindow):
     self.dataUpdates     = 0
     self.lastDataUpdates = 0
     self.average         = 1
-    self.isportrait      = True
+    param.orientation    = param.ORIENT0
     self.connected       = False
     self.cameraBase      = ""
     self.camera          = None
@@ -226,7 +224,6 @@ class GraphicUserInterface(QMainWindow):
     self.averageCur      = 0
     self.iRangeMin       = 0
     self.iRangeMax       = 1023
-    self.zoom            = 1.0
     self.camactions      = []
     self.lastwidth       = 0
     self.useglobmarks    = False
@@ -268,14 +265,6 @@ class GraphicUserInterface(QMainWindow):
     self.ui.actM  = [self.ui.actionM1, self.ui.actionM2,
                      self.ui.actionM3, self.ui.actionM4,
                      self.ui.actionROI]
-    self.ui.pBH   = [self.ui.pushButtonHmarker1, self.ui.pushButtonHmarker2,
-                     self.ui.pushButtonHmarker3, self.ui.pushButtonHmarker4]
-    self.ui.tHM   = [self.ui.textHmarker1, self.ui.textHmarker2, self.ui.textHmarker3,
-                     self.ui.textHmarker4] 
-    self.ui.pBV   = [self.ui.pushButtonVmarker1, self.ui.pushButtonVmarker2,
-                     self.ui.pushButtonVmarker3, self.ui.pushButtonVmarker4]
-    self.ui.tVM   = [self.ui.textVmarker1, self.ui.textVmarker2, self.ui.textVmarker3,
-                     self.ui.textVmarker4]
     self.advdialog = advdialog(self)
     self.advdialog.hide()
     
@@ -329,21 +318,12 @@ class GraphicUserInterface(QMainWindow):
     # Resize the main window!
     self.ui.display_image.setImageSize(False)
     
-    if self.isportrait:
-      self.lProjMarker = [ QPointF(0,self.y), QPointF(-10,self.y+10), QPointF(-20,self.y+20), QPointF(-30,self.y+30) ] # image
-    else:
-      self.lProjMarker = [ QPointF(0,0), QPointF(-10,-10), QPointF(-20,-20), QPointF(-30,-30) ]
-    self.updateHmarkerText()
-    self.updateVmarkerText()
-
-    self.iScaleIndex = False
+    self.iScaleIndex = 0
     self.connect(self.ui.comboBoxScale,  QtCore.SIGNAL("currentIndexChanged(int)"), self.onComboBoxScaleIndexChanged)
     
-    self.useSyntheticData   = int(useSyntheticData)      
     self.cameraListFilename  = cameraListFilename
       
-    self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image,
-                                                            self.useSyntheticData)
+    self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image, param.orientation)
 
     self.updateRoiText()
     self.updateMarkerText(True, True, 0, 15)
@@ -356,18 +336,14 @@ class GraphicUserInterface(QMainWindow):
 
     self.ui.display_image.doResize(QSize(self.viewwidth, self.viewheight))
 
-    sizeProjX       = QSize(self.maxd, self.projsize)
+    sizeProjX       = QSize(param.maxd, self.projsize)
     self.imageProjX = QImage(sizeProjX, QImage.Format_RGB32) # image
 
-    sizeProjY       = QSize(self.projsize, self.maxd)
+    sizeProjY       = QSize(self.projsize, param.maxd)
     self.imageProjY = QImage(sizeProjY, QImage.Format_RGB32) # image
     
     self.updateCameraCombo()
     
-    self.connect(self.ui.checkBoxProjLine1, QtCore.SIGNAL("stateChanged(int)"), self.onCheckProjUpdate)
-    self.connect(self.ui.checkBoxProjLine2, QtCore.SIGNAL("stateChanged(int)"), self.onCheckProjUpdate)
-    self.connect(self.ui.checkBoxProjLine3, QtCore.SIGNAL("stateChanged(int)"), self.onCheckProjUpdate)
-    self.connect(self.ui.checkBoxProjLine4, QtCore.SIGNAL("stateChanged(int)"), self.onCheckProjUpdate)
     self.connect(self.ui.checkBoxProjRoi,   QtCore.SIGNAL("stateChanged(int)"), self.onCheckProjUpdate)        
     self.connect(self.ui.checkBoxProjAutoRange, QtCore.SIGNAL("stateChanged(int)"), self.onCheckProjUpdate)
     
@@ -439,22 +415,6 @@ class GraphicUserInterface(QMainWindow):
     self.connect(self.ui.actionReconnect, QtCore.SIGNAL("triggered()"), self.onReconnect)
     self.connect(self.ui.actionForce    , QtCore.SIGNAL("triggered()"), self.onForceDisco)
     
-    #
-    # Proj Mouse H/V Mode:
-    #
-    self.iProjMouseHmode = 0
-    self.iProjMouseVmode = 0
-    for i in range(4):
-      self.connect(self.ui.pBH[i], QtCore.SIGNAL("clicked(bool)"),
-                   functools.partial(self.onHmarkerSet, i))
-      self.connect(self.ui.pBV[i], QtCore.SIGNAL("clicked(bool)"),
-                   functools.partial(self.onVmarkerSet, i))
-
-      self.connect(self.ui.tHM[i], QtCore.SIGNAL("returnPressed()"),
-                   functools.partial(self.onHmarkerTextEnter, i))
-      self.connect(self.ui.tVM[i], QtCore.SIGNAL("returnPressed()"),
-                   functools.partial(self.onVmarkerTextEnter, i))
-    
     self.connect(self.rfshTimer, QtCore.SIGNAL("timeout()"), self.UpdateRate)
     self.rfshTimer.start(1000)
 
@@ -464,9 +424,23 @@ class GraphicUserInterface(QMainWindow):
     self.connect(self.discoTimer, QtCore.SIGNAL("timeout()"), self.do_disco)
 
     self.connect(self.ui.average  , QtCore.SIGNAL("returnPressed()"), self.onAverageSet)
-    self.connect(self.ui.portrait , QtCore.SIGNAL("triggered()"), self.portrait)
-    self.connect(self.ui.landscape, QtCore.SIGNAL("triggered()"), self.landscape)
-    self.portrait(False) # default to use portrait
+    self.connect(self.ui.orient0,    QtCore.SIGNAL("triggered()"), 
+                 lambda : self.setOrientation(param.ORIENT0))
+    self.connect(self.ui.orient90,   QtCore.SIGNAL("triggered()"),
+                 lambda : self.setOrientation(param.ORIENT90))
+    self.connect(self.ui.orient180,  QtCore.SIGNAL("triggered()"),
+                 lambda : self.setOrientation(param.ORIENT180))
+    self.connect(self.ui.orient270,  QtCore.SIGNAL("triggered()"),
+                 lambda : self.setOrientation(param.ORIENT270))
+    self.connect(self.ui.orient0F,   QtCore.SIGNAL("triggered()"),
+                 lambda : self.setOrientation(param.ORIENT0F))
+    self.connect(self.ui.orient90F,  QtCore.SIGNAL("triggered()"),
+                 lambda : self.setOrientation(param.ORIENT90F))
+    self.connect(self.ui.orient180F, QtCore.SIGNAL("triggered()"),
+                 lambda : self.setOrientation(param.ORIENT180F))
+    self.connect(self.ui.orient270F, QtCore.SIGNAL("triggered()"),
+                 lambda : self.setOrientation(param.ORIENT270F))
+    self.setOrientation(param.ORIENT0) # default to use unrotated
     
     self.connect(self.ui.FileSave, QtCore.SIGNAL("triggered()"), self.onfileSave)    
     self.connect(self.ui.PostElog, QtCore.SIGNAL("triggered()"), self.onPostElog)    
@@ -715,19 +689,9 @@ class GraphicUserInterface(QMainWindow):
   def setImageSize(self, newx, newy, reset=True):
     if (newx == 0 or newy == 0):
       return
-    self.x = newx
-    self.y = newy
-    if (newx >= newy):
-      self.ypad = (newx - newy) / 2
-      self.xpad = 0
-      self.maxd = newx
-    else:
-      self.ypad = 0
-      self.xpad = (newy - newx) / 2
-      self.maxd = newy
+    param.setImageSize(newx, newy)
     self.ui.display_image.setImageSize(reset)
-    self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image,
-                                                              self.useSyntheticData)
+    self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image, param.orientation)
     if self.camera != None:
       if self.isColor:
         self.camera.processor  = pycaqtimage.pyCreateColorImagePvCallbackFunc(self.imageBuffer)
@@ -736,19 +700,10 @@ class GraphicUserInterface(QMainWindow):
         self.camera.processor  = pycaqtimage.pyCreateImagePvCallbackFunc(self.imageBuffer)
 #        self.ui.grayScale.setVisible(False)
       pycaqtimage.pySetImageBufferGray(self.imageBuffer, self.ui.grayScale.isChecked())
-    self.ui.projH.setImageSize(reset)
-    self.ui.projV.setImageSize(reset)
-    sizeProjX       = QSize(self.maxd, self.projsize)
+    sizeProjX       = QSize(param.maxd, self.projsize)
     self.imageProjX = QImage(sizeProjX, QImage.Format_RGB32) # image
-    sizeProjY       = QSize(self.projsize, self.maxd)
+    sizeProjY       = QSize(self.projsize, param.maxd)
     self.imageProjY = QImage(sizeProjY, QImage.Format_RGB32) # image
-    if reset:
-      if self.isportrait:
-        self.lProjMarker = [ QPointF(0,self.y), QPointF(-10,self.y+10), QPointF(-20,self.y+20), QPointF(-30,self.y+30) ] # image
-      else:
-        self.lProjMarker = [ QPointF(0,0), QPointF(-10,-10), QPointF(-20,-20), QPointF(-30,-30) ]
-      self.updateHmarkerText()
-      self.updateVmarkerText()
 
   def doShowProj(self):
     v = self.ui.showproj.isChecked()
@@ -853,7 +808,7 @@ class GraphicUserInterface(QMainWindow):
     self.ui.display_image.roiSet(x, y, w, h)
 
   def getROI(self):
-    roi = self.ui.display_image.rectRoi
+    roi = self.ui.display_image.rectRoi.abs()
     x = roi.left()
     y = roi.top()
     w = roi.width()
@@ -978,12 +933,8 @@ class GraphicUserInterface(QMainWindow):
       print "noise2Callback(): %-30s " % (self.name), exception
 
   def onMarkerTextEnter(self, n):
-    if self.isportrait:
-      self.ui.display_image.lMarker[n].setX(float(self.ui.ymark[n].text()))
-      self.ui.display_image.lMarker[n].setY(self.y - float(self.ui.xmark[n].text()))
-    else:
-      self.ui.display_image.lMarker[n].setX(float(self.ui.xmark[n].text()))
-      self.ui.display_image.lMarker[n].setY(float(self.ui.ymark[n].text()))
+    self.ui.display_image.lMarker[n].setRel(float(self.ui.xmark[n].text()), 
+                                            float(self.ui.ymark[n].text()))
     if n <= 1:
       self.updateMarkerText(False, True, 1 << n, 1 << n)
     else:
@@ -993,12 +944,8 @@ class GraphicUserInterface(QMainWindow):
     if self.cfg == None: self.dumpConfig()
 
   def onMarkerDialogEnter(self, n):
-    if self.isportrait:
-      self.ui.display_image.lMarker[n].setX(float(self.markerdialog.ymark[n].text()))
-      self.ui.display_image.lMarker[n].setY(self.y - float(self.markerdialog.xmark[n].text()))
-    else:
-      self.ui.display_image.lMarker[n].setX(float(self.markerdialog.xmark[n].text()))
-      self.ui.display_image.lMarker[n].setY(float(self.markerdialog.ymark[n].text()))
+    self.ui.display_image.lMarker[n].setRel(float(self.markerdialog.xmark[n].text()),
+                                            float(self.markerdialog.ymark[n].text()))
     if n <= 1:
       self.updateMarkerText(False, True, 1 << n, 1 << n)
     else:
@@ -1009,55 +956,42 @@ class GraphicUserInterface(QMainWindow):
      
   def updateMarkerText(self, do_main=True, do_dialog=True, pvmask=0, change=15):
     if do_main:
-      if self.isportrait:
-        for i in range(4):
-          if change & (1 << i):
-            self.ui.xmark[i].setText("%.0f" % (self.y - self.ui.display_image.lMarker[i].y()))
-            self.ui.ymark[i].setText("%.0f" % self.ui.display_image.lMarker[i].x())
-      else:
-        for i in range(4):
-          if change & (1 << i):
-            self.ui.xmark[i].setText("%.0f" % self.ui.display_image.lMarker[i].x())
-            self.ui.ymark[i].setText("%.0f" % self.ui.display_image.lMarker[i].y())
+      for i in range(4):
+        if change & (1 << i):
+          pt = self.ui.display_image.lMarker[i].oriented()
+          self.ui.xmark[i].setText("%.0f" % pt.x())
+          self.ui.ymark[i].setText("%.0f" % pt.y())
     if do_dialog:
-      if self.isportrait:
-        for i in range(4):
-          if change & (1 << i):
-            self.markerdialog.xmark[i].setText("%.0f" % (self.y - self.ui.display_image.lMarker[i].y()))
-            self.markerdialog.ymark[i].setText("%.0f" % self.ui.display_image.lMarker[i].x())
-      else:
-        for i in range(4):
-          if change & (1 << i):
-            self.markerdialog.xmark[i].setText("%.0f" % self.ui.display_image.lMarker[i].x())
-            self.markerdialog.ymark[i].setText("%.0f" % self.ui.display_image.lMarker[i].y())
+      for i in range(4):
+        if change & (1 << i):
+          pt = self.ui.display_image.lMarker[i].oriented()
+          self.markerdialog.xmark[i].setText("%.0f" % pt.x())
+          self.markerdialog.ymark[i].setText("%.0f" % pt.y())
     if self.useglobmarks:
       for i in range(2):
         if pvmask & (1 << i):
-            newx = int(self.ui.display_image.lMarker[i].x())
-            newy = int(self.ui.display_image.lMarker[i].y())
-            self.globmarkpvs[2*i+0].put(newx)
-            self.globmarkpvs[2*i+1].put(newy)
+          pt = self.ui.display_image.lMarker[i].abs()
+          newx = int(pt.x())
+          newy = int(pt.y())
+          self.globmarkpvs[2*i+0].put(newx)
+          self.globmarkpvs[2*i+1].put(newy)
     self.updateMarkerValue()
     
   def updateMarkerValue(self):          
-    lValue = pycaqtimage.pyGetPixelValue(self.imageBuffer, self.ui.display_image.cursorPos, self.ui.display_image.lMarker[0], self.ui.display_image.lMarker[1],
-      self.ui.display_image.lMarker[2], self.ui.display_image.lMarker[3])
-      
+    lValue = pycaqtimage.pyGetPixelValue(self.imageBuffer, self.ui.display_image.cursorPos.abs(), 
+                                         self.ui.display_image.lMarker[0].abs(),
+                                         self.ui.display_image.lMarker[1].abs(),
+                                         self.ui.display_image.lMarker[2].abs(),
+                                         self.ui.display_image.lMarker[3].abs())
     self.averageCur = lValue[5]
-      
     sMarkerInfoText = ""
     if lValue[0] >= 0:
-      sMarkerInfoText += "(%d,%d): %-4d " % (self.ui.display_image.cursorMarker.x(), self.ui.display_image.cursorMarker.y(), lValue[0])
-    
+      pt = self.ui.display_image.cursorPos.oriented()
+      sMarkerInfoText += "(%d,%d): %-4d " % (pt.x(), pt.y(), lValue[0])
     for iMarker in range(4):
       if lValue[iMarker+1] >= 0:
-        if self.isportrait:
-          sMarkerInfoText += "%d:(%d,%d): %-4d " % (1+iMarker, 
-            (self.y - self.ui.display_image.lMarker[iMarker].y()),
-            self.ui.display_image.lMarker[iMarker].x(), lValue[iMarker+1])            
-        else:
-          sMarkerInfoText += "%d:(%d,%d): %-4d " % (1+iMarker, 
-            self.ui.display_image.lMarker[iMarker].x(), self.ui.display_image.lMarker[iMarker].y(), lValue[iMarker+1])    
+        pt = self.ui.display_image.lMarker[iMarker].oriented()
+        sMarkerInfoText += "%d:(%d,%d): %-4d " % (1+iMarker, pt.x(), pt.y(), lValue[iMarker+1])    
     # Sigh.  This is the longest label... if it is too long, the window will resize.
     # This would be bad, because the display_image minimum size is small... so we
     # need to protect it a bit until things stabilize.
@@ -1138,16 +1072,10 @@ class GraphicUserInterface(QMainWindow):
 
   def onMarkerReset(self):
     self.ui.display_image.lMarker = [ QPointF(-100, -100),
-                                   QPointF(self.x + 100, -100),
-                                   QPointF(self.x + 100, self.y + 100),
-                                   QPointF(-100, self.y + 100) ]
+                                   QPointF(param.x + 100, -100),
+                                   QPointF(param.x + 100, param.y + 100),
+                                   QPointF(-100, param.y + 100) ]
     self.updateMarkerText(True, True, 3, 15)
-    if self.isportrait:
-      self.lProjMarker = [ QPointF(0,self.y), QPointF(-10,self.y+10), QPointF(-20,self.y+20), QPointF(-30,self.y+30) ] # image
-    else:
-      self.lProjMarker = [ QPointF(0,0), QPointF(-10,-10), QPointF(-20,-20), QPointF(-30,-30) ]
-    self.updateHmarkerText()
-    self.updateVmarkerText()
     self.updateall()
     if self.cfg == None: self.dumpConfig()
     
@@ -1162,98 +1090,21 @@ class GraphicUserInterface(QMainWindow):
     self.ui.display_image.roiReset()
     
   def onRoiTextEnter(self):
-    if self.isportrait:
-      self.ui.display_image.rectRoi = QRectF( 
-        float(self.ui.Disp_RoiY.text()), 
-        self.y - float(self.ui.Disp_RoiX.text()) - float(self.ui.Disp_RoiW.text()),
-        float(self.ui.Disp_RoiH.text()), 
-        float(self.ui.Disp_RoiW.text()) )      
-    else:
-      self.ui.display_image.rectRoi = QRectF( 
-        float(self.ui.Disp_RoiX.text()), 
-        float(self.ui.Disp_RoiY.text()),
-        float(self.ui.Disp_RoiW.text()), 
-        float(self.ui.Disp_RoiH.text()) )        
+    self.ui.display_image.rectRoi = param.Rect(float(self.ui.Disp_RoiX.text()), 
+                                               float(self.ui.Disp_RoiY.text()),
+                                               float(self.ui.Disp_RoiW.text()), 
+                                               float(self.ui.Disp_RoiH.text()),
+                                               rel=True)        
     self.updateRoiText()
     self.updateall()
     if self.cfg == None: self.dumpConfig()
           
   def updateRoiText(self):
-    if (self.ui.display_image.rectRoi.width() < 0):
-      xtmp = self.ui.display_image.rectRoi.left()
-      self.ui.display_image.rectRoi.setLeft(self.ui.display_image.rectRoi.right())
-      self.ui.display_image.rectRoi.setRight(xtmp)
-      
-    if (self.ui.display_image.rectRoi.height() < 0):
-      ytmp = self.ui.display_image.rectRoi.top()
-      self.ui.display_image.rectRoi.setTop(self.ui.display_image.rectRoi.bottom())
-      self.ui.display_image.rectRoi.setBottom(ytmp)
-  
-    if self.isportrait:
-      self.ui.Disp_RoiX.setText("%.0f" % (self.y - self.ui.display_image.rectRoi.y() -
-        self.ui.display_image.rectRoi.height()))
-      self.ui.Disp_RoiY.setText("%.0f" % self.ui.display_image.rectRoi.x())
-      self.ui.Disp_RoiW.setText("%.0f" % self.ui.display_image.rectRoi.height())
-      self.ui.Disp_RoiH.setText("%.0f" % self.ui.display_image.rectRoi.width() )
-    else:
-      self.ui.Disp_RoiX.setText("%.0f" % self.ui.display_image.rectRoi.x())
-      self.ui.Disp_RoiY.setText("%.0f" % self.ui.display_image.rectRoi.y())
-      self.ui.Disp_RoiW.setText("%.0f" % self.ui.display_image.rectRoi.width() )
-      self.ui.Disp_RoiH.setText("%.0f" % self.ui.display_image.rectRoi.height())
-
-  def clearMouseHmode(self, keepMode, bNewCheckedState):
-    for i in range(4):
-      if keepMode != i+1: self.ui.pBH[i].setChecked(False)  
-    if bNewCheckedState:
-      self.iProjMouseHmode = keepMode
-    else:
-      self.iProjMouseHmode = 0
-      
-  def onHmarkerSet(self, n, bChecked):
-    self.clearMouseHmode(n+1, bChecked)
-    
-  def onHmarkerTextEnter(self, n):
-    if self.isportrait:
-      self.lProjMarker[n].setY(self.y - float(self.ui.tHM[n].text()))
-    else:
-      self.lProjMarker[n].setX(float(self.ui.tHM[n].text()))    
-    self.ui.display_image.update()
-    if self.cfg == None: self.dumpConfig()
-      
-  def updateHmarkerText(self):
-    if self.isportrait:
-      for i in range(4):
-        self.ui.tHM[i].setText("%.0f" % (self.y - self.lProjMarker[i].y()))
-    else:
-      for i in range(4):
-        self.ui.tHM[i].setText("%.0f" % self.lProjMarker[i].x())
-      
-  def clearMouseVmode(self, keepMode, bNewCheckedState):
-    for i in range(4):
-      if keepMode != i+1: self.ui.pBV[i].setChecked(False)  
-    if bNewCheckedState:
-      self.iProjMouseVmode = keepMode
-    else:
-      self.iProjMouseVmode = 0
-      
-  def onVmarkerSet(self, n, bChecked):
-    self.clearMouseVmode(n+1, bChecked)
-    
-  def onVmarkerTextEnter(self, n):
-    if self.isportrait:
-      self.lProjMarker[n].setX(float(self.ui.tVM[n].text()))
-    else:
-      self.lProjMarker[n].setY(float(self.ui.tVM[n].text()))
-    self.ui.display_image.update()
-    if self.cfg == None: self.dumpConfig()
-
-  def updateVmarkerText(self):
-    if self.isportrait:
-      for i in range(4):
-        self.ui.tVM[i].setText("%.0f" % self.lProjMarker[i].x())
-    else:
-      for i in range(4):
-        self.ui.tVM[i].setText("%.0f" % self.lProjMarker[i].y())
+    rct = self.ui.display_image.rectRoi.oriented()
+    self.ui.Disp_RoiX.setText("%.0f" % rct.x())
+    self.ui.Disp_RoiY.setText("%.0f" % rct.y())
+    self.ui.Disp_RoiW.setText("%.0f" % rct.width() )
+    self.ui.Disp_RoiH.setText("%.0f" % rct.height())
       
   def onZoomRoi(self):
     self.ui.display_image.zoomToRoi()
@@ -1354,17 +1205,14 @@ class GraphicUserInterface(QMainWindow):
         raise Exception, "No File Name Specified"
       
       if fileName.lower().endswith(".raw"):
-        bSaveOk = pycaqtimage.pySaveRawImageData(self.imageBuffer, self.isportrait, fileName)
+        bSaveOk = pycaqtimage.pySaveRawImageData(self.imageBuffer, param.orientation, fileName)
         if not bSaveOk:
           raise Exception, "Failed to Save to Raw File %s" % (fileName)
         QMessageBox.information(self, "File Save Succeeded", "Image has been saved to a 16-bit raw file: %s" % (fileName) )
         print 'Saved to a 16-bit raw file %s' %(fileName)            
       else:      
-        imageData = pycaqtimage.pyGetImageData8bit(self.imageBuffer, self.isportrait, self.bits)
-        if self.isportrait:
-          image = Image.new('L', (self.y, self.x))
-        else:
-          image = Image.new('L', (self.x, self.y))
+        imageData = pycaqtimage.pyGetImageData8bit(self.imageBuffer, param.orientation, self.bits)
+        image = Image.new('L', param.getSizeTuple())
         image.putdata(imageData)
         try:
           image.save(fileName)
@@ -1389,31 +1237,22 @@ class GraphicUserInterface(QMainWindow):
         print "Elog Post Okay"
       else:
         print "Elog Post Failed"
-  
-  def landscape(self, reorient=True):
-    if self.isportrait:
-      self.isportrait = False
-      if reorient and (self.viewwidth != self.viewheight):
-        self.changeSize(self.viewheight, self.viewwidth, self.projsize, True)
-    self.ui.portrait.setChecked(False)
-    self.ui.landscape.setChecked(True)
-    self.updateMarkerText(True, True, 0, 15)
-    self.updateHmarkerText()
-    self.updateVmarkerText()
-    self.updateRoiText()
-    self.updateall()
-    if self.cfg == None: self.dumpConfig()
 
-  def portrait(self, reorient=True):
-    if not self.isportrait:
-      self.isportrait = True
-      if reorient and (self.viewwidth != self.viewheight):
+  def setOrientation(self, orientation, reorient=True):
+    self.ui.orient0.setChecked(orientation == param.ORIENT0)
+    self.ui.orient90.setChecked(orientation == param.ORIENT90)
+    self.ui.orient180.setChecked(orientation == param.ORIENT180)
+    self.ui.orient270.setChecked(orientation == param.ORIENT270)
+    self.ui.orient0F.setChecked(orientation == param.ORIENT0F)
+    self.ui.orient90F.setChecked(orientation == param.ORIENT90F)
+    self.ui.orient180F.setChecked(orientation == param.ORIENT180F)
+    self.ui.orient270F.setChecked(orientation == param.ORIENT270F)
+    if param.orientation != orientation:
+      param.orientation = orientation
+#      if reorient and (self.viewwidth != self.viewheight):
+      if reorient:
         self.changeSize(self.viewheight, self.viewwidth, self.projsize, True)
-    self.ui.portrait.setChecked(True)
-    self.ui.landscape.setChecked(False)
     self.updateMarkerText(True, True, 0, 15)
-    self.updateHmarkerText()
-    self.updateVmarkerText()
     self.updateRoiText()
     self.updateall()
     if self.cfg == None: self.dumpConfig()
@@ -1444,7 +1283,7 @@ class GraphicUserInterface(QMainWindow):
     try:
       newx = self.colPv.value / self.scale
       newy = self.rowPv.value / self.scale
-      if newx != self.x or newy != self.y:
+      if newx != param.x or newy != self.y:
         self.setImageSize(newx, newy, False)
     except:
       pass
@@ -1530,14 +1369,11 @@ class GraphicUserInterface(QMainWindow):
   def updateProj(self):
     try:
       (roiMean, roiVar, projXmin, projXmax, projYmin, projYmax) = \
-        pycaqtimage.pyUpdateProj( self.imageBuffer, self.isportrait, self.iScaleIndex,
-        self.ui.display_image.lMarker[0], self.ui.display_image.lMarker[1],
-        self.ui.display_image.lMarker[2], self.ui.display_image.lMarker[3],
-        self.ui.checkBoxProjLine1.isChecked(), self.ui.checkBoxProjLine2.isChecked(), 
-        self.ui.checkBoxProjLine3.isChecked(), self.ui.checkBoxProjLine4.isChecked(), 
-        self.ui.checkBoxProjRoi.isChecked(), self.ui.checkBoxProjAutoRange.isChecked(),
-        self.iRangeMin, self.iRangeMax, self.ui.display_image.rectRoi,
-        self.ui.display_image.arectZoom, self.imageProjX, self.imageProjY )
+        pycaqtimage.pyUpdateProj( self.imageBuffer, param.orientation, self.iScaleIndex,
+                                  self.ui.checkBoxProjRoi.isChecked(), self.ui.checkBoxProjAutoRange.isChecked(),
+                                  self.iRangeMin, self.iRangeMax, 
+                                  self.ui.display_image.rectRoi.abs(), self.ui.display_image.arectZoom.abs(),
+                                  self.imageProjX, self.imageProjY )
       self.ui.projH.update()
       self.ui.projV.update()
             
@@ -1545,21 +1381,17 @@ class GraphicUserInterface(QMainWindow):
         roiVarByMean = 0
       else:
         roiVarByMean = roiVar / roiMean
+      roi = self.ui.display_image.rectRoi.oriented()
       self.ui.labelRoiInfo.setText( "ROI Mean %-7.2f Std %-7.2f Var/Mean %-7.2f (%d,%d) W %d H %d" % (
         roiMean, math.sqrt(roiVar), roiVarByMean,
-        self.ui.display_image.rectRoi.x(), self.ui.display_image.rectRoi.y(), 
-        self.ui.display_image.rectRoi.width(), self.ui.display_image.rectRoi.height() ) )        
-      if self.isportrait:
+        roi.x(), roi.y(), roi.width(), roi.height() ) )        
+      if param.isRotated():
         self.ui.labelProjHmax.setText( "%d -" % projYmax )
         self.ui.labelProjMin.setText ( "%d\n%d\\" % (projYmin, projXmin) )
-        #self.ui.labelProjHmin.setText( "%d -" % projYmin )
-        #self.ui.labelProjVmin.setText( "%d | " % projXmin )
         self.ui.labelProjVmax.setText( "| %d" % projXmax )
       else:
         self.ui.labelProjHmax.setText( "%d -" % projXmax )
         self.ui.labelProjMin.setText ( "%d\n%d\\" % (projXmin, projYmin) )
-        #self.ui.labelProjHmin.setText( "%d -" % projXmin )
-        #self.ui.labelProjVmin.setText( "%d | " % projYmin )
         self.ui.labelProjVmax.setText( "| %d" % projYmax )
     except Exception, e:
       print "updateProj:: exception: ", e             
@@ -1567,10 +1399,10 @@ class GraphicUserInterface(QMainWindow):
   def updateMiscInfo(self):
     if self.avgState == LOCAL_AVERAGE:
       self.ui.labelMiscInfo.setText( "AvgShot# %d/%d Color scale [%d,%d] Zoom %.3f" % ( 
-        self.averageCur, self.average, self.iRangeMin, self.iRangeMax, self.zoom) )
+        self.averageCur, self.average, self.iRangeMin, self.iRangeMax, param.zoom) )
     else:
       self.ui.labelMiscInfo.setText( "AvgShot# %d/%d Color scale [%d,%d] Zoom %.3f" % ( 
-        self.averageCur, 1, self.iRangeMin, self.iRangeMax, self.zoom) )
+        self.averageCur, 1, self.iRangeMin, self.iRangeMax, param.zoom) )
     if (self.fLensValue != self.fLensPrevValue):
       self.fLensPrevValue = self.fLensValue
       self.ui.horizontalSliderLens.setValue(self.fLensValue)
@@ -1906,11 +1738,9 @@ class GraphicUserInterface(QMainWindow):
           self.globmarkpvs2[2*n-4].secs != self.camera.secs or
           self.globmarkpvs2[2*n-3].secs != self.camera.secs):
         return
-      self.ui.display_image.lMarker[n].setX(self.globmarkpvs2[2*n-4].value)
-      self.ui.display_image.lMarker[n].setY(self.globmarkpvs2[2*n-3].value)
+      self.ui.display_image.lMarker[n].setAbs(self.globmarkpvs2[2*n-4].value, self.globmarkpvs2[2*n-3].value)
     else:
-      self.ui.display_image.lMarker[n].setX(self.globmarkpvs[2*n+0].value)
-      self.ui.display_image.lMarker[n].setY(self.globmarkpvs[2*n+1].value)
+      self.ui.display_image.lMarker[n].setAbs(self.globmarkpvs[2*n+0].value, self.globmarkpvs[2*n+1].value)
     self.updateMarkerText(True, True, 0, 1 << n)
     self.updateMarkerValue()
     self.updateall()
@@ -1921,14 +1751,10 @@ class GraphicUserInterface(QMainWindow):
     try:
       fid = self.camera.nsec & 0x1ffff
       secs = self.camera.secs
-      if self.markhash[fid][0] == secs:
-        self.ui.display_image.lMarker[2].setX(self.markhash[fid][4])
-      if self.markhash[fid][1] == secs:
-        self.ui.display_image.lMarker[2].setY(self.markhash[fid][5])
-      if self.markhash[fid][2] == secs:
-        self.ui.display_image.lMarker[3].setX(self.markhash[fid][6])
-      if self.markhash[fid][3] == secs:
-        self.ui.display_image.lMarker[3].setY(self.markhash[fid][7])
+      if self.markhash[fid][0] == secs and self.markhash[fid][1] == secs:
+        self.ui.display_image.lMarker[2].setAbs(self.markhash[fid][4], self.markhash[fid][5])
+      if self.markhash[fid][2] == secs and self.markhash[fid][3] == secs:
+        self.ui.display_image.lMarker[3].setAbs(self.markhash[fid][6], self.markhash[fid][7])
       self.updateMarkerText(True, True, 0, 12)
     except Exception, e:
       print "updateCross3and4 exception: %s" % e
@@ -2287,7 +2113,6 @@ class GraphicUserInterface(QMainWindow):
     self.rowPv.monitor_cb = self.sizeCallback
     self.colPv.monitor_cb = self.sizeCallback
     # Now, before we monitor, update the camera size!
-    print "Setting imagesize to (%d, %d)" % (self.colPv.value / self.scale, self.rowPv.value / self.scale)
     self.setImageSize(self.colPv.value / self.scale, self.rowPv.value / self.scale, True)
     self.updateMarkerText(True, True, 0, 15)
     self.notify.monitor(pyca.DBE_VALUE, False, 1) # Just 1 pixel, so a new image is available.
@@ -2609,32 +2434,30 @@ class GraphicUserInterface(QMainWindow):
       return
 
   def changeSize(self, newwidth, newheight, newproj, settext, doresize=True):
-    # print "changeSize(%d, %d, %d)" % (newwidth, newheight, newproj)
     if( self.colPv == None or self.colPv == 0 or
         self.rowPv == None or self.rowPv == 0 ):
         return
     if newwidth >= 400 and newheight >= 400 and newproj >= 250:
-      if (self.viewwidth == newwidth and self.viewheight == newheight and
-          self.projsize == newproj):
-        return
-      self.viewwidth = newwidth
-      self.viewheight = newheight
-      self.projsize = newproj
-      if settext:
-        self.advdialog.ui.viewWidth.setText(str(self.viewwidth))
-        self.advdialog.ui.viewHeight.setText(str(self.viewheight))
-        self.advdialog.ui.projSize.setText(str(self.projsize))
-      if doresize:
-        self.startResize()
-        self.ui.display_image.doResize(QSize(self.viewwidth, self.viewheight))
-        sizeProjX = QSize(self.viewwidth, self.projsize)
-        self.ui.projH.doResize(sizeProjX)
-        sizeProjY = QSize(self.projsize, self.viewheight)
-        self.ui.projV.doResize(sizeProjY)
-        self.ui.projectionFrame.setFixedSize(QSize(self.projsize, self.projsize))
-        self.ui.projectionFrame_left.setFixedWidth(self.projsize)
-        self.ui.projectionFrame_right.setFixedHeight(self.projsize)
-        self.finishResize()
+      if (self.viewwidth != newwidth or self.viewheight != newheight or
+          self.projsize != newproj):
+        self.viewwidth = newwidth
+        self.viewheight = newheight
+        self.projsize = newproj
+        if settext:
+          self.advdialog.ui.viewWidth.setText(str(self.viewwidth))
+          self.advdialog.ui.viewHeight.setText(str(self.viewheight))
+          self.advdialog.ui.projSize.setText(str(self.projsize))
+        if doresize:
+          self.startResize()
+          self.ui.display_image.doResize(QSize(self.viewwidth, self.viewheight))
+          sizeProjX = QSize(self.viewwidth, self.projsize)
+          self.ui.projH.doResize(sizeProjX)
+          sizeProjY = QSize(self.projsize, self.viewheight)
+          self.ui.projV.doResize(sizeProjY)
+          self.ui.projectionFrame.setFixedSize(QSize(self.projsize, self.projsize))
+          self.ui.projectionFrame_left.setFixedWidth(self.projsize)
+          self.ui.projectionFrame_right.setFixedHeight(self.projsize)
+          self.finishResize()
       self.setImageSize(self.colPv.value / self.scale, self.rowPv.value / self.scale, False)
       if self.cfg == None:
         self.dumpConfig()
@@ -2997,49 +2820,38 @@ class GraphicUserInterface(QMainWindow):
       f = open(self.cfgdir + self.cfgname, "w")
       g = open(self.cfgdir + "GLOBAL", "w")
 
-      f.write("projsize   " + str(self.projsize) + "\n")
-      f.write("viewwidth  " + str(self.viewwidth) + "\n")
-      f.write("viewheight " + str(self.viewheight) + "\n")
-      g.write("config     " + str(int(self.ui.showconf.isChecked())) + "\n")
-      g.write("projection " + str(int(self.ui.showproj.isChecked())) + "\n")
-      g.write("markers    " + str(int(self.ui.showmarker.isChecked())) + "\n")
-      f.write("lportrait  " + str(int(self.isportrait)) + "\n")
-      g.write("portrait   " + str(int(self.isportrait)) + "\n")
-      f.write("autorange  " + str(int(self.ui.checkBoxProjAutoRange.isChecked())) + "\n")
-      f.write("proj1      " + str(int(self.ui.checkBoxProjLine1.isChecked())) + "\n")
-      f.write("proj2      " + str(int(self.ui.checkBoxProjLine2.isChecked())) + "\n")
-      f.write("proj3      " + str(int(self.ui.checkBoxProjLine3.isChecked())) + "\n")
-      f.write("proj4      " + str(int(self.ui.checkBoxProjLine4.isChecked())) + "\n")
-      f.write("projROI    " + str(int(self.ui.checkBoxProjRoi.isChecked())) + "\n")
-      f.write("rectzoom   " + str(self.ui.display_image.rectZoom.x()) + " "
-                            + str(self.ui.display_image.rectZoom.y()) + " "
-                            + str(self.ui.display_image.rectZoom.width()) + " "
-                            + str(self.ui.display_image.rectZoom.height()) + "\n")
-      f.write("colormap   " + str(self.ui.comboBoxColor.currentText()) + "\n")
-      f.write("colorscale " + str(self.ui.comboBoxScale.currentText()) + "\n")
-      f.write("colormin   " + self.ui.lineEditRangeMin.text() + "\n")
-      f.write("colormax   " + self.ui.lineEditRangeMax.text() + "\n")
-      f.write("grayscale  " + str(int(self.ui.grayScale.isChecked())) + "\n")
-      f.write("ROI        " + self.ui.Disp_RoiX.text() + " "
-                            + self.ui.Disp_RoiY.text() + " "
-                            + self.ui.Disp_RoiW.text() + " "
-                            + self.ui.Disp_RoiH.text() + "\n")
-      f.write("globmarks  " + str(int(self.useglobmarks)) + "\n")
-      f.write("globmarks2 " + str(int(self.useglobmarks2)) + "\n")
-      f.write("m1         " + self.ui.Disp_Xmark1.text() + " " + self.ui.Disp_Ymark1.text() + "\n")
-      f.write("m2         " + self.ui.Disp_Xmark2.text() + " " + self.ui.Disp_Ymark2.text() + "\n")
-      f.write("m3         " + self.ui.Disp_Xmark3.text() + " " + self.ui.Disp_Ymark3.text() + "\n")
-      f.write("m4         " + self.ui.Disp_Xmark4.text() + " " + self.ui.Disp_Ymark4.text() + "\n")
-      f.write("ph1        " + self.ui.textHmarker1.text() + "\n")
-      f.write("ph2        " + self.ui.textHmarker2.text() + "\n")
-      f.write("ph3        " + self.ui.textHmarker3.text() + "\n")
-      f.write("ph4        " + self.ui.textHmarker4.text() + "\n")
-      f.write("pv1        " + self.ui.textVmarker1.text() + "\n")
-      f.write("pv2        " + self.ui.textVmarker2.text() + "\n")
-      f.write("pv3        " + self.ui.textVmarker3.text() + "\n")
-      f.write("pv4        " + self.ui.textVmarker4.text() + "\n")
-      g.write("xtcdir     " + self.xtcdir + "\n")
-      g.write("dispspec   " + str(self.dispspec) + "\n")
+      f.write("projsize    " + str(self.projsize) + "\n")
+      f.write("viewwidth   " + str(self.viewwidth) + "\n")
+      f.write("viewheight  " + str(self.viewheight) + "\n")
+      g.write("config      " + str(int(self.ui.showconf.isChecked())) + "\n")
+      g.write("projection  " + str(int(self.ui.showproj.isChecked())) + "\n")
+      g.write("markers     " + str(int(self.ui.showmarker.isChecked())) + "\n")
+      f.write("portrait    " + str(int(param.orientation == param.ORIENT90)) + "\n")
+      f.write("orientation " + str(param.orientation) + "\n")
+      f.write("autorange   " + str(int(self.ui.checkBoxProjAutoRange.isChecked())) + "\n")
+      f.write("projROI     " + str(int(self.ui.checkBoxProjRoi.isChecked())) + "\n")
+      rz = self.ui.display_image.rectZoom.abs()
+      f.write("rectzoom    " + str(rz.x()) + " "
+                             + str(rz.y()) + " "
+                             + str(rz.width()) + " "
+                             + str(rz.height()) + "\n")
+      f.write("colormap    " + str(self.ui.comboBoxColor.currentText()) + "\n")
+      f.write("colorscale  " + str(self.ui.comboBoxScale.currentText()) + "\n")
+      f.write("colormin    " + self.ui.lineEditRangeMin.text() + "\n")
+      f.write("colormax    " + self.ui.lineEditRangeMax.text() + "\n")
+      f.write("grayscale   " + str(int(self.ui.grayScale.isChecked())) + "\n")
+      f.write("ROI         " + self.ui.Disp_RoiX.text() + " "
+                             + self.ui.Disp_RoiY.text() + " "
+                             + self.ui.Disp_RoiW.text() + " "
+                             + self.ui.Disp_RoiH.text() + "\n")
+      f.write("globmarks   " + str(int(self.useglobmarks)) + "\n")
+      f.write("globmarks2  " + str(int(self.useglobmarks2)) + "\n")
+      f.write("m1          " + self.ui.Disp_Xmark1.text() + " " + self.ui.Disp_Ymark1.text() + "\n")
+      f.write("m2          " + self.ui.Disp_Xmark2.text() + " " + self.ui.Disp_Ymark2.text() + "\n")
+      f.write("m3          " + self.ui.Disp_Xmark3.text() + " " + self.ui.Disp_Ymark3.text() + "\n")
+      f.write("m4          " + self.ui.Disp_Xmark4.text() + " " + self.ui.Disp_Ymark4.text() + "\n")
+      g.write("xtcdir      " + self.xtcdir + "\n")
+      g.write("dispspec    " + str(self.dispspec) + "\n")
 
       f.close()
       g.close()
@@ -3057,7 +2869,7 @@ class GraphicUserInterface(QMainWindow):
       self.cfg.add("config", "1")
       self.cfg.add("projection", "1")
       self.cfg.add("markers", "1")
-      self.cfg.add("portrait", "1")
+      self.cfg.add("orientation", str(param.ORIENT0))
       self.cfg.add("dispspec", "0")
     if self.options != None:
       # Let the command line options override the config file!
@@ -3098,9 +2910,9 @@ class GraphicUserInterface(QMainWindow):
         if self.options != None:
           if self.options.lportrait != None:
             if int(self.options.lportrait):
-              self.portrait(False)
+              self.setOrientation(param.ORIENT90)
             else:
-              self.landscape(False)
+              self.setOrientation(param.ORIENT0)
           if self.options.cmap != None:
             self.ui.comboBoxColor.setCurrentIndex(self.ui.comboBoxColor.findText(self.options.cmap))
             self.colorMap = self.options.cmap.lower()
@@ -3114,7 +2926,10 @@ class GraphicUserInterface(QMainWindow):
     # Let command line options override local config file
     if self.options != None:
       if self.options.lportrait != None:
-        self.cfg.add("lportrait", self.options.lportrait)
+        if self.options.lportrait == "0":
+          self.cfg.add("orientation", param.ORIENT0)
+        else:
+          self.cfg.add("orientation", param.ORIENT90)
       if self.options.cmap != None:
         self.cfg.add("colormap", self.options.cmap)
       self.options = None
@@ -3155,18 +2970,11 @@ class GraphicUserInterface(QMainWindow):
       dc = 0
     self.setDispSpec(dc)
     try:
-      orientation = self.cfg.lportrait
+      orientation = self.cfg.orientation
     except:
-      orientation = self.cfg.portrait
-    if int(orientation):
-      self.portrait(False)
-    else:
-      self.landscape(False)
+      orientation = param.ORIENT0
+    self.setOrientation(int(orientation))
     self.ui.checkBoxProjAutoRange.setChecked(int(self.cfg.autorange))
-    self.ui.checkBoxProjLine1.setChecked(int(self.cfg.proj1))
-    self.ui.checkBoxProjLine2.setChecked(int(self.cfg.proj2))
-    self.ui.checkBoxProjLine3.setChecked(int(self.cfg.proj3))
-    self.ui.checkBoxProjLine4.setChecked(int(self.cfg.proj4))
     self.ui.checkBoxProjRoi.setChecked(int(self.cfg.projROI))
     try:
       self.ui.display_image.setRectZoom(float(self.cfg.rectzoom[0]), float(self.cfg.rectzoom[1]),
@@ -3238,22 +3046,6 @@ class GraphicUserInterface(QMainWindow):
       self.ui.Disp_Xmark4.setText(self.cfg.m4[0])
       self.ui.Disp_Ymark4.setText(self.cfg.m4[1])
       self.onMarkerTextEnter(3)
-    self.ui.textHmarker1.setText(self.cfg.ph1)
-    self.onHmarkerTextEnter(0)
-    self.ui.textHmarker2.setText(self.cfg.ph2)
-    self.onHmarkerTextEnter(1)
-    self.ui.textHmarker3.setText(self.cfg.ph3)
-    self.onHmarkerTextEnter(2)
-    self.ui.textHmarker4.setText(self.cfg.ph4)
-    self.onHmarkerTextEnter(3)
-    self.ui.textVmarker1.setText(self.cfg.pv1)
-    self.onVmarkerTextEnter(0)
-    self.ui.textVmarker2.setText(self.cfg.pv2)
-    self.onVmarkerTextEnter(1)
-    self.ui.textVmarker3.setText(self.cfg.pv3)
-    self.onVmarkerTextEnter(2)
-    self.ui.textVmarker4.setText(self.cfg.pv4)
-    self.onVmarkerTextEnter(3)
     self.changeSize(int(newwidth), int(newheight), int(newproj), False)
     try:
       self.xtcdir = self.cfg.xtcdir

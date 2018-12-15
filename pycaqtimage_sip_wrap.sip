@@ -13,108 +13,132 @@ extern "C"
 static const unsigned int   MAX_INDEX_PLUS1 = 65536;
 static const uint32_t       ALPHA_VALUE     = 0xff000000;
 static uint32_t             gColorMap[MAX_INDEX_PLUS1];
-static int                  giSyntheticData  = 0;
 
+/*
+ * Read in a colormap file and scale it so it fits the specified range using the specified function
+ * (linear, exp, log, etc.)
+ */
 void pydspl_setup_color_map(const char* colormap, int iLimitLow, int iLimitHigh, int iScaleIndex)
 {
-  static uint32_t gTempColorMap[MAX_INDEX_PLUS1];
-  memset(gTempColorMap, 0, MAX_INDEX_PLUS1*sizeof(gColorMap[0]));
-  FILE* fp = fopen(colormap, "r");
-  if (fp) {
-    float rf,gf,bf;
-    int nitems;
-    uint32_t row = 0;
-    do {
-      nitems = fscanf(fp, "%f %f %f", &rf, &gf, &bf);
-      uint32_t r = static_cast<uint32_t>(rf * 255);
-      uint32_t g = static_cast<uint32_t>(gf * 255);
-      uint32_t b = static_cast<uint32_t>(bf * 255);
-      gTempColorMap[row++] = ALPHA_VALUE |
-        ((r & 0xff) << 16) |
-        ((g & 0xff) <<  8) |
-        ((b & 0xff)      );
-    } while (nitems == 3 && row < MAX_INDEX_PLUS1);
-    fclose(fp);
-    if (row != MAX_INDEX_PLUS1) {
-      fprintf(stderr, "*** couldn't read %d entries from %s\n", 
-              MAX_INDEX_PLUS1, colormap);
+    static uint32_t gTempColorMap[MAX_INDEX_PLUS1];
+    memset(gTempColorMap, 0, MAX_INDEX_PLUS1*sizeof(gColorMap[0]));
+    FILE* fp = fopen(colormap, "r");
+    if (fp) {
+        float rf,gf,bf;
+        int nitems;
+        uint32_t row = 0;
+        do {
+            nitems = fscanf(fp, "%f %f %f", &rf, &gf, &bf);
+            uint32_t r = static_cast<uint32_t>(rf * 255);
+            uint32_t g = static_cast<uint32_t>(gf * 255);
+            uint32_t b = static_cast<uint32_t>(bf * 255);
+            gTempColorMap[row++] = ALPHA_VALUE |
+                ((r & 0xff) << 16) |
+                ((g & 0xff) <<  8) |
+                ((b & 0xff)      );
+        } while (nitems == 3 && row < MAX_INDEX_PLUS1);
+        fclose(fp);
+        if (row != MAX_INDEX_PLUS1) {
+            fprintf(stderr, "*** couldn't read %d entries from %s\n", 
+                    MAX_INDEX_PLUS1, colormap);
+        }
+    } else {
+        fprintf(stderr, "*** couldn't open %s for reading: %s\n", 
+                colormap, strerror(errno));
     }
-  } else {
-    fprintf(stderr, "*** couldn't open %s for reading: %s\n", 
-            colormap, strerror(errno));
-  }
   
-  const uint32_t u32LowValue = gTempColorMap[0];
-  int i = 0;
-  for (; i<= iLimitLow; ++i) 
-    gColorMap[i]   = u32LowValue;
+    const uint32_t u32LowValue = gTempColorMap[0];
+    int i = 0;
+    for (; i<= iLimitLow; ++i) 
+        gColorMap[i]   = u32LowValue;
   
-  const int     iLimitRange = iLimitHigh - iLimitLow;      
-  const float  fLimitRange = (float) iLimitRange;
-  for (; i<iLimitHigh; ++i) {
-    int iIndex;
-    /*
-     * This switch needs to match the order in comboBoxScale in camviewer.ui!
-     */
-    switch (iScaleIndex) {
-    case 1: /* Log2 */
-        iIndex = (int) ( log2( 1 + (i - iLimitLow) / fLimitRange) * (MAX_INDEX_PLUS1-1) + 0.5);
-        break;
-    case 2: /* LogE */
-        iIndex = (int) ( log( 1 + (M_E - 1) * (i - iLimitLow) / fLimitRange) * (MAX_INDEX_PLUS1-1) + 0.5);
-        break;
-    case 3: /* Log10 */
-        iIndex = (int) ( log10( 1 + (10. - 1) * (i - iLimitLow) / fLimitRange) * (MAX_INDEX_PLUS1-1) + 0.5);
-        break;
-    case 4: /* Exp2 */
-        iIndex = (int) ( (exp2( (i - iLimitLow) / fLimitRange) - 1 ) * (MAX_INDEX_PLUS1-1) + 0.5);
-        break;
-    case 5: /* ExpE */
-        iIndex = (int) ( (exp( (i - iLimitLow) / fLimitRange) - 1 )/(M_E - 1) * (MAX_INDEX_PLUS1-1) + 0.5);
-        break;
-    case 6: /* Exp10 */
-        iIndex = (int) ( (exp10( (i - iLimitLow) / fLimitRange) - 1 )/(10. - 1) * (MAX_INDEX_PLUS1-1) + 0.5);
-        break;
-    case 0: /* Linear */
-    default:
-        iIndex = (i - iLimitLow) * (MAX_INDEX_PLUS1-1) / iLimitRange;
-        break;
+    const int     iLimitRange = iLimitHigh - iLimitLow;      
+    const float  fLimitRange = (float) iLimitRange;
+    for (; i<iLimitHigh; ++i) {
+        int iIndex;
+        /*
+         * This switch needs to match the order in comboBoxScale in camviewer.ui!
+         */
+        switch (iScaleIndex) {
+        case 1: /* Log2 */
+            iIndex = (int) ( log2( 1 + (i - iLimitLow) / fLimitRange) * (MAX_INDEX_PLUS1-1) + 0.5);
+            break;
+        case 2: /* LogE */
+            iIndex = (int) ( log( 1 + (M_E - 1) * (i - iLimitLow) / fLimitRange) * (MAX_INDEX_PLUS1-1) + 0.5);
+            break;
+        case 3: /* Log10 */
+            iIndex = (int) ( log10( 1 + (10. - 1) * (i - iLimitLow) / fLimitRange) * (MAX_INDEX_PLUS1-1) + 0.5);
+            break;
+        case 4: /* Exp2 */
+            iIndex = (int) ( (exp2( (i - iLimitLow) / fLimitRange) - 1 ) * (MAX_INDEX_PLUS1-1) + 0.5);
+            break;
+        case 5: /* ExpE */
+            iIndex = (int) ( (exp( (i - iLimitLow) / fLimitRange) - 1 )/(M_E - 1) * (MAX_INDEX_PLUS1-1) + 0.5);
+            break;
+        case 6: /* Exp10 */
+            iIndex = (int) ( (exp10( (i - iLimitLow) / fLimitRange) - 1 )/(10. - 1) * (MAX_INDEX_PLUS1-1) + 0.5);
+            break;
+        case 0: /* Linear */
+        default:
+            iIndex = (i - iLimitLow) * (MAX_INDEX_PLUS1-1) / iLimitRange;
+            break;
+        }
+        uint32_t colorVal  = gTempColorMap[iIndex];
+        gColorMap[i] = colorVal;
     }
-    uint32_t colorVal  = gTempColorMap[iIndex];
-    gColorMap[i] = colorVal;
-  }
   
-  const uint32_t u32HighValue = gTempColorMap[MAX_INDEX_PLUS1-1];
-  for (; i < (int) MAX_INDEX_PLUS1; ++i) 
-    gColorMap[i]   = u32HighValue;        
+    const uint32_t u32HighValue = gTempColorMap[MAX_INDEX_PLUS1-1];
+    for (; i < (int) MAX_INDEX_PLUS1; ++i) 
+        gColorMap[i]   = u32HighValue;        
 }
 
+/*
+ * Setup an 8-bit grayscale color map.
+ */
 void pydspl_setup_gray(int iLimitLow, int iLimitHigh, int iScaleIndex)
 {
-  const uint32_t u32LowValue = ALPHA_VALUE;
-  int i = 0;
-  for (; i<= iLimitLow; ++i) 
-    gColorMap[i]   = u32LowValue;
+    const uint32_t u32LowValue = ALPHA_VALUE;
+    int i = 0;
+    for (; i<= iLimitLow; ++i) 
+        gColorMap[i]   = u32LowValue;
   
-  const int iLimitRange = iLimitHigh - iLimitLow;        
-  const float  fLimitRange = (float) iLimitRange;
-  for (; i<iLimitHigh; ++i) {
+    const int iLimitRange = iLimitHigh - iLimitLow;        
+    const float  fLimitRange = (float) iLimitRange;
+    for (; i<iLimitHigh; ++i) {
     
-    uint8_t  u8Gray;
-    if ( iScaleIndex == 0 )
-      u8Gray = (i - iLimitLow) * 255 / iLimitRange;
-    else if ( iScaleIndex == 1 )
-      u8Gray = (int) ( log2( 1 + (i - iLimitLow) / fLimitRange) * 255 + 0.5);
-    else
-      u8Gray = (int) ( (exp2( (i - iLimitLow) / fLimitRange) -1 ) * 255 + 0.5);
+        uint8_t  u8Gray;
+        switch (iScaleIndex) {
+        case 1: /* Log2 */
+            u8Gray = (int) ( log2( 1 + (i - iLimitLow) / fLimitRange) * 255 + 0.5);
+            break;
+        case 2: /* LogE */
+            u8Gray = (int) ( log( 1 + (M_E - 1) * (i - iLimitLow) / fLimitRange) * 255 + 0.5);
+            break;
+        case 3: /* Log10 */
+            u8Gray = (int) ( log10( 1 + (10. - 1) * (i - iLimitLow) / fLimitRange) * 255 + 0.5);
+            break;
+        case 4: /* Exp2 */
+            u8Gray = (int) ( (exp2( (i - iLimitLow) / fLimitRange) - 1 ) * 255 + 0.5);
+            break;
+        case 5: /* ExpE */
+            u8Gray = (int) ( (exp( (i - iLimitLow) / fLimitRange) - 1 )/(M_E - 1) * 255 + 0.5);
+            break;
+        case 6: /* Exp10 */
+            u8Gray = (int) ( (exp10( (i - iLimitLow) / fLimitRange) - 1 )/(10. - 1) * 255 + 0.5);
+            break;
+        case 0: /* Linear */
+        default:
+            u8Gray = (i - iLimitLow) * 255 / iLimitRange;
+            break;
+        }
           
-    uint32_t grayval  = ALPHA_VALUE | (u8Gray << 16) | (u8Gray << 8) | u8Gray;
-    gColorMap[i] = grayval;
-  }
+        uint32_t grayval  = ALPHA_VALUE | (u8Gray << 16) | (u8Gray << 8) | u8Gray;
+        gColorMap[i] = grayval;
+    }
   
-  const uint32_t u32HighValue = ALPHA_VALUE | 0xFFFFFF;
-  for (; i < (int) MAX_INDEX_PLUS1; ++i) 
-    gColorMap[i]   = u32HighValue;    
+    const uint32_t u32HighValue = ALPHA_VALUE | 0xFFFFFF;
+    for (; i < (int) MAX_INDEX_PLUS1; ++i) 
+        gColorMap[i]   = u32HighValue;    
 }
 
 struct ImageBuffer
@@ -135,65 +159,62 @@ struct ImageBuffer
   
   // Frame averaging function
   float*    imageDataF;
-  uint32_t* circBuffer;
   int       iAverage;
   int       iNumAveraged;
-  int       iFrameIndex;
 
   int       useGray;
+  int       orientation;
 };
+
+/* These must match param.py!! */
+#define ORIENT0    0
+#define ORIENT90   1
+#define ORIENT180  2
+#define ORIENT270  3
+#define ORIENT0F   4
+#define ORIENT90F  5
+#define ORIENT180F 6
+#define ORIENT270F 7
 
 static void _pyFreeImageBuffer(void* buffer)
 {
   ImageBuffer* imageBuffer = (ImageBuffer*) buffer;
-
-#if 0
-  /*
-   * When we change resolutions, we free the image and the imagebuffer,
-   * but there is a race condition, since we don't know what python will free first.
-   * If the image goes, this segfaults.  So let's not bother with it.
-   */
-  printf( "_pyFreeImageBuffer(): imageBuffer obj %p : imageDisp %p  data %p %p width %d height %d byte %d\n",
-    imageBuffer, imageBuffer->imageDisp, imageBuffer->imageData, imageBuffer->imageDataF, 
-    imageBuffer->imageDisp->width(), imageBuffer->imageDisp->height(), imageBuffer->imageDisp->byteCount() ); //!!debug
-#endif
     
   free( imageBuffer->imageData   );
   free( imageBuffer->imageDataF  );
-  free( imageBuffer->circBuffer  );
   free( imageBuffer->projSumX    );
   free( imageBuffer->projSumY    );
 }  
 
-PyObject* pyCreateImageBuffer(QImage* imageDisp, int iSyntheticData)
+PyObject* pyCreateImageBuffer(QImage* imageDisp, int orientation)
 {
   if (imageDisp == NULL)
     Py_RETURN_NONE;
 
-  giSyntheticData          = iSyntheticData;
-
   ImageBuffer* imageBuffer = (ImageBuffer*) malloc(sizeof(ImageBuffer));
   imageBuffer->imageDisp   = imageDisp;
-  imageBuffer->circBuffer  = NULL;
   imageBuffer->imageData   = (uint32_t*) malloc( imageDisp->width () * imageDisp->height() * sizeof(uint32_t) );
   imageBuffer->imageDataF  = (float*)    malloc( imageDisp->width () * imageDisp->height() * sizeof(float) );
   imageBuffer->projSumX    = (uint32_t*) malloc( imageDisp->width () * sizeof(uint32_t) );
   imageBuffer->projSumY    = (uint32_t*) malloc( imageDisp->height() * sizeof(uint32_t) );
   imageBuffer->iAverage    = 1;
   imageBuffer->iNumAveraged= 0;
-  imageBuffer->iFrameIndex = 0;
   imageBuffer->useGray     = 0;
-  
+  imageBuffer->orientation = orientation;
+  if (orientation & 2) {
+      imageBuffer->projSumX    = (uint32_t*) malloc( imageDisp->height() * sizeof(uint32_t) );
+      imageBuffer->projSumY    = (uint32_t*) malloc( imageDisp->width()  * sizeof(uint32_t) );
+      memset(imageBuffer->projSumX, 0, imageDisp->height() * sizeof(uint32_t) );
+      memset(imageBuffer->projSumY, 0, imageDisp->width () * sizeof(uint32_t) );
+  } else {
+      imageBuffer->projSumX    = (uint32_t*) malloc( imageDisp->width () * sizeof(uint32_t) );
+      imageBuffer->projSumY    = (uint32_t*) malloc( imageDisp->height() * sizeof(uint32_t) );
+      memset(imageBuffer->projSumX, 0, imageDisp->width () * sizeof(uint32_t) );
+      memset(imageBuffer->projSumY, 0, imageDisp->height() * sizeof(uint32_t) );
+  }
   memset(imageBuffer->imageData, 0, imageDisp->width () * imageDisp->height() * sizeof(uint32_t) );
   memset(imageBuffer->imageDataF, 0, imageDisp->width () * imageDisp->height() * sizeof(float) );
-  memset(imageBuffer->projSumX, 0, imageDisp->width () * sizeof(uint32_t) );
-  memset(imageBuffer->projSumY, 0, imageDisp->height() * sizeof(uint32_t) );
 
-#if 0
-  printf( "pyCreateImageBuffer(): imageBuffer obj %p : imageDisp %p  data %p %p width %d height %d byte %d\n",
-    imageBuffer, imageBuffer->imageDisp, imageBuffer->imageData, imageBuffer->imageDataF,
-    imageBuffer->imageDisp->width(), imageBuffer->imageDisp->height(), imageBuffer->imageDisp->byteCount() ); //!!debug
-#endif
   PyObject* pyImageBuffer = PyCObject_FromVoidPtr(imageBuffer, _pyFreeImageBuffer);    
   return pyImageBuffer;
 }
@@ -209,7 +230,7 @@ PyObject* pyRecolorImageBuffer(PyObject* pyImageBuffer)
 {
   ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
   /* If the image is supposed to be color, just leave it alone! */
-  if ( imageBuffer->useGray || (imageBuffer->iAverage != 0 && imageBuffer->iAverage != 1) ) {
+  if (imageBuffer->useGray || imageBuffer->iAverage != 1) {
       const uint32_t* pui32Pixel = (const uint32_t*) imageBuffer->imageData;
       QImage*         image      = imageBuffer->imageDisp;
       const int       width      = image->width();
@@ -221,11 +242,49 @@ PyObject* pyRecolorImageBuffer(PyObject* pyImageBuffer)
   Py_RETURN_NONE;
 }
 
-/*
- * For a color image, we handle averaging using the RGB total to convert to greyscale.
- */
 #define GRAY(rgb) ((rgb)[0] + (rgb)[1] + (rgb)[2])
 #define RGB(rgb)  (ALPHA_VALUE | ((rgb)[0] << 16) | ((rgb)[1] << 8) | (rgb)[2])
+/*                             0   0F   90   90F  180 180F  270 270F */
+static int initMult1[8]   = {  0,   0,   0,   0,   1,   1,   1,   1}; /* Scaled by width*height */
+static int initMult2[8]   = {  0,   1,   1,   0,   0,  -1,  -1,   0}; /* Scaled by width */
+static int initK[8]       = {  0,  -1,  -1,   0,  -1,   0,   0,  -1}; /* Constant */
+
+static int colIncMult[8]  = {  0,   0,   1,   1,   0,   0,  -1,  -1}; /* Scaled by width */
+static int colIncK[8]     = {  1,  -1,   0,   0,  -1,   1,   0,   0}; /* Constant */
+
+static int rowIncMult1[8] = {  0,   0,  -1,  -1,   0,   0,   1,   1}; /* Scaled by width*height */
+static int rowIncMult2[8] = {  0,   2,   0,   0,   0,  -2,   0,   0}; /* Scaled by width */
+static int rowIncK[8]     = {  0,   0,  -1,   1,   0,   0,   1,  -1}; /* Constant */
+
+/* width and height are the target QImage sizes!! */
+static void _pyCopyToQImage(ImageBuffer* imageBuffer, int width, int height)
+{
+    if (imageBuffer->iNumAveraged == imageBuffer->iAverage - 1) {
+        const uint32_t* pui32Pixel = (const uint32_t*) imageBuffer->imageData;
+        uint32_t*       data       = reinterpret_cast<uint32_t*>(imageBuffer->imageDisp->bits());
+        int orientation = imageBuffer->orientation;
+        int srcwidth  = (orientation&2) ? height : width;
+        int srcheight = (orientation&2) ? width : height;
+        int init_offset  = srcwidth * srcheight * initMult1[orientation] + 
+                           srcwidth * initMult2[orientation] +
+                           initK[orientation];
+        int row_inc      = srcwidth * srcheight * rowIncMult1[orientation] +
+                           srcwidth * rowIncMult2[orientation] +
+                           rowIncK[orientation];
+        int col_inc      = srcwidth * colIncMult[orientation] +
+                           colIncK[orientation];
+
+        pui32Pixel += init_offset;
+        for (int iRow = 0; iRow < height; ++iRow) {
+            for (int iCol = 0; iCol < width; ++iCol) {
+                *data++ = (*pui32Pixel < MAX_INDEX_PLUS1) ? gColorMap[*pui32Pixel] : 0;
+                pui32Pixel += col_inc;
+            }
+            pui32Pixel += row_inc;
+        }
+    }
+}
+
 static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void* usr)
 {
     ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
@@ -235,90 +294,41 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
 
     uint8_t* cadata8 = static_cast<uint8_t*>(cadata); /* R, G, B! */
 
-    if ( imageBuffer->iAverage == 0 || imageBuffer->iAverage == 1 ) {
-        const uint8_t*  pui8new  = cadata8;
-
-        for (int iPixel = 0; iPixel < width*height; ++iPixel, pui8new += 3)
-            imageBuffer->imageData[iPixel] = GRAY(pui8new);
-    } else if ( imageBuffer->iAverage == -1 ) {
-        float*          pfcur    = imageBuffer->imageDataF;      
-        uint32_t*       pui32cur = imageBuffer->imageData;      
-        const uint8_t*  pui8new  = cadata8;
-        const int       iNewAverage = imageBuffer->iNumAveraged + 1;
-      
-        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, pui8new += 3) {
-            *pfcur    += (GRAY(pui8new) - *pfcur) / iNewAverage;
-            *pui32cur  = (unsigned int) *pfcur;
-        }
-      
-        imageBuffer->iNumAveraged = iNewAverage;
-    } else {           
-        uint32_t* pui32update = imageBuffer->circBuffer + width * height * imageBuffer->iFrameIndex;
-        //printf("avg %d/%d org f %f i %d  new %d old %d ", imageBuffer->iNumAveraged, imageBuffer->iAverage,
-        //  *imageBuffer->imageDataF, *imageBuffer->imageData, *cadata8, *pui32update );
-        
-        if ( imageBuffer->iNumAveraged == 0 ) {
-            const uint8_t*  pui8new  = cadata8;
-            float*          pfcur    = imageBuffer->imageDataF;
-
-            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, pui8new += 3) {
-                imageBuffer->imageData[iPixel] = GRAY(pui8new);
-                *pfcur = GRAY(pui8new);
-            }
-             
-            pui8new = cadata8;
-        
-            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, pui8new += 3)
-        
-            imageBuffer->iNumAveraged = 1;
-        } else if ( imageBuffer->iNumAveraged < imageBuffer->iAverage ) {
-            float*          pfcur    = imageBuffer->imageDataF;
-            uint32_t*       pui32cur = imageBuffer->imageData;      
-            const uint8_t*  pui8new = cadata8;
-            const int       iNewAverage = imageBuffer->iNumAveraged + 1;
-        
-            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, pui8new += 3) {
-                *pfcur    += (GRAY(pui8new) - *pfcur) / iNewAverage;
-                *pui32cur  = (unsigned int) *pfcur;
-            }
-        
-            imageBuffer->iNumAveraged = iNewAverage;
-        } else {
-            float*          pfcur    = imageBuffer->imageDataF;
-            uint32_t*       pui32cur = imageBuffer->imageData;
-            const uint8_t*  pui8new  = cadata8;
-            const uint32_t* pui32old = pui32update;
-            const int       iAverage = imageBuffer->iAverage;
-                      
-            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, pui8new += 3, ++pui32old) {
-                *pfcur    += (GRAY(pui8new) - (float) *pui32old) / iAverage;
-                *pui32cur  = (unsigned int) *pfcur;
-            }
-        }
-  
-        //printf(" updated f %f i %d\n", *imageBuffer->imageDataF, *imageBuffer->imageData);
-        {
-            const uint8_t*  pui8new  = cadata8;
-        
-            for (int iPixel = 0; iPixel < width*height; ++iPixel, pui8new += 3) 
-                pui32update[iPixel] = GRAY(pui8new);
-        }
-        imageBuffer->iFrameIndex = ( imageBuffer->iFrameIndex + 1 ) % imageBuffer->iAverage;      
-    }
-
-    if ( !imageBuffer->useGray && (imageBuffer->iAverage == 0 || imageBuffer->iAverage == 1) ) {
+    /* If we're using the color image, don't average, scale, or anything, just copy and we're done! */
+    if (!imageBuffer->useGray) {
         const uint8_t*  pui8new  = cadata8;
         uint32_t*       data       = reinterpret_cast<uint32_t*>(image->bits());
         for (int iPixel = 0; iPixel < width*height; ++iPixel, ++data, pui8new += 3)
             *data = RGB(pui8new);
-    } else {
-        const uint32_t* pui32Pixel = (const uint32_t*) imageBuffer->imageData;
-        uint32_t*       data       = reinterpret_cast<uint32_t*>(image->bits());
-        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++data, ++pui32Pixel)
-            *data = (*pui32Pixel < MAX_INDEX_PLUS1) ? gColorMap[*pui32Pixel] : 0;
+        return;
     }
-}
 
+    /* Average the new data into imageDataF/imageData */
+    if (imageBuffer->iNumAveraged == 0) {
+        const uint8_t*  pui8new  = cadata8;
+        float*          pfcur    = imageBuffer->imageDataF;
+
+        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, pui8new += 3) {
+            imageBuffer->imageData[iPixel] = GRAY(pui8new);
+            *pfcur = GRAY(pui8new);
+        }
+    } else {
+        float*          pfcur    = imageBuffer->imageDataF;
+        uint32_t*       pui32cur = imageBuffer->imageData;      
+        const uint8_t*  pui8new = cadata8;
+        int             iNewAverage = imageBuffer->iNumAveraged + 1;
+        
+        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, pui8new += 3) {
+            *pfcur    += (GRAY(pui8new) - *pfcur) / iNewAverage;
+            *pui32cur  = (unsigned int) *pfcur;
+        }
+    }
+    imageBuffer->iNumAveraged = (imageBuffer->iNumAveraged + 1) % imageBuffer->iAverage;
+
+    /* Copy imageData into the array, false coloring as we go. */
+    _pyCopyToQImage(imageBuffer, width, height);
+}
+ 
 static void _pyImagePvCallback(void* cadata, long count, size_t size, void* usr)
 {
   ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
@@ -326,373 +336,77 @@ static void _pyImagePvCallback(void* cadata, long count, size_t size, void* usr)
   const int     width       = image->width();
   const int     height      = image->height();
 
-  //printf( "_pyImagePvCallback(): imageBuffer obj %p : imageDisp %p  data %p  width %d height %d byte %d\n"
-  //  "    cirBuf %p avg %d num_avged %d frmIdx %d\n",
-  //  imageBuffer, imageBuffer->imageDisp, imageBuffer->imageData, 
-  //  imageBuffer->imageDisp->width(), imageBuffer->imageDisp->height(), imageBuffer->imageDisp->byteCount(),
-  //  imageBuffer->circBuffer, imageBuffer->iAverage, imageBuffer->iNumAveraged, imageBuffer->iFrameIndex); //!!debug
   if (size != 1 && size != 2 && size != 4) {
     printf("Image pixel size is %d bytes?\n", (int) size);
     return;
   }
+  /* Average the new data into imageDataF/imageData */
   switch (size) {
     case 4: {
-    uint32_t* cadata32 = static_cast<uint32_t*>(cadata);
-    
-    //!!debug: use any other pv (other than pulnix camera), and generate random values
-    if (giSyntheticData)
-    {
-      uint32_t* pui32Pixel = (uint32_t*) cadata32;
-      for (int iY = 0; iY < height; ++iY)
-      {
-        for (int iX = 0; iX < width; ++iX, ++pui32Pixel)
-        {
-          //int32_t iValue = (uint32_t) (MAX_INDEX_PLUS1 * (rand() / (RAND_MAX + 1.0)));         
-          //int32_t iValue = (uint32_t) (iX + iY);
-          int32_t iValue = (int32_t) (MAX_INDEX_PLUS1 * exp(- 3*((iX-320)*(iX-320) / 102400.0 + (iY-240)*(iY-240)/57600.0)) +
-            MAX_INDEX_PLUS1 * 0.05 * (rand() / (RAND_MAX + 1.0)) - MAX_INDEX_PLUS1 * 0.025);
-          
-          if ( iValue < 0 )
-            *pui32Pixel = 0;
-          else if (iValue >= (int) MAX_INDEX_PLUS1)
-            *pui32Pixel = MAX_INDEX_PLUS1-1;
-          else
-            *pui32Pixel = iValue;
-        }   
-      }
-    }    
-    
-    const int iNumFrameBytes = width * height * sizeof(uint32_t);
-    
-    if ( imageBuffer->iAverage == 0 || imageBuffer->iAverage == 1 )
-      memcpy( imageBuffer->imageData, cadata32, iNumFrameBytes );
-    else if ( imageBuffer->iAverage == -1 )
-    {
-      float*          pfcur    = imageBuffer->imageDataF;      
-      uint32_t*       pui32cur = imageBuffer->imageData;      
-      const uint32_t* pui32new = cadata32;
-      const int       iNewAverage = imageBuffer->iNumAveraged + 1;
-      
-      for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui32new)
-      {
-        *pfcur    += (*pui32new - *pfcur) / iNewAverage;
-        *pui32cur  = (unsigned int) *pfcur;
-      }
-      
-      imageBuffer->iNumAveraged = iNewAverage;
-    }
-    else
-    {           
-      uint32_t* pui32update = imageBuffer->circBuffer + width * height * imageBuffer->iFrameIndex;
-      //printf("avg %d/%d org f %f i %d  new %d old %d ", imageBuffer->iNumAveraged, imageBuffer->iAverage,
-      //  *imageBuffer->imageDataF, *imageBuffer->imageData, *cadata32, *pui32update );
-        
-      if ( imageBuffer->iNumAveraged == 0 )
-      {
-        memcpy( imageBuffer->imageData, cadata32, iNumFrameBytes );
-        
-        float*          pfcur    = imageBuffer->imageDataF;
-        const uint32_t* pui32new = cadata32;
-        
-        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32new)
-          *pfcur = *pui32new;
-        
-        imageBuffer->iNumAveraged = 1;
-      }
-      else if ( imageBuffer->iNumAveraged < imageBuffer->iAverage )
-      {
         float*          pfcur    = imageBuffer->imageDataF;
         uint32_t*       pui32cur = imageBuffer->imageData;      
-        const uint32_t* pui32new = cadata32;
-        const int       iNewAverage = imageBuffer->iNumAveraged + 1;
-        
-        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui32new)
-        {
-          *pfcur    += (*pui32new - *pfcur) / iNewAverage;
-          *pui32cur  = (unsigned int) *pfcur;
+        const uint32_t* pui32new  = static_cast<uint32_t*>(cadata);
+
+        if (imageBuffer->iNumAveraged == 0) {
+            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui32new) {
+                *pui32cur = (int) *pui32new;
+                *pfcur = *pui32cur;
+            }
+        } else {
+            int             iNewAverage = imageBuffer->iNumAveraged + 1;
+
+            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui32new) {
+                *pfcur    += (((int) *pui32new) - *pfcur) / iNewAverage;
+                *pui32cur  = (unsigned int) *pfcur;
+            }
         }
-        
-        imageBuffer->iNumAveraged = iNewAverage;
-      }
-      else
-      {
-        float*          pfcur    = imageBuffer->imageDataF;
-        uint32_t*       pui32cur = imageBuffer->imageData;
-        const uint32_t* pui32new = cadata32;
-        const uint32_t* pui32old = pui32update;
-        const int       iAverage = imageBuffer->iAverage;
-                      
-        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui32new, ++pui32old)
-        {
-          *pfcur    += (*pui32new - (float) *pui32old) / iAverage;
-          *pui32cur  = (unsigned int) *pfcur;
-        }
-      }
-  
-      //printf(" updated f %f i %d\n", *imageBuffer->imageDataF, *imageBuffer->imageData);
-        
-      memcpy( pui32update, cadata32, iNumFrameBytes );        
-      imageBuffer->iFrameIndex = ( imageBuffer->iFrameIndex + 1 ) % imageBuffer->iAverage;      
-    }
-    
-    //const uint32_t* pui32Pixel = (uint32_t*) cadata32;
-    //for (int iY = 0; iY < height; ++iY)
-    //{
-    //  for (int iX = 0; iX < width; ++iX, ++pui32Pixel)
-    //  {      
-    //    if (*pui32Pixel < imageBuffer->iFrameMin)
-    //      imageBuffer->iFrameMin = *pui32Pixel;
-    //    if (*pui32Pixel < imageBuffer->iFrameMax)
-    //      imageBuffer->iFrameMax = *pui32Pixel;        
-    //  }       
-    //}  
-    
-    const uint32_t* pui32Pixel = (const uint32_t*) imageBuffer->imageData;
-    uint32_t*       data       = reinterpret_cast<uint32_t*>(image->bits());    
-    
-    for (int iPixel = 0; iPixel < width*height; ++iPixel, ++data, ++pui32Pixel)
-      *data = (*pui32Pixel < MAX_INDEX_PLUS1) ? gColorMap[*pui32Pixel] : 0;
-    break;
+        break;
     }
     case 2: {
-    uint16_t* cadata16 = static_cast<uint16_t*>(cadata);
-    
-    //!!debug: use any other pv (other than pulnix camera), and generate random values
-    if (giSyntheticData)
-    {
-      uint16_t* pui16Pixel = (uint16_t*) cadata16;
-      for (int iY = 0; iY < height; ++iY)
-      {
-        for (int iX = 0; iX < width; ++iX, ++pui16Pixel)
-        {
-          //int32_t iValue = (uint32_t) (MAX_INDEX_PLUS1 * (rand() / (RAND_MAX + 1.0)));         
-          //int32_t iValue = (uint32_t) (iX + iY);
-          int32_t iValue = (int32_t) (MAX_INDEX_PLUS1 * exp(- 3*((iX-320)*(iX-320) / 102400.0 + (iY-240)*(iY-240)/57600.0)) +
-            MAX_INDEX_PLUS1 * 0.05 * (rand() / (RAND_MAX + 1.0)) - MAX_INDEX_PLUS1 * 0.025);
-          
-          if ( iValue < 0 )
-            *pui16Pixel = 0;
-          else if (iValue >= (int) MAX_INDEX_PLUS1)
-            *pui16Pixel = MAX_INDEX_PLUS1-1;
-          else
-            *pui16Pixel = iValue;
-        }   
-      }
-    }    
-    
-    if ( imageBuffer->iAverage == 0 || imageBuffer->iAverage == 1 ) {
-      for (int iPixel = 0; iPixel < width*height; ++iPixel) 
-        imageBuffer->imageData[iPixel] = cadata16[iPixel]; 
-    } else if ( imageBuffer->iAverage == -1 )
-    {
-      float*          pfcur    = imageBuffer->imageDataF;      
-      uint32_t*       pui32cur = imageBuffer->imageData;      
-      const uint16_t* pui16new = cadata16;
-      const int       iNewAverage = imageBuffer->iNumAveraged + 1;
-      
-      for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui16new)
-      {
-        *pfcur    += (*pui16new - *pfcur) / iNewAverage;
-        *pui32cur  = (unsigned int) *pfcur;
-      }
-      
-      imageBuffer->iNumAveraged = iNewAverage;
-    }
-    else
-    {           
-      uint32_t* pui32update = imageBuffer->circBuffer + width * height * imageBuffer->iFrameIndex;
-      //printf("avg %d/%d org f %f i %d  new %d old %d ", imageBuffer->iNumAveraged, imageBuffer->iAverage,
-      //  *imageBuffer->imageDataF, *imageBuffer->imageData, *cadata16, *pui32update );
-        
-      if ( imageBuffer->iNumAveraged == 0 )
-      {
-        for (int iPixel = 0; iPixel < width*height; ++iPixel) 
-          imageBuffer->imageData[iPixel] = cadata16[iPixel];
-             
-        float*          pfcur    = imageBuffer->imageDataF;
-        const uint16_t* pui16new = cadata16;
-        
-        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui16new)
-          *pfcur = *pui16new;
-        
-        imageBuffer->iNumAveraged = 1;
-      }
-      else if ( imageBuffer->iNumAveraged < imageBuffer->iAverage )
-      {
         float*          pfcur    = imageBuffer->imageDataF;
         uint32_t*       pui32cur = imageBuffer->imageData;      
-        const uint16_t* pui16new = cadata16;
-        const int       iNewAverage = imageBuffer->iNumAveraged + 1;
-        
-        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui16new)
-        {
-          *pfcur    += (*pui16new - *pfcur) / iNewAverage;
-          *pui32cur  = (unsigned int) *pfcur;
+        const uint16_t* pui16new = static_cast<uint16_t*>(cadata);
+
+        if (imageBuffer->iNumAveraged == 0) {
+            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui16new) {
+                *pui32cur = (int) *pui16new;
+                *pfcur = *pui32cur;
+            }
+        } else {
+            int             iNewAverage = imageBuffer->iNumAveraged + 1;
+
+            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui16new) {
+                *pfcur    += (((int) *pui16new) - *pfcur) / iNewAverage;
+                *pui32cur  = (unsigned int) *pfcur;
+            }
         }
-        
-        imageBuffer->iNumAveraged = iNewAverage;
-      }
-      else
-      {
-        float*          pfcur    = imageBuffer->imageDataF;
-        uint32_t*       pui32cur = imageBuffer->imageData;
-        const uint16_t* pui16new = cadata16;
-        const uint32_t* pui32old = pui32update;
-        const int       iAverage = imageBuffer->iAverage;
-                      
-        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui16new, ++pui32old)
-        {
-          *pfcur    += (*pui16new - (float) *pui32old) / iAverage;
-          *pui32cur  = (unsigned int) *pfcur;
-        }
-      }
-  
-      //printf(" updated f %f i %d\n", *imageBuffer->imageDataF, *imageBuffer->imageData);
-        
-      for (int iPixel = 0; iPixel < width*height; ++iPixel) 
-        pui32update[iPixel] = cadata16[iPixel];
-      imageBuffer->iFrameIndex = ( imageBuffer->iFrameIndex + 1 ) % imageBuffer->iAverage;      
-    }
-    
-    //const uint16_t* pui16Pixel = (uint16_t*) cadata16;
-    //for (int iY = 0; iY < height; ++iY)
-    //{
-    //  for (int iX = 0; iX < width; ++iX, ++pui32Pixel)
-    //  {      
-    //    if (*pui32Pixel < imageBuffer->iFrameMin)
-    //      imageBuffer->iFrameMin = *pui32Pixel;
-    //    if (*pui32Pixel < imageBuffer->iFrameMax)
-    //      imageBuffer->iFrameMax = *pui32Pixel;        
-    //  }       
-    //}  
-    
-    const uint32_t* pui32Pixel = (const uint32_t*) imageBuffer->imageData;
-    uint32_t*       data       = reinterpret_cast<uint32_t*>(image->bits());    
-    
-    for (int iPixel = 0; iPixel < width*height; ++iPixel, ++data, ++pui32Pixel)
-      *data = (*pui32Pixel < MAX_INDEX_PLUS1) ? gColorMap[*pui32Pixel] : 0;      
-    break;
+        break;
     }
     case 1: {
-    uint8_t* cadata8 = static_cast<uint8_t*>(cadata);
-    
-    //!!debug: use any other pv (other than pulnix camera), and generate random values
-    if (giSyntheticData)
-    {
-      uint8_t* pui8Pixel = (uint8_t*) cadata8;
-      for (int iY = 0; iY < height; ++iY)
-      {
-        for (int iX = 0; iX < width; ++iX, ++pui8Pixel)
-        {
-          //int32_t iValue = (uint32_t) (MAX_INDEX_PLUS1 * (rand() / (RAND_MAX + 1.0)));         
-          //int32_t iValue = (uint32_t) (iX + iY);
-          int32_t iValue = (int32_t) (MAX_INDEX_PLUS1 * exp(- 3*((iX-320)*(iX-320) / 102400.0 + (iY-240)*(iY-240)/57600.0)) +
-            MAX_INDEX_PLUS1 * 0.05 * (rand() / (RAND_MAX + 1.0)) - MAX_INDEX_PLUS1 * 0.025);
-          
-          if ( iValue < 0 )
-            *pui8Pixel = 0;
-          else if (iValue >= (int) MAX_INDEX_PLUS1)
-            *pui8Pixel = 255; /* ??? MAX_INDEX_PLUS1-1; */
-          else
-            *pui8Pixel = iValue;
-        }   
-      }
-    }    
-    
-    if ( imageBuffer->iAverage == 0 || imageBuffer->iAverage == 1 ) {
-      for (int iPixel = 0; iPixel < width*height; ++iPixel) 
-        imageBuffer->imageData[iPixel] = cadata8[iPixel]; 
-    } else if ( imageBuffer->iAverage == -1 )
-    {
-      float*          pfcur    = imageBuffer->imageDataF;      
-      uint32_t*       pui32cur = imageBuffer->imageData;      
-      const uint8_t*  pui8new  = cadata8;
-      const int       iNewAverage = imageBuffer->iNumAveraged + 1;
-      
-      for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui8new)
-      {
-        *pfcur    += (*pui8new - *pfcur) / iNewAverage;
-        *pui32cur  = (unsigned int) *pfcur;
-      }
-      
-      imageBuffer->iNumAveraged = iNewAverage;
-    }
-    else
-    {           
-      uint32_t* pui32update = imageBuffer->circBuffer + width * height * imageBuffer->iFrameIndex;
-      //printf("avg %d/%d org f %f i %d  new %d old %d ", imageBuffer->iNumAveraged, imageBuffer->iAverage,
-      //  *imageBuffer->imageDataF, *imageBuffer->imageData, *cadata8, *pui32update );
-        
-      if ( imageBuffer->iNumAveraged == 0 )
-      {
-        for (int iPixel = 0; iPixel < width*height; ++iPixel) 
-          imageBuffer->imageData[iPixel] = cadata8[iPixel];
-             
-        float*          pfcur    = imageBuffer->imageDataF;
-        const uint8_t*  pui8new = cadata8;
-        
-        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui8new)
-          *pfcur = *pui8new;
-        
-        imageBuffer->iNumAveraged = 1;
-      }
-      else if ( imageBuffer->iNumAveraged < imageBuffer->iAverage )
-      {
         float*          pfcur    = imageBuffer->imageDataF;
         uint32_t*       pui32cur = imageBuffer->imageData;      
-        const uint8_t*  pui8new = cadata8;
-        const int       iNewAverage = imageBuffer->iNumAveraged + 1;
-        
-        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui8new)
-        {
-          *pfcur    += (*pui8new - *pfcur) / iNewAverage;
-          *pui32cur  = (unsigned int) *pfcur;
+        const uint8_t*  pui8new  = static_cast<uint8_t*>(cadata);
+
+        if (imageBuffer->iNumAveraged == 0) {
+            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui8new) {
+                *pui32cur = (int) *pui8new;
+                *pfcur = *pui32cur;
+            }
+        } else {
+            int             iNewAverage = imageBuffer->iNumAveraged + 1;
+            
+            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui8new) {
+                *pfcur    += (((int) *pui8new) - *pfcur) / iNewAverage;
+                *pui32cur  = (unsigned int) *pfcur;
+            }
         }
-        
-        imageBuffer->iNumAveraged = iNewAverage;
-      }
-      else
-      {
-        float*          pfcur    = imageBuffer->imageDataF;
-        uint32_t*       pui32cur = imageBuffer->imageData;
-        const uint8_t*  pui8new  = cadata8;
-        const uint32_t* pui32old = pui32update;
-        const int       iAverage = imageBuffer->iAverage;
-                      
-        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui8new, ++pui32old)
-        {
-          *pfcur    += (*pui8new - (float) *pui32old) / iAverage;
-          *pui32cur  = (unsigned int) *pfcur;
-        }
-      }
-  
-      //printf(" updated f %f i %d\n", *imageBuffer->imageDataF, *imageBuffer->imageData);
-        
-      for (int iPixel = 0; iPixel < width*height; ++iPixel) 
-        pui32update[iPixel] = cadata8[iPixel];
-      imageBuffer->iFrameIndex = ( imageBuffer->iFrameIndex + 1 ) % imageBuffer->iAverage;      
+        break;
     }
-    
-    //const uint8_t* pui8Pixel = (uint16_t*) cadata8;
-    //for (int iY = 0; iY < height; ++iY)
-    //{
-    //  for (int iX = 0; iX < width; ++iX, ++pui32Pixel)
-    //  {      
-    //    if (*pui32Pixel < imageBuffer->iFrameMin)
-    //      imageBuffer->iFrameMin = *pui32Pixel;
-    //    if (*pui32Pixel < imageBuffer->iFrameMax)
-    //      imageBuffer->iFrameMax = *pui32Pixel;        
-    //  }       
-    //}  
-    
-    const uint32_t* pui32Pixel = (const uint32_t*) imageBuffer->imageData;
-    uint32_t*       data       = reinterpret_cast<uint32_t*>(image->bits());    
-    
-    for (int iPixel = 0; iPixel < width*height; ++iPixel, ++data, ++pui32Pixel)
-      *data = (*pui32Pixel < MAX_INDEX_PLUS1) ? gColorMap[*pui32Pixel] : 0;   
-    }
-    break;
-  }
+  }    
+  imageBuffer->iNumAveraged = (imageBuffer->iNumAveraged + 1) % imageBuffer->iAverage;
+
+  /* Copy imageData into the array, false coloring as we go. */
+  _pyCopyToQImage(imageBuffer, width, height);
 }
 
 PyObject* pyCreateImagePvCallbackFunc(PyObject* pyImageBuffer)
@@ -719,57 +433,15 @@ PyObject* pyCreateColorImagePvCallbackFunc(PyObject* pyImageBuffer)
   return pyfunc;
 }        
 
-void findMinMax(ImageBuffer* imageBuffer, const bool lbProjLine[4], bool bProjRoi, const QPointF* lptMarker[4], int xmin, int xmax, int ymin, int ymax)
+void findMinMax(ImageBuffer* imageBuffer, bool bProjRoi, int xmin, int xmax, int ymin, int ymax)
 {
-  QImage*         imageDisp       = imageBuffer->imageDisp;       
-  uint32_t* const pImgValue       = imageBuffer->imageData;     
-  const int       iLinePixelsOrg  = imageDisp->width();
-  
   imageBuffer->iProjXmin = 1<<15;
   imageBuffer->iProjXmax = -1;
   imageBuffer->iProjYmin = 1<<15;
   imageBuffer->iProjYmax = -1;
- 
-  for (int iProj = 0; iProj < 4; ++iProj)
-  {
-    if ( lbProjLine[iProj] )
-    {    
-      const int iProjX = (int) (lptMarker[iProj]->x());
-      const int iProjY = (int) (lptMarker[iProj]->y());  
-      
-      if ( iProjY >= 0 && iProjY < imageDisp->height() )
-      {
-        for (int iX=xmin; iX < xmax; ++iX)
-        {
-          int iValue   = *(pImgValue + ( iLinePixelsOrg * iProjY + iX ));        
-          
-          if (iValue < imageBuffer->iProjXmin)
-            imageBuffer->iProjXmin = iValue;
-          if (iValue > imageBuffer->iProjXmax)
-            imageBuffer->iProjXmax = iValue;
-        }
-      }
-      
-      if ( iProjX >= 0 && iProjX < imageDisp->width() )
-      {
-        for (int iY=ymin; iY < ymax; ++iY)
-        {
-          int iValue = *(pImgValue + ( iLinePixelsOrg * iY + iProjX ));
-                
-          if (iValue < imageBuffer->iProjYmin)
-            imageBuffer->iProjYmin = iValue;
-          if (iValue > imageBuffer->iProjYmax)
-            imageBuffer->iProjYmax = iValue;
-        }
-      }    
-    } // if ( bProjLine )
-  } // for (int iProj = 0; iProj < 4; ++iProj)  
   
-  
-  if ( bProjRoi )
-  {                  
-    for (int iX=xmin; iX < xmax; ++iX)
-    {
+  if ( bProjRoi ) {                  
+    for (int iX=xmin; iX < xmax; ++iX) {
       if ( imageBuffer->projSumX[iX] == 0xFFFFFFFF )
         continue;
         
@@ -780,8 +452,7 @@ void findMinMax(ImageBuffer* imageBuffer, const bool lbProjLine[4], bool bProjRo
         imageBuffer->iProjXmax = iValue;      
     }
         
-    for (int iY=ymin; iY < ymax; ++iY)
-    {
+    for (int iY=ymin; iY < ymax; ++iY) {
       if ( imageBuffer->projSumY[iY] == 0xFFFFFFFF )
         continue;
         
@@ -793,25 +464,19 @@ void findMinMax(ImageBuffer* imageBuffer, const bool lbProjLine[4], bool bProjRo
     }        
   }
   
-  if ( imageBuffer->iProjXmax == -1 )
-  {
+  if ( imageBuffer->iProjXmax == -1 ) {
     imageBuffer->iProjXmin = 0;
     imageBuffer->iProjXmax = 1;
-  }
-  else
-  {
+  } else {
     if ( imageBuffer->iProjXmin > 0 )
       --imageBuffer->iProjXmin;
     ++imageBuffer->iProjXmax;
   }
 
-  if ( imageBuffer->iProjYmax == -1 )
-  {
+  if ( imageBuffer->iProjYmax == -1 ) {
     imageBuffer->iProjYmin = 0;
     imageBuffer->iProjYmax = 1;
-  }  
-  else
-  {
+  } else {
     if ( imageBuffer->iProjYmin > 0 )
       --imageBuffer->iProjYmin;
     ++imageBuffer->iProjYmax;
@@ -823,37 +488,37 @@ void computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi)
   QImage*   imageDisp = imageBuffer->imageDisp;               
   uint32_t* projSumX  = imageBuffer->projSumX;
   uint32_t* projSumY  = imageBuffer->projSumY;
-  memset(projSumX, 0xFF, imageDisp->width () * sizeof(uint32_t));
-  memset(projSumY, 0xFF, imageDisp->height() * sizeof(uint32_t));
-  
+  int width  = (imageBuffer->orientation&2) ? imageDisp->height() : imageDisp->width();
+  int height = (imageBuffer->orientation&2) ? imageDisp->width() : imageDisp->height();
+  memset(projSumX, 0xFF, width  * sizeof(uint32_t));
+  memset(projSumY, 0xFF, height * sizeof(uint32_t));
   
   int x1  = (int) rectRoi->x();
   int x2  = x1 + (int) rectRoi->width() - 1;
   if ( x1 > x2 ) {int xtmp = x1; x1 = x2; x2 = xtmp;}
   if ( x1 < 0 ) x1 = 0;
-  else if ( x1 >= imageDisp->width() ) x1 = imageDisp->width()-1;
+  else if ( x1 >= width ) x1 = width-1;
   if ( x2 < 0 ) x2 = 0;
-  else if ( x2 >= imageDisp->width() ) x2 = imageDisp->width()-1;    
+  else if ( x2 >= width ) x2 = width-1;    
 
   int y1  = (int) rectRoi->y();
   int y2  = y1 + (int) rectRoi->height() - 1;
   if ( y1 > y2 ) {int ytmp = y1; y1 = y2; y2 = ytmp;}
   if ( y1 < 0 ) y1 = 0;
-  else if ( y1 >= imageDisp->height() ) y1 = imageDisp->height()-1;
+  else if ( y1 >= height ) y1 = height-1;
   if ( y2 < 0 ) y2 = 0;
-  else if ( y2 >= imageDisp->height() ) y2 = imageDisp->height()-1;
+  else if ( y2 >= height ) y2 = height-1;
   
   uint32_t* const pImgValue       = imageBuffer->imageData;
-  const int       iLinePixelsOrg  = imageDisp->width();
+  const int iLinePixelsOrg        = width;
   uint64_t  u64PixelSum           = 0;
   uint64_t  u64PixelSqSum         = 0;
   uint32_t* pPixelLineStart       = pImgValue + y1 * iLinePixelsOrg + x1;
 
-  for (int iY = y1; iY <= y2; ++iY, pPixelLineStart += iLinePixelsOrg)
-  {
+  for (int iY = y1; iY <= y2; ++iY, pPixelLineStart += iLinePixelsOrg) {
     if (iY < 0)
       continue;
-    if (iY >= imageDisp->height())
+    if (iY >= height)
       break;
       
     uint32_t* pPixel = pPixelLineStart;
@@ -861,12 +526,11 @@ void computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi)
     {
       if (iX < 0)
         continue;
-      if (iX >= imageDisp->width())
+      if (iX >= width)
         break;
         
       const int iValue = *pPixel;
-      if ( iValue >= 0x10000)
-      {
+      if ( iValue >= 0x10000) {
         printf("Pixel value (%d,%d) too large: value 0x%x\n", iX, iY, iValue);
         continue;
       }
@@ -886,235 +550,153 @@ void computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi)
   
   //printf("computeRoiProj(): Pixel Sum %Ld  SqSum %Ld  x2 %d x1 %d y2 %d y1 %d NumPixels %f\n",
   //	   (long long int) u64PixelSum, (long long int) u64PixelSqSum, x2, x1, y2, y1, fNumRoiPixels ); // !! for debug
-  if ( fNumRoiPixels > 0 )
-  {
+  if ( fNumRoiPixels > 0 ) {
     imageBuffer->fRoiPixelMean = u64PixelSum   / fNumRoiPixels;
     imageBuffer->fRoiPixelVar  = u64PixelSqSum / fNumRoiPixels - imageBuffer->fRoiPixelMean * imageBuffer->fRoiPixelMean;
-  }
-  else
-  {
+  } else {
     imageBuffer->fRoiPixelMean  = 0;
     imageBuffer->fRoiPixelVar   = 0;             
   }
 }
 
-PyObject* pyUpdateProj( PyObject* pyImageBuffer, int iOrientation, int iScaleIndex, 
-  QPointF* marker1, QPointF* marker2, QPointF* marker3, QPointF* marker4, 
-  bool bProjLine1, bool bProjLine2, bool bProjLine3, bool bProjLine4, 
-  bool bProjRoi, bool bProjAutoRange,
-  unsigned int uMin, unsigned int uMax, QRectF* rectRoi, QRectF* rectZoom, 
-  QImage* imageProjX, QImage* imageProjY )
-{  
-  ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
-  //printf( "pyUpdateProj(): imagedata %p marker (%f, %f) Or %d proj line %d roi %d ROI (%f,%f) w %f h %f\n", 
-  //  imageBuffer, marker->x(), marker->y(), iOrientation, (int) bProjLine, (int) bProjRoi,
-  //  rectRoi->x(), rectRoi->y(), rectRoi->width(), rectRoi->height() ); //!!debug
-  
-  /*
-   * Compute the ROI projection values, and also update the mean/variance
-   */
-  computeRoiProj( imageBuffer, rectRoi);
-  
-  const bool      lbProjLine[4] = {bProjLine1, bProjLine2, bProjLine3, bProjLine4};
-  const QPointF*  lptMarker [4] = {marker1, marker2, marker3, marker4};
-  QImage*         imageDisp     = imageBuffer->imageDisp;             
-  
-  const int       xmin      = (int) (rectZoom->x() < 0 ? 0 : rectZoom->x());
-  const int       xmax      = (int) (rectZoom->x() + rectZoom->width() > imageDisp->width() 
-	                             ? imageDisp->width() : rectZoom->x() + rectZoom->width());
-  const int       ymin      = (int) (rectZoom->y() < 0 ? 0 : rectZoom->y());
-  const int       ymax      = (int) (rectZoom->y() + rectZoom->height() > imageDisp->height()
-                                     ? imageDisp->height() : rectZoom->y() + rectZoom->height());
-    
-  /*
-   * Look at the Zoom region to find the min/max values of ProjX/ProjY/ROI
-   */
-   
-  if (bProjAutoRange)
-    findMinMax( imageBuffer, lbProjLine, bProjRoi, lptMarker, xmin, xmax, ymin, ymax);
-  else
-  {
-    imageBuffer->iProjXmin = uMin;
-    imageBuffer->iProjXmax = uMax;
-    imageBuffer->iProjYmin = uMin;
-    imageBuffer->iProjYmax = uMax;
-  }
-  
-  const float  fPixelValueRangeX = (float) ( (imageBuffer->iProjXmin != imageBuffer->iProjXmax) ? 
-    imageBuffer->iProjXmax-imageBuffer->iProjXmin: 1);  
-  const float  fPixelValueRangeY = (float) ( (imageBuffer->iProjYmin != imageBuffer->iProjYmax) ? 
-    imageBuffer->iProjYmax-imageBuffer->iProjYmin: 1);  
-  
-  const int iOffsetX    = ( imageProjX->width()  - imageDisp->width() ) /2;
-  const int iOffsetY    = ( imageProjY->height() - imageDisp->height() ) /2;    
-  
-  uint32_t* const pImgValue       = imageBuffer->imageData;     
-  const int       iLinePixelsOrg  = imageDisp->width();
-  const int       iLinePixelsPx   = imageProjX->width();
-  const int       iLinePixelsPy   = imageProjY->width();
-  
-  imageProjX->fill( 0xFFFFFFFF );
-  imageProjY->fill( 0xFFFFFFFF );   
-    
-  const uint32_t  lu32ColorD[4] = {0xFF0000FF, 0xFFFF0000, 0xFF00CCCC, 0xFF800080};
-  //const uint32_t  lu32ColorL[4] = {0xFF000000, 0xFF000000, 0xFF000000, 0xFF000000};
-  const uint32_t  u32ColorProj  = 0xFF00CC00;  
-
-  if ( bProjRoi )
-  {                  
-    uint32_t* pImgProjX = (uint32_t*) imageProjX->bits();
+static void _pyDoProj(uint32_t *pImgProj, int imin, int imax, uint32_t *projSum, int iRoi, 
+                      int iScaleIndex, int projmin, int projmax, float scale, uint32_t u32ColorProj,
+                      int limit, int offset, int iLineI, int iLineIdx, int dir)
+{
+    for (int idx=imin; idx < imax; ++idx) {
+        if (projSum[idx] == 0xFFFFFFFF)
+            continue;
         
-    for (int iX=xmin; iX < xmax; ++iX)
-    {
-      if ( imageBuffer->projSumX[iX] == 0xFFFFFFFF )
-        continue;
-        
-      float fValue = imageBuffer->projSumX[iX] / imageBuffer->iRoiH;
+        float fValue = projSum[idx] / iRoi;
       
-      if (fValue < 0)
-      {
-        printf("pyUpdateProj(): Invalid ProjSumX[%d] : %lf\n", iX, fValue);
-        continue;
-      }
-      
-      int iProjValue;
-      if (fValue <= imageBuffer->iProjXmin)
-        iProjValue = imageProjX->height() - 1;
-      else if (fValue >= imageBuffer->iProjXmax)
-        iProjValue = 0;
-      else
-      {
-        float fIndex;
-        if ( iScaleIndex == 0 )
-          fIndex = (fValue - imageBuffer->iProjXmin) / fPixelValueRangeX;
-        else if ( iScaleIndex == 1 )
-          fIndex = log2( 1 + (fValue - imageBuffer->iProjXmin) / fPixelValueRangeX);
-        else
-          fIndex = exp2( (fValue - imageBuffer->iProjXmin) / fPixelValueRangeX) - 1;
-        
-        iProjValue = (int) ( (imageProjX->height()-1) * (1.0 - fIndex));
-      }
-      
-      for (int i = iProjValue; i < imageProjX->height(); i++)  
-	*(pImgProjX + ( iLinePixelsPx * i + iOffsetX + iX )) = u32ColorProj;
-    }
-      
-    uint32_t* pImgProjY = (uint32_t*) imageProjY->bits();
-        
-    for (int iY=ymin; iY < ymax; ++iY)
-    {
-      if ( imageBuffer->projSumY[iY] == 0xFFFFFFFF )
-        continue;
-        
-      float fValue = imageBuffer->projSumY[iY] / imageBuffer->iRoiW;
-
-      if (fValue < 0)
-      {
-        printf("pyUpdateProj(): Invalid ProjSumY[%d] : %lf\n", iY, fValue);
-        continue;
-      }
-      
-      int iProjValue;
-      if (fValue <= imageBuffer->iProjYmin)
-        iProjValue = imageProjY->width() - 1;
-      else if (fValue >= imageBuffer->iProjYmax)
-        iProjValue = 0;
-      else
-      {
-        float fIndex;
-        if ( iScaleIndex == 0 )
-          fIndex = (fValue - imageBuffer->iProjYmin) / fPixelValueRangeY;
-        else if ( iScaleIndex == 1 )
-          fIndex = log2( 1 + (fValue - imageBuffer->iProjYmin) / fPixelValueRangeY);
-        else
-          fIndex = exp2( (fValue - imageBuffer->iProjYmin) / fPixelValueRangeY) - 1;
-        
-        iProjValue = (int) ( (imageProjY->width()-1) * (1.0 - fIndex));
-      }
-        
-      for (int i = iProjValue; i < imageProjY->width(); i++)  
-	*(pImgProjY + ( iLinePixelsPy * (iOffsetY+iY) + i )) = u32ColorProj;
-    }        
-  }
-  
-  for (int iProj = 0; iProj < 4; ++iProj)
-  {
-    if ( lbProjLine[iProj] )
-    {    
-      const int iProjX = (int) (lptMarker[iProj]->x());
-      const int iProjY = (int) (lptMarker[iProj]->y());  
-      
-      uint32_t* pImgProjX = (uint32_t*) imageProjX->bits();
-      uint32_t* pImgProjY = (uint32_t*) imageProjY->bits();      
-              
-      //if ( iProjY >= ymin && iProjY < ymax )
-      //  for (int iX=0; iX < imageProjY->width(); iX+=2)
-      //    *(pImgProjY + ( iLinePixelsPy * (iProjY + iOffsetY) + iX)) = lu32ColorL[iProj];                
-            
-      if ( iProjY >= 0 && iProjY < imageDisp->height() )
-      {
-        for (int iX=xmin; iX < xmax; ++iX)
-        {
-          int iValue   = *(pImgValue + ( iLinePixelsOrg * iProjY + iX ));        
-          
-          int iProjValue;
-          if (iValue <= imageBuffer->iProjXmin)
-            iProjValue = imageProjX->height() - 1;
-          else if (iValue >= imageBuffer->iProjXmax)
-            iProjValue = 0;
-          else
-          {
-            float fIndex;
-            if ( iScaleIndex == 0 )
-              fIndex = (iValue - imageBuffer->iProjXmin) / fPixelValueRangeX;
-            else if ( iScaleIndex == 1 )
-              fIndex = log2( 1 + (iValue - imageBuffer->iProjXmin) / fPixelValueRangeX);
-            else
-              fIndex = exp2( (iValue - imageBuffer->iProjXmin) / fPixelValueRangeX) - 1;
-            
-            iProjValue = (int) ( (imageProjX->height()-1) * (1.0 - fIndex));
-          }
-            
-          *(pImgProjX + ( iLinePixelsPx * iProjValue + iOffsetX + iX )) = lu32ColorD[iProj];
-        }                  
-      }
-      
-      //if ( iProjX >= xmin && iProjX < xmax ) 
-      //  for (int iY=0; iY < imageProjX->height(); iY+=2)
-      //    *(pImgProjX + ( iLinePixelsPx * iY + iOffsetX + iProjX )) = lu32ColorL[iProj];                        
-        
-      if ( iProjX >= 0 && iProjX < imageDisp->width() )
-      {
-        for (int iY=ymin; iY < ymax; ++iY)
-        {
-          int iValue = *(pImgValue + ( iLinePixelsOrg * iY + iProjX ));
-                
-          int iProjValue;
-          if (iValue <= imageBuffer->iProjYmin)
-            iProjValue = imageProjY->width() - 1;
-          else if (iValue >= imageBuffer->iProjYmax)
-            iProjValue = 0;
-          else
-          {
-            float fIndex;
-            if ( iScaleIndex == 0 )
-              fIndex = (iValue - imageBuffer->iProjYmin) / fPixelValueRangeY;
-            else if ( iScaleIndex == 1 )
-              fIndex = log2( 1 + (iValue - imageBuffer->iProjYmin) / fPixelValueRangeY);
-            else
-              fIndex = exp2( (iValue - imageBuffer->iProjYmin) / fPixelValueRangeY) - 1;
-            
-            iProjValue = (int) ( (imageProjY->width()-1) * (1.0 - fIndex));
-          }
-            
-          *(pImgProjY + ( iLinePixelsPy * (iOffsetY+iY) + iProjValue )) = lu32ColorD[iProj];
+        if (fValue < 0) {
+            printf("_pyDoProj(): Invalid ProjSum[%d] : %lf\n", idx, fValue);
+            continue;
         }
-      }    
-    } // if ( bProjLine )
-  } // for (int iProj = 0; iProj < 4; ++iProj)
+      
+        int iProjValue;
+        if (fValue <= projmin)
+            iProjValue = limit - 1;
+        else if (fValue >= projmax)
+            iProjValue = 0;
+        else {
+            float fIndex;
+            switch (iScaleIndex) {
+            case 1: /* Log2 */
+                fIndex = log2(1 + (fValue - projmin) / scale);
+                break;
+            case 2: /* LogE */
+                fIndex = log(1 + (M_E - 1) * (fValue - projmin) / scale);
+                break;
+            case 3: /* Log10 */
+                fIndex = log10(1 + (10. - 1) * (fValue - projmin) / scale);
+                break;
+            case 4: /* Exp2 */
+                fIndex = (exp2((fValue - projmin) / scale) - 1);
+                break;
+            case 5: /* ExpE */
+                fIndex = (exp((fValue - projmin) / scale) - 1)/(M_E - 1);
+                break;
+            case 6: /* Exp10 */
+                fIndex = (exp10((fValue - projmin) / scale) - 1)/(10. - 1);
+                break;
+            case 0: /* Linear */
+            default:
+                fIndex = (fValue - projmin) / scale;
+                break;
+            }
+            iProjValue = (int) ((limit-1) * (1.0 - fIndex));
+        }
 
-  return Py_BuildValue("ffiiii", imageBuffer->fRoiPixelMean, imageBuffer->fRoiPixelVar, 
-    imageBuffer->iProjXmin, imageBuffer->iProjXmax, imageBuffer->iProjYmin, imageBuffer->iProjYmax);
+        for (int i = iProjValue; i < limit; i++)
+            *(pImgProj + ( iLineI * i + iLineIdx * (offset + dir * idx) )) = u32ColorProj;
+    }
+}
+
+/*                    0   0F  90  90F 180 180F 270 270F*/
+static int Xdir[8] = { 1, -1, -1,  1, -1,   1,  1,  -1 };
+static int Ydir[8] = { 1,  1,  1,  1, -1,  -1, -1,  -1 };
+
+PyObject* pyUpdateProj( PyObject* pyImageBuffer, int iOrientation, int iScaleIndex, 
+                        bool bProjRoi, bool bProjAutoRange,
+                        unsigned int uMin, unsigned int uMax, 
+                        QRectF* rectRoi, QRectF* rectZoom, 
+                        QImage* imageProjX, QImage* imageProjY )
+{  
+    ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
+  
+    /*
+     * Compute the ROI projection values, and also update the mean/variance
+     */
+    computeRoiProj(imageBuffer, rectRoi);
+  
+    QImage*         imageDisp     = imageBuffer->imageDisp;             
+    int width  = (imageBuffer->orientation&2) ? imageDisp->height() : imageDisp->width();
+    int height = (imageBuffer->orientation&2) ? imageDisp->width() : imageDisp->height();
+
+    const int       xmin      = (int) (rectZoom->x() < 0 ? 0 : rectZoom->x());
+    const int       xmax      = (int) (rectZoom->x() + rectZoom->width() > width 
+                                       ? width : rectZoom->x() + rectZoom->width());
+    const int       ymin      = (int) (rectZoom->y() < 0 ? 0 : rectZoom->y());
+    const int       ymax      = (int) (rectZoom->y() + rectZoom->height() > height
+                                       ? height : rectZoom->y() + rectZoom->height());
+    
+    /*
+     * Look at the Zoom region to find the min/max values of ProjX/ProjY/ROI
+     */
+   
+    if (bProjAutoRange)
+        findMinMax(imageBuffer, bProjRoi, xmin, xmax, ymin, ymax);
+    else {
+        imageBuffer->iProjXmin = uMin;
+        imageBuffer->iProjXmax = uMax;
+        imageBuffer->iProjYmin = uMin;
+        imageBuffer->iProjYmax = uMax;
+    }
+  
+    const float  fPixelValueRangeX = (float) ( (imageBuffer->iProjXmin != imageBuffer->iProjXmax) ? 
+                                               imageBuffer->iProjXmax-imageBuffer->iProjXmin: 1);  
+    const float  fPixelValueRangeY = (float) ( (imageBuffer->iProjYmin != imageBuffer->iProjYmax) ? 
+                                               imageBuffer->iProjYmax-imageBuffer->iProjYmin: 1);  
+  
+    int iOffsetX    = ( imageProjX->width()  - width ) /2;
+    int iOffsetY    = ( imageProjY->height() - height ) /2;    
+  
+    const int       iLinePixelsPx   = imageProjX->width();
+    const int       iLinePixelsPy   = imageProjY->width();
+  
+    imageProjX->fill( 0xFFFFFFFF );
+    imageProjY->fill( 0xFFFFFFFF );   
+    
+    const uint32_t  u32ColorProj  = 0xFF00CC00;
+
+    int xd = Xdir[imageBuffer->orientation];
+    int yd = Ydir[imageBuffer->orientation];
+    if (xd < 0)
+        iOffsetX += width - 1;
+    if (yd < 0)
+        iOffsetY += height - 1;
+
+    if ( bProjRoi ) {
+        if (imageBuffer->orientation&2) {
+            _pyDoProj((uint32_t*) imageProjY->bits(), xmin, xmax, imageBuffer->projSumX, imageBuffer->iRoiH,
+                      iScaleIndex, imageBuffer->iProjXmin, imageBuffer->iProjXmax, fPixelValueRangeX, u32ColorProj, 
+                      imageProjY->width(), iOffsetX, 1, iLinePixelsPy, xd);
+            _pyDoProj((uint32_t*) imageProjX->bits(), ymin, ymax, imageBuffer->projSumY, imageBuffer->iRoiW,
+                      iScaleIndex, imageBuffer->iProjYmin, imageBuffer->iProjYmax, fPixelValueRangeY, u32ColorProj, 
+                      imageProjX->height(), iOffsetY, iLinePixelsPx, 1, yd);
+        } else {
+            _pyDoProj((uint32_t*) imageProjX->bits(), xmin, xmax, imageBuffer->projSumX, imageBuffer->iRoiH,
+                      iScaleIndex, imageBuffer->iProjXmin, imageBuffer->iProjXmax, fPixelValueRangeX, u32ColorProj, 
+                      imageProjX->height(), iOffsetX, iLinePixelsPx, 1, xd);
+            _pyDoProj((uint32_t*) imageProjY->bits(), ymin, ymax, imageBuffer->projSumY, imageBuffer->iRoiW,
+                      iScaleIndex, imageBuffer->iProjYmin, imageBuffer->iProjYmax, fPixelValueRangeY, u32ColorProj, 
+                      imageProjY->width(), iOffsetY, 1, iLinePixelsPy, yd);
+        }
+    }
+
+    return Py_BuildValue("ffiiii", imageBuffer->fRoiPixelMean, imageBuffer->fRoiPixelVar, 
+                         imageBuffer->iProjXmin, imageBuffer->iProjXmax, imageBuffer->iProjYmin, imageBuffer->iProjYmax);
 }
   
 PyObject* pyGetPixelValue( PyObject* pyImageBuffer, QPointF* cursor, QPointF* marker1, QPointF* marker2, 
@@ -1123,40 +705,42 @@ PyObject* pyGetPixelValue( PyObject* pyImageBuffer, QPointF* cursor, QPointF* ma
   ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
   uint32_t*    pImgValue   = (uint32_t*) imageBuffer->imageData;     
   QImage*      imageDisp   = imageBuffer->imageDisp;           
-  const int    iLinePixels = imageDisp->width();
+  int orientation = imageBuffer->orientation;
+  int srcwidth  = (orientation&2) ? imageDisp->height() : imageDisp->width();
+  int srcheight = (orientation&2) ? imageDisp->width() : imageDisp->height();
   
   uint32_t     u32ValueCursor;
-  if (cursor->x() < 0 || cursor->x() >= imageDisp->width() || cursor->y() < 0 || cursor->y() >= imageDisp->height())
+  if (cursor->x() < 0 || cursor->x() >= srcwidth || cursor->y() < 0 || cursor->y() >= srcheight)
     u32ValueCursor = -1;
   else
-    u32ValueCursor = pImgValue[ (int) cursor->y() * iLinePixels + (int) cursor->x() ];    
+    u32ValueCursor = pImgValue[ (int) cursor->y() * srcwidth + (int) cursor->x() ];    
 
   uint32_t     u32Value1;
-  if (marker1->x() < 0 || marker1->x() >= imageDisp->width() || marker1->y() < 0 || marker1->y() >= imageDisp->height())
+  if (marker1->x() < 0 || marker1->x() >= srcwidth || marker1->y() < 0 || marker1->y() >= srcheight)
     u32Value1 = -1;
   else
-    u32Value1 = pImgValue[ (int) marker1->y() * iLinePixels + (int) marker1->x() ];    
+    u32Value1 = pImgValue[ (int) marker1->y() * srcwidth + (int) marker1->x() ];    
 
   uint32_t     u32Value2;
-  if (marker2->x() < 0 || marker2->x() >= imageDisp->width() || marker2->y() < 0 || marker2->y() >= imageDisp->height())
+  if (marker2->x() < 0 || marker2->x() >= srcwidth || marker2->y() < 0 || marker2->y() >= srcheight)
     u32Value2 = -1;
   else
-    u32Value2 = pImgValue[ (int) marker2->y() * iLinePixels + (int) marker2->x() ];    
+    u32Value2 = pImgValue[ (int) marker2->y() * srcwidth + (int) marker2->x() ];    
 
   uint32_t     u32Value3;
-  if (marker3->x() < 0 || marker3->x() >= imageDisp->width() || marker3->y() < 0 || marker3->y() >= imageDisp->height())
+  if (marker3->x() < 0 || marker3->x() >= srcwidth || marker3->y() < 0 || marker3->y() >= srcheight)
     u32Value3 = -1;
   else
-    u32Value3 = pImgValue[ (int) marker3->y() * iLinePixels + (int) marker3->x() ];    
+    u32Value3 = pImgValue[ (int) marker3->y() * srcwidth + (int) marker3->x() ];    
 
   uint32_t     u32Value4;
-  if (marker4->x() < 0 || marker4->x() >= imageDisp->width() || marker4->y() < 0 || marker4->y() >= imageDisp->height())
+  if (marker4->x() < 0 || marker4->x() >= srcwidth || marker4->y() < 0 || marker4->y() >= srcheight)
     u32Value4 = -1;
   else
-    u32Value4 = pImgValue[ (int) marker4->y() * iLinePixels + (int) marker4->x() ];    
+    u32Value4 = pImgValue[ (int) marker4->y() * srcwidth + (int) marker4->x() ];    
     
   return Py_BuildValue("iiiiii", u32ValueCursor, u32Value1, u32Value2, u32Value3, u32Value4, 
-    (imageBuffer->iNumAveraged == 0? 1: imageBuffer->iNumAveraged));
+                       (imageBuffer->iNumAveraged == 0 ? 1 : imageBuffer->iNumAveraged));
 }
 
 PyObject* pySetFrameAverage(int iAverage, PyObject* pyImageBuffer)
@@ -1167,26 +751,8 @@ PyObject* pySetFrameAverage(int iAverage, PyObject* pyImageBuffer)
   ImageBuffer* imageBuffer  = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
   
   if ( iAverage != imageBuffer->iAverage )
-  {
-    free( imageBuffer->circBuffer );
     imageBuffer->iAverage = iAverage;
-    
-    if ( iAverage <= 1 )
-      imageBuffer->circBuffer = NULL;
-    else
-    {
-      imageBuffer->circBuffer = (uint32_t*) malloc( imageBuffer->imageDisp->width () * 
-        imageBuffer->imageDisp->height() * sizeof(uint32_t) * iAverage );
-      if ( imageBuffer->circBuffer == NULL )
-      {
-        printf("!! pySetFrameAverage(): malloc() failed for circBuffer\n");
-        imageBuffer->iAverage = 1;
-      }
-    }
-  }
-  
   imageBuffer->iNumAveraged = 0;
-  imageBuffer->iFrameIndex  = 0;
   
   Py_RETURN_NONE;
 }
@@ -1287,18 +853,6 @@ PyObject* pySaveRawImageData( PyObject* pyImageBuffer, bool bPortrait, const cha
   close(fd);
   Py_RETURN_TRUE;
 }
-  
-//PyObject* pyTest1(PyObject* pyGUI)
-//{  
-//  PyObject* pyAutoRange = PyObject_GetAttrString(pyGUI, "autoRange");
-//  if (pyAutoRange == Py_False)
-//    printf("autoRange: False\n");
-//  else if (pyAutoRange == Py_True)
-//    printf("autoRange: True\n");
-//  else
-//    printf("autoRange: Unknown\n");  
-//  Py_RETURN_TRUE;
-//}
 
 } // extern "C"
 
@@ -1309,14 +863,13 @@ void pydspl_setup_color_map(const char* colormap, int iLimitLow, int iLimitHigh,
 void pydspl_setup_gray(int iLimitLow, int iLimitHigh, int iScaleIndex);
 SIP_PYOBJECT pyCreateImagePvCallbackFunc(SIP_PYOBJECT pyImageBuffer);
 SIP_PYOBJECT pyCreateColorImagePvCallbackFunc(SIP_PYOBJECT pyImageBuffer);
-SIP_PYOBJECT pyCreateImageBuffer(QImage* imageDisp, int iSyntheticData);
+SIP_PYOBJECT pyCreateImageBuffer(QImage* imageDisp, int orientation);
 SIP_PYOBJECT pySetImageBufferGray(SIP_PYOBJECT pyImageBuffer, int gray);
 SIP_PYOBJECT pyRecolorImageBuffer(SIP_PYOBJECT pyImageBuffer);
 SIP_PYOBJECT pyUpdateProj       (SIP_PYOBJECT pyImageBuffer, int iOrientation, int iScaleIndex,
-                                  QPointF* marker1, QPointF* marker2, QPointF* marker3, QPointF* marker4, 
-                                  bool bProjLine1, bool bProjLine2, bool bProjLine3, bool bProjLine4, 
                                   bool bProjRoi, bool bProjAutoRange,
-                                  int uMin, int uMax, QRectF* rectRoi, QRectF* rectZoom, QImage* imageProjX, QImage* imageProjY ); 
+                                  int uMin, int uMax, QRectF* rectRoi, QRectF* rectZoom,
+                                  QImage* imageProjX, QImage* imageProjY ); 
 SIP_PYOBJECT pyGetPixelValue    (SIP_PYOBJECT pyImageBuffer, QPointF* cursor, 
                                   QPointF* marker1, QPointF* marker2, 
                                   QPointF* marker3, QPointF* marker4);

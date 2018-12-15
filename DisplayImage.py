@@ -1,6 +1,7 @@
 from PyQt4 import QtCore
 from PyQt4.QtGui import *
 from PyQt4.QtCore import QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject
+import param
 
 # Comments are whether we are in image or screen coordinates.
 class DisplayImage(QWidget):
@@ -15,29 +16,26 @@ class DisplayImage(QWidget):
     self.hint         = QSize(self.gui.viewwidth, self.gui.viewheight)
     self.retry        = False
     self.pcnt         = 0
-    size              = QSize(self.gui.x, self.gui.y)
+    size              = param.getSize()
     self.image        = QImage(size, QImage.Format_RGB32)
     self.image.fill(0)
-    self.center       = QPointF(self.width()/2, self.height()/2)    # true screen
-    self.negcenter    = QPointF(-self.height()/2, -self.width()/2)  # true screen
-    self.rectZoom     = QRectF(0, 0, self.gui.x, self.gui.y)            # image
-    self.arectZoom    = QRectF(0, 0, self.gui.x, self.gui.y)            # image
-    self.rectRoi      = QRectF(self.rectZoom)                           # image
+    self.rectZoom     = param.Rect(0, 0, param.x, param.y)              # image
+    self.arectZoom    = param.Rect(0, 0, param.x, param.y)              # image
+    self.rectRoi      = param.Rect(0, 0, param.x, param.y)              # image
     self.paintevents  = 0
     self.xoff         = QPointF(20, 0)
     self.yoff         = QPointF(0, 20)
     self.setZoom()
-    self.cursorPos    = QPointF(self.gui.x, self.gui.y)                 # image
-    self.cursorMarker = QPointF(0,0)                                    # image
+    self.cursorPos    = param.Point(0,0)                                # image
     self.setMouseTracking(True)
     self.rectImage = QRectF(0,0,size.width(),size.height())             # screen
     self.sWindowTitle = "Camera: None"
 
     # set marker data
-    self.lMarker        = [ QPointF(-100, -100),                        # image
-                            QPointF(self.gui.x + 100, -100),
-                            QPointF(self.gui.x + 100, self.gui.y + 100),
-                            QPointF(-100, self.gui.y + 100) ]
+    self.lMarker        = [ param.Point(-100, -100),                    # image
+                            param.Point(param.x + 100, -100),
+                            param.Point(param.x + 100, param.y + 100),
+                            param.Point(-100, param.y + 100) ]
     self.lPenMarker     = [ QPen(QColor(0  ,128,255) , 1, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin),
                             QPen(QColor(255,0  ,0  ) , 1, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin),
                             QPen(QColor(0,  204,204) , 1, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin),
@@ -56,10 +54,6 @@ class DisplayImage(QWidget):
   def contextMenuEvent(self, ev):
     ui = self.gui.ui
     # Fix up the menu!
-    if self.gui.isportrait:
-      ui.actionPortrait.setText("Switch to Landscape")
-    else:
-      ui.actionPortrait.setText("Switch to Portrait")
     if ui.showconf.isChecked():
       ui.actionShow_Configuration.setText("Hide Configuration")
     else:
@@ -68,16 +62,13 @@ class DisplayImage(QWidget):
       ui.actionShow_Projection.setText("Hide Projection")
     else:
       ui.actionShow_Projection.setText("Show Projection")
+    # Start the menu!
     action = ui.menuPopup.exec_(ev.globalPos())
+    # Take the action!
     if action == ui.actionReset_ROI:
       self.gui.onRoiReset()
     elif action == ui.actionZoom_to_ROI:
       self.zoomToRoi()
-    elif action == ui.actionPortrait:
-      if self.gui.isportrait:
-        self.gui.landscape()
-      else:
-        self.gui.portrait()
     elif action == ui.actionShow_Configuration:
       ui.showconf.setChecked(not ui.showconf.isChecked())
       self.gui.doShowConf()
@@ -99,40 +90,26 @@ class DisplayImage(QWidget):
   def sizeHint(self):
     return self.hint
 
-  def pWidth(self):
-    if self.gui.isportrait:
-      return self.height()
-    else:
-      return self.width()
-
-  def pHeight(self):
-    if self.gui.isportrait:
-      return self.width()
-    else:
-      return self.height()
-
   def setRectZoom(self, x, y, w, h):
-    self.rectZoom = QRectF(x, y, w, h)
+    self.rectZoom = param.Rect(x, y, w, h)
     self.setZoom()
 
   def setImageSize(self, reset=True):
-    size              = QSize(self.gui.x, self.gui.y)
+    size              = param.getSize()
     self.image        = QImage(size, QImage.Format_RGB32)
     self.image.fill(0)
-    self.center       = QPointF(self.gui.viewwidth/2, self.gui.viewheight/2)    # true screen
-    self.negcenter    = QPointF(-self.gui.viewheight/2, -self.gui.viewwidth/2)  # true screen
     if reset:
-      self.rectZoom     = QRectF(0, 0, self.gui.x, self.gui.y)
-      self.rectRoi      = QRectF(self.rectZoom)
+      self.rectZoom     = param.Rect(0, 0, param.x, param.y)
+      self.rectRoi      = param.Rect(0, 0, param.x, param.y)
     self.setZoom()
     self.gui.updateRoiText()
     self.gui.updateMiscInfo()
     if reset:
-      self.lMarker        = [ QPointF(-100, -100),                        # image
-                              QPointF(self.gui.x + 100, -100),
-                              QPointF(self.gui.x + 100, self.gui.y + 100),
-                              QPointF(-100, self.gui.y + 100) ]
-    
+      self.lMarker        = [ param.Point(-100, -100),                        # image
+                              param.Point(param.x + 100, -100),
+                              param.Point(param.x + 100, param.y + 100),
+                              param.Point(-100, param.y + 100) ]
+
   def paintEvent(self, event):
     if self.gui.dispUpdates == 0:
       return
@@ -141,27 +118,21 @@ class DisplayImage(QWidget):
     #painter.setRenderHint(QPainter.Antialiasing)    
     
     self.paintevents += 1
-    if self.gui.isportrait:
-      painter.translate(self.center)
-      painter.rotate(90)
-      painter.translate(self.negcenter)
     
-    fZoomedWidth    = self.gui.zoom * self.arectZoom.width ()
-    fZoomedHeight   = self.gui.zoom * self.arectZoom.height()
+    fZoomedWidth    = param.zoom * self.arectZoom.oriented().width ()
+    fZoomedHeight   = param.zoom * self.arectZoom.oriented().height()
     
-    self.rectImage = QRectF( (self.pWidth()-fZoomedWidth)/2, (self.pHeight()-fZoomedHeight)/2,\
+    self.rectImage = QRectF( (self.width()-fZoomedWidth)/2, (self.height()-fZoomedHeight)/2,\
                              fZoomedWidth, fZoomedHeight)
 
     # Draw arectZoom portion of image into rectImage
-    painter.drawImage(self.rectImage, self.image, self.arectZoom)
+    painter.drawImage(self.rectImage, self.image, self.arectZoom.oriented())
           
     painter.setOpacity(1)
     
-    lbProjChecked = [ self.gui.ui.checkBoxProjLine1.isChecked(), self.gui.ui.checkBoxProjLine2.isChecked(),      
-      self.gui.ui.checkBoxProjLine3.isChecked(), self.gui.ui.checkBoxProjLine4.isChecked() ]
-    
     for (iMarker, ptMarker) in enumerate(self.lMarker):
-      markerImage = (ptMarker - self.arectZoom.topLeft()) * self.gui.zoom + self.rectImage.topLeft() # screen
+      markerImage = ((ptMarker.oriented() - self.arectZoom.oriented().topLeft()) * param.zoom +
+                     self.rectImage.topLeft()) # screen
       
       painter.setPen(self.penMarkerBack)
       painter.drawLine(markerImage-self.xoff+QPointF(1,1), markerImage+self.xoff+QPointF(1,1))
@@ -170,17 +141,10 @@ class DisplayImage(QWidget):
       painter.setPen(self.lPenMarker[iMarker])              
       painter.drawLine(markerImage-self.xoff, markerImage+self.xoff)
       painter.drawLine(markerImage-self.yoff, markerImage+self.yoff)
-    
-      if lbProjChecked[iMarker]:
-        painter.setPen(self.penProjBack)
-        painter.drawLine(markerImage.x() + 1, 1, markerImage.x() + 1, self.pHeight())          
-        painter.drawLine(1,markerImage.y()+1, self.pWidth(), markerImage.y()+1)
-        painter.setPen(self.lPenProj[iMarker])
-        painter.drawLine(markerImage.x(), 0, markerImage.x(), self.pHeight()-1)
-        painter.drawLine(0,markerImage.y(), self.pWidth()-1, markerImage.y())
-    
-    roiTopLeft = (self.rectRoi.topLeft() - self.arectZoom.topLeft()) * self.gui.zoom + self.rectImage.topLeft() # image
-    roiSize    = self.rectRoi.size() * self.gui.zoom
+        
+    roiTopLeft = ((self.rectRoi.oriented().topLeft() - self.arectZoom.oriented().topLeft()) * param.zoom +
+                     self.rectImage.topLeft()) # image
+    roiSize    = self.rectRoi.oriented().size() * param.zoom
     painter.setPen(self.penRoiBack)
     painter.drawRect( QRectF( roiTopLeft + QPointF(1,1), roiSize ) )
     painter.setPen(self.penRoi)
@@ -191,25 +155,16 @@ class DisplayImage(QWidget):
     # arectZoom is coordinates in the image.
     # rectImage is coordinates on the screen.
     # posx is coordinates on the screen as well.
-    if self.gui.isportrait:
-      # Rotate 90 degrees!
-      posx = event.y() 
-      posy = self.width() - event.x()
-    else:
-      posx = event.x()
-      posy = event.y()
+    posx = event.x()
+    posy = event.y()
 
-    # rectImage is inside (xpos, ypos).  Convert to image coordinates.
+    # rectImage is inside (xpos, ypos).  Convert to oriented image coordinates.
     imgx = ( posx - self.rectImage.x() ) * \
-        (self.arectZoom.width() / self.rectImage.width()) + self.arectZoom.x()
+        (self.arectZoom.oriented().width() / self.rectImage.width()) + self.arectZoom.oriented().x()
     imgy = ( posy - self.rectImage.y() ) * \
-        (self.arectZoom.height() / self.rectImage.height()) + self.arectZoom.y()
+        (self.arectZoom.oriented().height() / self.rectImage.height()) + self.arectZoom.oriented().y()
 
-    self.cursorPos      = QPointF(imgx,imgy)
-    if self.gui.isportrait:
-      self.cursorMarker = QPointF(self.gui.y - imgy, imgx)
-    else:
-      self.cursorMarker = QPointF(imgx, imgy)    
+    self.cursorPos = param.Point(imgx, imgy, rel=True)
     
     if self.gui.iSpecialMouseMode == 0:
       self.lastMousePos = event.pos()
@@ -218,20 +173,13 @@ class DisplayImage(QWidget):
     if self.gui.iSpecialMouseMode == 5:    
       self.roiInvX      = False
       self.roiInvY      = False    
-      if event.buttons() & Qt.RightButton:
-        self.rectRoi.setRight (imgx)
-        self.rectRoi.setBottom(imgy)
-      else:
-        self.rectRoi.setX(imgx)
-        self.rectRoi.setY(imgy)
-        self.rectRoi.setRight (imgx+1)
-        self.rectRoi.setBottom(imgy+1)
+      self.rectRoi.setRel(imgx, imgy, 2, 2)
       self.gui.updateRoiText()
       self.gui.updateProj()
       if self.gui.cfg == None: self.gui.dumpConfig()
     elif self.gui.iSpecialMouseMode >= 1 and self.gui.iSpecialMouseMode <= 4:      
-      self.lMarker[self.gui.iSpecialMouseMode-1].setX(imgx)
-      self.lMarker[self.gui.iSpecialMouseMode-1].setY(imgy)
+      self.lMarker[self.gui.iSpecialMouseMode-1].setRel(imgx, imgy)
+      self.lMarker[self.gui.iSpecialMouseMode-1].pr("Set marker %d to (%d, %d): " % (self.gui.iSpecialMouseMode, imgx, imgy))
       self.gui.updateMarkerText(True, True, 1 << (self.gui.iSpecialMouseMode-1),
                                 1 << (self.gui.iSpecialMouseMode-1))
       self.gui.updateProj()
@@ -239,38 +187,30 @@ class DisplayImage(QWidget):
     self.update()
     
   def mouseMoveEvent(self, event):
-    if self.gui.isportrait:
-      posx = event.y() 
-      posy = self.width() - event.x() 
-    else:
-      posx = event.x()
-      posy = event.y()
+    posx = event.x()
+    posy = event.y()
 
     imgx = ( posx - self.rectImage.x() ) * \
-        (self.arectZoom.width() / self.rectImage.width()) + self.arectZoom.x()
+        (self.arectZoom.oriented().width() / self.rectImage.width()) + self.arectZoom.oriented().x()
     imgy = ( posy - self.rectImage.y() ) * \
-        (self.arectZoom.height() / self.rectImage.height()) + self.arectZoom.y()
+        (self.arectZoom.oriented().height() / self.rectImage.height()) + self.arectZoom.oriented().y()
 
-    self.cursorPos    = QPointF(imgx,imgy)
-    if self.gui.isportrait:
-      self.cursorMarker = QPointF(self.gui.y - imgy, imgx)
-    else:
-      self.cursorMarker = QPointF(imgx, imgy)    
+    self.cursorPos = param.Point(imgx, imgy, rel=True)
     
     if self.gui.iSpecialMouseMode == 0:      
       if not ( event.buttons() & Qt.LeftButton ):
         return
-      return self.moveImage(event)        
+      return self.moveImage(event)
       
     if self.gui.iSpecialMouseMode <= 5 and not ( event.buttons() & Qt.LeftButton ):
       return
               
     if self.gui.iSpecialMouseMode == 5:
       if self.roiInvX:
-        if imgx > self.rectRoi.right():
+        if imgx > self.rectRoi.oriented().right():
           self.roiInvX = False
       else:
-        if imgx < self.rectRoi.left():
+        if imgx < self.rectRoi.oriented().left():
           self.roiInvX = True
           
       if self.roiInvX:
@@ -279,10 +219,10 @@ class DisplayImage(QWidget):
         self.rectRoi.setRight (imgx)
         
       if self.roiInvY:
-        if imgy > self.rectRoi.bottom():
+        if imgy > self.rectRoi.oriented().bottom():
           self.roiInvY = False
       else:
-        if imgy < self.rectRoi.top():
+        if imgy < self.rectRoi.oriented().top():
           self.roiInvY = True
           
       if self.roiInvY:
@@ -294,8 +234,7 @@ class DisplayImage(QWidget):
       self.gui.updateProj()
       if self.gui.cfg == None: self.gui.dumpConfig()
     elif self.gui.iSpecialMouseMode >= 1 and self.gui.iSpecialMouseMode <= 4:
-      self.lMarker[self.gui.iSpecialMouseMode-1].setX(imgx)
-      self.lMarker[self.gui.iSpecialMouseMode-1].setY(imgy)
+      self.lMarker[self.gui.iSpecialMouseMode-1].setRel(imgx, imgy)
       self.gui.updateMarkerText(True, True, 1 << (self.gui.iSpecialMouseMode-1),
                                 1 << (self.gui.iSpecialMouseMode-1))
       self.gui.updateProj()
@@ -314,54 +253,43 @@ class DisplayImage(QWidget):
     else:
       fFactor = 1/1.5
         
-    zoomSize        = self.rectZoom.size() * fFactor
+    zoomSize        = self.rectZoom.oriented().size() * fFactor
     
-    if self.gui.isportrait:
-      posx = event.y() 
-      posy = self.width() - event.x() 
-    else:
-      posx = event.x()
-      posy = event.y()
+    posx = event.x()
+    posy = event.y()
       
     shiftRatioX = ( posx - self.rectImage.x() ) / self.rectImage.width()
     shiftRatioY = ( posy - self.rectImage.y() ) / self.rectImage.height()
-    imgx        = shiftRatioX * self.arectZoom.width () + self.arectZoom.x()
-    imgy        = shiftRatioY * self.arectZoom.height() + self.arectZoom.y()
+    imgx        = shiftRatioX * self.arectZoom.oriented().width () + self.arectZoom.oriented().x()
+    imgy        = shiftRatioY * self.arectZoom.oriented().height() + self.arectZoom.oriented().y()
     
     pointNewTopLeft = QPointF( imgx - zoomSize.width() * shiftRatioX, imgy - zoomSize.height() * shiftRatioY )
-    self.rectZoom   = QRectF( pointNewTopLeft, zoomSize )
+    self.rectZoom   = param.Rect(pointNewTopLeft.x(), pointNewTopLeft.y(), zoomSize.height(), zoomSize.width(), rel=True)
     self.setZoom()
     self.gui.updateall()    
     if self.gui.cfg == None: self.gui.dumpConfig()
         
   def moveImage(self,event):  
-    dx = ( event.x() - self.lastMousePos.x() ) * (self.arectZoom.width()  / self.rectImage.width())
-    dy = ( event.y() - self.lastMousePos.y() ) * (self.arectZoom.height() / self.rectImage.height())
+    dx = ( event.x() - self.lastMousePos.x() ) * (self.arectZoom.oriented().width()  / self.rectImage.width())
+    dy = ( event.y() - self.lastMousePos.y() ) * (self.arectZoom.oriented().height() / self.rectImage.height())
     self.lastMousePos = event.pos()
-    
-    if self.gui.isportrait:
-      imgdx = dy
-      imgdy = -dx
-    else:
-      imgdx = dx
-      imgdy = dy
-    
-    self.rectZoom = QRectF( self.rectZoom.x() - imgdx, self.rectZoom.y() - imgdy,\
-      self.rectZoom.width(), self.rectZoom.height() )
+    self.rectZoom = param.Rect( self.rectZoom.oriented().x() - dx, self.rectZoom.oriented().y() - dy,
+                                self.rectZoom.oriented().width(), self.rectZoom.oriented().height(), rel=True)
     self.setZoom()
     self.gui.updateall()           
     if self.gui.cfg == None: self.gui.dumpConfig()
           
   def zoomByFactor(self, fFactor):
-    zoomSize        = self.arectZoom.size() / fFactor
+    zoomSize        = self.arectZoom.oriented().size() / fFactor
     zoomCenterShift = QPointF( zoomSize.width(), zoomSize.height() ) * 0.5
-    self.rectZoom   = QRectF( self.arectZoom.center() - zoomCenterShift, zoomSize )
+    tl = self.arectZoom.oriented().center() - zoomCenterShift
+    self.rectZoom   = param.Rect(tl.x(), tl.y(), zoomSize.width(), zoomSize.height(), rel=True)
     self.setZoom()
     self.gui.updateall()
     if self.gui.cfg == None: self.gui.dumpConfig()
 
   def zoomToRoi(self):
-    self.rectZoom = QRectF(self.rectRoi)
+    self.rectZoom = param.Rect(self.rectRoi.x, self.rectRoi.y, self.rectRoi.w, self.rectRoi.y)
     self.setZoom()
     self.gui.updateall()
     if self.gui.cfg == None: self.gui.dumpConfig()
@@ -371,47 +299,46 @@ class DisplayImage(QWidget):
   # rectZoom is our *desired* zoom rectangle.
   # This routine "fixes" it to make it actually fit in the available space.
   def setZoom(self):
-    if ( self.rectZoom.width() <= 0 ):
+    if ( self.rectZoom.oriented().width() <= 0 ):
       self.rectZoom.setWidth(1)
-    if ( self.rectZoom.height() <= 0 ):
+    if ( self.rectZoom.oriented().height() <= 0 ):
       self.rectZoom.setHeight(1)
 
-    self.arectZoom = QRectF(self.rectZoom)
+    self.arectZoom = param.Rect(self.rectZoom.x, self.rectZoom.y, self.rectZoom.w, self.rectZoom.h)
 
-    h = self.pHeight()
-    w = self.pWidth()
+    h = self.height()
+    w = self.width()
 
-    fWidthRatio   = w  / self.arectZoom.width()
-    fHeightRatio  = h / self.arectZoom.height()
+    fWidthRatio   = w  / self.arectZoom.oriented().width()
+    fHeightRatio  = h / self.arectZoom.oriented().height()
     
     if abs((fWidthRatio - fHeightRatio)/fWidthRatio) < 0.01:
-      self.gui.zoom = w / self.arectZoom.width()
+      param.zoom = w / self.arectZoom.oriented().width()
       return
       
     if fWidthRatio > fHeightRatio:
-      fNewZoomWidth = self.arectZoom.width() * fWidthRatio / fHeightRatio
-      fNewZoomX     = self.arectZoom.x() + ( self.arectZoom.width() - fNewZoomWidth ) * 0.5      
-      self.arectZoom.setX    ( fNewZoomX )
+      fNewZoomWidth = self.arectZoom.oriented().width() * fWidthRatio / fHeightRatio
+      fNewZoomX     = self.arectZoom.oriented().x() + ( self.arectZoom.oriented().width() - fNewZoomWidth ) * 0.5      
+      self.arectZoom.setLeft ( fNewZoomX )
       self.arectZoom.setWidth( fNewZoomWidth )
     else:
-      fNewZoomHeight = self.arectZoom.height() * fHeightRatio / fWidthRatio
-      fNewZoomY      = self.arectZoom.y() + ( self.arectZoom.height() - fNewZoomHeight ) * 0.5      
-      self.arectZoom.setY     ( fNewZoomY )
+      fNewZoomHeight = self.arectZoom.oriented().height() * fHeightRatio / fWidthRatio
+      fNewZoomY      = self.arectZoom.oriented().y() + ( self.arectZoom.oriented().height() - fNewZoomHeight ) * 0.5      
+      self.arectZoom.setTop   ( fNewZoomY )
       self.arectZoom.setHeight( fNewZoomHeight )
-    self.gui.zoom = w / self.arectZoom.width()
+    param.zoom = w / self.arectZoom.oriented().width()
         
   def zoomReset(self):
-    self.zoomByFactor(self.rectZoom.width() / self.pWidth())
+    self.zoomByFactor(self.rectZoom.oriented().width() / self.width())
     
   def roiReset(self):
-    self.rectRoi = QRectF(0, 0, self.gui.x, self.gui.y)
+    self.rectRoi = param.Rect(0, 0, param.width(), param.height())
     self.gui.updateRoiText()
     self.update()
     if self.gui.cfg == None: self.gui.dumpConfig()
 
   def roiSet(self, x, y, w, h):
-    self.rectRoi = QRectF(x, y, w, h)
+    self.rectRoi = param.Rect(x, y, w, h)
     self.gui.updateRoiText()
     self.update()
     if self.gui.cfg == None: self.gui.dumpConfig()
-    
