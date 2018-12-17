@@ -337,8 +337,8 @@ class DisplayImage(QWidget):
     self.update()
     if self.gui.cfg == None: self.gui.dumpConfig()
 
-  def roiSet(self, x, y, w, h):
-    self.rectRoi = param.Rect(x, y, w, h)
+  def roiSet(self, x, y, w, h, rel=False):
+    self.rectRoi = param.Rect(x, y, w, h, rel=rel)
     self.gui.updateRoiText()
     self.update()
     if self.gui.cfg == None: self.gui.dumpConfig()

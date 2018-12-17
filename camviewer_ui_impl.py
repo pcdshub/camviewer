@@ -1,11 +1,11 @@
 # NOTES:
-# In landscape mode, the screen and image coordinates are aligned: x going right and y going down.
-# In portrait mode, the image x goes down and the image y goes *left*.
-# We transform the screen coordinates (move to the center, rotate 90, and move back to the corner),
-# and then the "screen height" is actually the width!
+# OK, New regime: all of the rotation is handled by the false coloring processor for the image PV.
+# So, now this processor is given an orientation, and everything is automatically rotated with
+# x going right and y going down, (0,0) in the upper left corner.  The Rect and Point classes in
+# the param module automatically deal with absolute image coordinates as well as rotated ones.
 #
-# So we have three types of coordinates: true screen, transformed screen, and image, with the last
-# two being aligned.
+# So, we only have to deal with true screen coordinates and how the oriented image is mapped to
+# this.
 #
 from camviewer_ui import Ui_MainWindow
 from psp.Pv import Pv
@@ -1071,10 +1071,10 @@ class GraphicUserInterface(QMainWindow):
     self.ui.display_image.update()
 
   def onMarkerReset(self):
-    self.ui.display_image.lMarker = [ QPointF(-100, -100),
-                                   QPointF(param.x + 100, -100),
-                                   QPointF(param.x + 100, param.y + 100),
-                                   QPointF(-100, param.y + 100) ]
+    self.ui.display_image.lMarker = [ param.Point(-100, -100),
+                                      param.Point(param.x + 100, -100),
+                                      param.Point(param.x + 100, param.y + 100),
+                                      param.Point(-100, param.y + 100) ]
     self.updateMarkerText(True, True, 3, 15)
     self.updateall()
     if self.cfg == None: self.dumpConfig()
@@ -2830,6 +2830,7 @@ class GraphicUserInterface(QMainWindow):
       f.write("orientation " + str(param.orientation) + "\n")
       f.write("autorange   " + str(int(self.ui.checkBoxProjAutoRange.isChecked())) + "\n")
       f.write("projROI     " + str(int(self.ui.checkBoxProjRoi.isChecked())) + "\n")
+      f.write("use_abs     1\n")
       rz = self.ui.display_image.rectZoom.abs()
       f.write("rectzoom    " + str(rz.x()) + " "
                              + str(rz.y()) + " "
@@ -2840,16 +2841,13 @@ class GraphicUserInterface(QMainWindow):
       f.write("colormin    " + self.ui.lineEditRangeMin.text() + "\n")
       f.write("colormax    " + self.ui.lineEditRangeMax.text() + "\n")
       f.write("grayscale   " + str(int(self.ui.grayScale.isChecked())) + "\n")
-      f.write("ROI         " + self.ui.Disp_RoiX.text() + " "
-                             + self.ui.Disp_RoiY.text() + " "
-                             + self.ui.Disp_RoiW.text() + " "
-                             + self.ui.Disp_RoiH.text() + "\n")
+      roi = self.ui.display_image.rectRoi.abs()
+      f.write("ROI         %d %d %d %d\n" % (roi.x(), roi.y(), roi.width(), roi.height()))
       f.write("globmarks   " + str(int(self.useglobmarks)) + "\n")
       f.write("globmarks2  " + str(int(self.useglobmarks2)) + "\n")
-      f.write("m1          " + self.ui.Disp_Xmark1.text() + " " + self.ui.Disp_Ymark1.text() + "\n")
-      f.write("m2          " + self.ui.Disp_Xmark2.text() + " " + self.ui.Disp_Ymark2.text() + "\n")
-      f.write("m3          " + self.ui.Disp_Xmark3.text() + " " + self.ui.Disp_Ymark3.text() + "\n")
-      f.write("m4          " + self.ui.Disp_Xmark4.text() + " " + self.ui.Disp_Ymark4.text() + "\n")
+      lMarker = self.ui.display_image.lMarker
+      for i in range(4):
+        f.write("m%d          %d %d\n" % (i+1, lMarker[i].abs().x(), lMarker[i].abs().y()))
       g.write("xtcdir      " + self.xtcdir + "\n")
       g.write("dispspec    " + str(self.dispspec) + "\n")
 
@@ -2908,7 +2906,9 @@ class GraphicUserInterface(QMainWindow):
         self.ui.showproj.setChecked(int(self.cfg.projection))
         self.doShowProj()
         if self.options != None:
-          if self.options.lportrait != None:
+          if self.options.orientation != None:
+            self.setOrientation(int(self.options.orientation))
+          elif self.options.lportrait != None:
             if int(self.options.lportrait):
               self.setOrientation(param.ORIENT90)
             else:
@@ -2925,15 +2925,22 @@ class GraphicUserInterface(QMainWindow):
 
     # Let command line options override local config file
     if self.options != None:
-      if self.options.lportrait != None:
+      if self.options.orientation != None:
+        self.cfg.add("cmd_orientation", int(self.options.orientation))
+      elif self.options.lportrait != None:
         if self.options.lportrait == "0":
-          self.cfg.add("orientation", param.ORIENT0)
+          self.cfg.add("cmd_orientation", param.ORIENT0)
         else:
-          self.cfg.add("orientation", param.ORIENT90)
+          self.cfg.add("cmd_orientation", param.ORIENT90)
       if self.options.cmap != None:
         self.cfg.add("colormap", self.options.cmap)
       self.options = None
-  
+
+    try:
+      use_abs = int(self.cfg.use_abs)
+    except:
+      use_abs = 0
+
     # Set the window size
     settings = QtCore.QSettings("SLAC", "CamViewer");
     pos = self.pos()
@@ -2981,6 +2988,11 @@ class GraphicUserInterface(QMainWindow):
                                         float(self.cfg.rectzoom[2]), float(self.cfg.rectzoom[3]))
     except:
       pass
+    try:
+      self.ui.display_image.roiSet(float(self.cfg.roi[0]), float(self.cfg.roi[1]),
+                                   float(self.cfg.roi[2]), float(self.cfg.roi[3]), rel=(use_abs==0))
+    except:
+      pass
     self.updateall()
     self.ui.comboBoxColor.setCurrentIndex(self.ui.comboBoxColor.findText(self.cfg.colormap))
     self.colorMap = self.cfg.colormap.lower()
@@ -3004,14 +3016,6 @@ class GraphicUserInterface(QMainWindow):
       pass
     self.setColorMap()
     try:
-      self.ui.Disp_RoiX.setText(self.cfg.ROI[0])
-      self.ui.Disp_RoiY.setText(self.cfg.ROI[1])
-      self.ui.Disp_RoiW.setText(self.cfg.ROI[2])
-      self.ui.Disp_RoiH.setText(self.cfg.ROI[3])
-    except:
-      pass
-    self.onRoiTextEnter()
-    try:
       self.useglobmarks = bool(int(self.cfg.globmarks))
     except:
       self.useglobmarks = False
@@ -3030,25 +3034,32 @@ class GraphicUserInterface(QMainWindow):
       self.onCrossUpdate(0)
       self.onCrossUpdate(1)
     else:
-      self.ui.Disp_Xmark1.setText(self.cfg.m1[0])
-      self.ui.Disp_Ymark1.setText(self.cfg.m1[1])
-      self.onMarkerTextEnter(0)
-      self.ui.Disp_Xmark2.setText(self.cfg.m2[0])
-      self.ui.Disp_Ymark2.setText(self.cfg.m2[1])
-      self.onMarkerTextEnter(1)
+      if use_abs == 1:
+        self.ui.display_image.lMarker[0].setAbs(int(self.cfg.m1[0]), int(self.cfg.m1[1]))
+        self.ui.display_image.lMarker[1].setAbs(int(self.cfg.m2[0]), int(self.cfg.m2[1]))
+      else:
+        self.ui.display_image.lMarker[0].setRel(int(self.cfg.m1[0]), int(self.cfg.m1[1]))
+        self.ui.display_image.lMarker[1].setRel(int(self.cfg.m2[0]), int(self.cfg.m2[1]))
     if self.useglobmarks2:
       self.onCrossUpdate(2)
       self.onCrossUpdate(3)
     else:
-      self.ui.Disp_Xmark3.setText(self.cfg.m3[0])
-      self.ui.Disp_Ymark3.setText(self.cfg.m3[1])
-      self.onMarkerTextEnter(2)
-      self.ui.Disp_Xmark4.setText(self.cfg.m4[0])
-      self.ui.Disp_Ymark4.setText(self.cfg.m4[1])
-      self.onMarkerTextEnter(3)
+      if use_abs == 1:
+        self.ui.display_image.lMarker[2].setAbs(int(self.cfg.m3[0]), int(self.cfg.m3[1]))
+        self.ui.display_image.lMarker[3].setAbs(int(self.cfg.m4[0]), int(self.cfg.m4[1]))
+      else:
+        self.ui.display_image.lMarker[2].setRel(int(self.cfg.m3[0]), int(self.cfg.m3[1]))
+        self.ui.display_image.lMarker[3].setRel(int(self.cfg.m4[0]), int(self.cfg.m4[1]))
+    self.updateMarkerText()
     self.changeSize(int(newwidth), int(newheight), int(newproj), False)
     try:
       self.xtcdir = self.cfg.xtcdir
     except:
       self.xtcdir = os.getenv("HOME")
+    try:
+      # OK, see if we've delayed the command line orientation setting until now.
+      orientation = self.cfg.cmd_orientation
+      self.setOrientation(int(orientation))
+    except:
+      pass
     self.cfg = None

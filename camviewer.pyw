@@ -18,7 +18,7 @@ if __name__ == '__main__':
   options = Options(['instrument'],
                     ['camera', 'camerapv', 'pvlist', 'cfgdir', 'activedir',
                      'rate', 'idle', 'config', 'proj', 'marker', 'camcfg',
-                     'pos', 'oneline', 'lportrait', 'cmap'],
+                     'pos', 'oneline', 'lportrait', 'orientation', 'cmap'],
                     [])
   try:
     options.parse()
