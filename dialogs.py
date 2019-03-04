@@ -16,6 +16,12 @@ class advdialog(QDialog):
       self.ui = advanced_ui.Ui_Dialog()
       self.ui.setupUi(self)
 
+    def keyPressEvent(self, event):
+      k = event.key()
+      if k == Qt.Key_Enter or k == Qt.Key_Return:
+          return
+      QDialog.keyPressEvent(self, event)
+
     def closeEvent(self, event):
       self.gui.ui.showexpert.setChecked(False)
       QDialog.closeEvent(self, event)
@@ -33,6 +39,15 @@ class specificdialog(QDialog):
       self.gui = gui
       self.ui = specific_ui.Ui_Dialog()
       self.ui.setupUi(self)
+
+    def keyPressEvent(self, event):
+      k = event.key()
+      if k == Qt.Key_Enter or k == Qt.Key_Return:
+          return
+      QDialog.keyPressEvent(self, event)
+
+    def closeEvent(self, event):
+      QDialog.closeEvent(self, event)
 
 class dropletdialog(QDialog):
     def __init__(self, gui, parent=None):

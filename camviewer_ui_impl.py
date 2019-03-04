@@ -476,6 +476,13 @@ class GraphicUserInterface(QMainWindow):
     self.connect(self.specificdialog.ui.buttonBox, QtCore.SIGNAL("clicked(QAbstractButton *)"), self.onSpecific)
     self.connect(self.dropletdialog.ui.buttonBox, QtCore.SIGNAL("clicked(QAbstractButton *)"), self.onDroplet)
 
+    self.connect(self.specificdialog.ui.cameramodeG, QtCore.SIGNAL("currentIndexChanged(int)"),
+                 lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeG, n))
+    self.connect(self.specificdialog.ui.cameramodeP, QtCore.SIGNAL("currentIndexChanged(int)"),
+                 lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeP, n))
+    self.connect(self.specificdialog.ui.cameramodeO, QtCore.SIGNAL("currentIndexChanged(int)"),
+                 lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeO, n))
+
     self.connect(self.specificdialog.ui.gainG,  QtCore.SIGNAL("returnPressed()"),
                  lambda : self.lineFloatWriteCallback(self.specificdialog.ui.gainG))
     self.connect(self.specificdialog.ui.gainAP, QtCore.SIGNAL("returnPressed()"),
@@ -501,13 +508,6 @@ class GraphicUserInterface(QMainWindow):
                  lambda n: self.comboWriteCallback(self.specificdialog.ui.timeP, n))
     self.connect(self.specificdialog.ui.timeU, QtCore.SIGNAL("currentIndexChanged(int)"),
                  lambda n: self.comboWriteCallback(self.specificdialog.ui.timeU, n))
-
-    self.connect(self.specificdialog.ui.cameramodeG, QtCore.SIGNAL("currentIndexChanged(int)"),
-                 lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeG, n))
-    self.connect(self.specificdialog.ui.cameramodeP, QtCore.SIGNAL("currentIndexChanged(int)"),
-                 lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeP, n))
-    self.connect(self.specificdialog.ui.cameramodeO, QtCore.SIGNAL("currentIndexChanged(int)"),
-                 lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeO, n))
 
     self.connect(self.specificdialog.ui.runButtonG, QtCore.SIGNAL("clicked()"),
                  lambda : self.buttonWriteCallback(self.specificdialog.ui.runButtonG))
@@ -2339,22 +2339,25 @@ class GraphicUserInterface(QMainWindow):
 
   def comboMonitorCallback(self, exception, pv, combobox):
     if exception is None:
+      combobox.lastwrite = pv.value
       combobox.setCurrentIndex(pv.value)
 
   def setupComboMonitor(self, pvname, combobox, writepvname):
+    combobox.lastwrite = -1
     self.setupGUIMonitor(pvname, combobox, self.comboMonitorCallback, writepvname)
 
   def comboWriteCallback(self, combobox, idx):
-    if combobox.writepvname == None or self.dispspec == 0:
+    if combobox.writepvname == None:
       return
     try:
-      if idx != combobox.currentIndex():
+      if idx != combobox.lastwrite:
+        combobox.lastwrite = idx
         caput(combobox.writepvname, idx)
     except:
       pass
 
   def lineIntWriteCallback(self, lineedit):
-    if lineedit.writepvname == None or self.dispspec == 0:
+    if lineedit.writepvname == None:
       return
     try:
       v = int(lineedit.text())
@@ -2363,7 +2366,7 @@ class GraphicUserInterface(QMainWindow):
       pass
 
   def lineFloatWriteCallback(self, lineedit):
-    if lineedit.writepvname == None or self.dispspec == 0:
+    if lineedit.writepvname == None:
       return
     try:
       v = float(lineedit.text())
@@ -2480,48 +2483,7 @@ class GraphicUserInterface(QMainWindow):
       self.ui.showexpert.setChecked(False)
 
   def onSpecific(self, button):
-    role = self.specificdialog.ui.buttonBox.buttonRole(button)
-    if role == QDialogButtonBox.ApplyRole or role == QDialogButtonBox.AcceptRole:
-      try:
-        camtype = self.camtype[0]
-        if camtype == "UP685":
-          pass
-        elif camtype == "UP900":
-          t = self.specificdialog.ui.timeU.currentIndex()
-          caput(self.ctrlBase + ":Shutter", t)
-          v = int(self.specificdialog.ui.gainU.text())
-          caput(self.ctrlBase + ":Gain", v)
-        elif (camtype == "OPAL-1000m/CL" or camtype == "OPAL-1000m/Q" or
-              camtype == "OPAL-4000m/CL"):
-          idx = self.specificdialog.ui.cameramodeO.currentIndex()
-          caput(self.ctrlBase + ":SetMO", idx)
-          v = int(self.specificdialog.ui.gainO.text())
-          caput(self.ctrlBase + ":Gain", v)
-          v = int(self.specificdialog.ui.timeO.text())
-          caput(self.ctrlBase + ":SetIT", v)
-          v = int(self.specificdialog.ui.periodO.text())
-          caput(self.ctrlBase + ":SetFP", v)
-        elif camtype == "JAI,":
-          #m = self.specificdialog.ui.cameramodeP.currentIndex()
-          #t = self.specificdialog.ui.timeP.currentIndex()
-          #caput(self.ctrlBase + self.pulnixmodes[m], t)
-          t = self.specificdialog.ui.timeP.currentIndex()
-          caput(self.ctrlBase + ":Shutter", t)
-          v = int(self.specificdialog.ui.gainAP.text())
-          caput(self.ctrlBase + ":GainA", v)
-          v = int(self.specificdialog.ui.gainBP.text())
-          caput(self.ctrlBase + ":GainB", v)
-        elif camtype == "GE":
-          idx = self.specificdialog.ui.cameramodeG.currentIndex()
-          caput(self.ctrlBase + ":TriggerMode", idx)
-          v = float(self.specificdialog.ui.gainG.text())
-          caput(self.ctrlBase + ":Gain", v)
-          v = float(self.specificdialog.ui.timeG.text())
-          caput(self.ctrlBase + ":AcquireTime", v)
-          v = float(self.specificdialog.ui.periodG.text())
-          caput(self.ctrlBase + ":AcquirePeriod", v)
-      except:
-        print "onSpecific threw an exception"
+    pass
 
   def onDroplet(self, button):
     role = self.dropletdialog.ui.buttonBox.buttonRole(button)
