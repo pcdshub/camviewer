@@ -289,7 +289,7 @@ class DisplayImage(QWidget):
     if self.gui.cfg == None: self.gui.dumpConfig()
 
   def zoomToRoi(self):
-    self.rectZoom = param.Rect(self.rectRoi.x, self.rectRoi.y, self.rectRoi.w, self.rectRoi.y)
+    self.rectZoom = param.Rect(self.rectRoi.x, self.rectRoi.y, self.rectRoi.w, self.rectRoi.h)
     self.setZoom()
     self.gui.updateall()
     if self.gui.cfg == None: self.gui.dumpConfig()

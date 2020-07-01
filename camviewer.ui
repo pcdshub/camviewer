@@ -110,13 +110,13 @@
             <property name="minimumSize">
              <size>
               <width>150</width>
-              <height>70</height>
+              <height>50</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
               <width>150</width>
-              <height>70</height>
+              <height>50</height>
              </size>
             </property>
             <property name="title">
@@ -141,19 +141,6 @@
              <property name="bottomMargin">
               <number>0</number>
              </property>
-             <item>
-              <widget class="QCheckBox" name="checkBoxProjRoi">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="text">
-                <string>ROI Avg</string>
-               </property>
-              </widget>
-             </item>
              <item>
               <widget class="QCheckBox" name="checkBoxProjAutoRange">
                <property name="sizePolicy">

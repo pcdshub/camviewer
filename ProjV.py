@@ -28,9 +28,6 @@ class ProjV(QWidget):
     return self.hint
 
   def paintEvent(self, event):
-    if not self.gui.ui.checkBoxProjRoi.isChecked():
-      return
-      
     painter = QPainter(self)        
     rectZoom  = self.gui.ui.display_image.arectZoom.oriented()             # image
     rectProj  = QRectF( 0,

@@ -344,7 +344,6 @@ class GraphicUserInterface(QMainWindow):
     
     self.updateCameraCombo()
     
-    self.connect(self.ui.checkBoxProjRoi,   QtCore.SIGNAL("stateChanged(int)"), self.onCheckProjUpdate)        
     self.connect(self.ui.checkBoxProjAutoRange, QtCore.SIGNAL("stateChanged(int)"), self.onCheckProjUpdate)
     
     self.connect(self.ui.horizontalSliderRangeMin , QtCore.SIGNAL("valueChanged(int)"), self.onSliderRangeMinChanged )
@@ -1370,7 +1369,7 @@ class GraphicUserInterface(QMainWindow):
     try:
       (roiMean, roiVar, projXmin, projXmax, projYmin, projYmax) = \
         pycaqtimage.pyUpdateProj( self.imageBuffer, param.orientation, self.iScaleIndex,
-                                  self.ui.checkBoxProjRoi.isChecked(), self.ui.checkBoxProjAutoRange.isChecked(),
+                                  True, self.ui.checkBoxProjAutoRange.isChecked(),
                                   self.iRangeMin, self.iRangeMax, 
                                   self.ui.display_image.rectRoi.abs(), self.ui.display_image.arectZoom.abs(),
                                   self.imageProjX, self.imageProjY )
@@ -2791,7 +2790,6 @@ class GraphicUserInterface(QMainWindow):
       f.write("portrait    " + str(int(param.orientation == param.ORIENT90)) + "\n")
       f.write("orientation " + str(param.orientation) + "\n")
       f.write("autorange   " + str(int(self.ui.checkBoxProjAutoRange.isChecked())) + "\n")
-      f.write("projROI     " + str(int(self.ui.checkBoxProjRoi.isChecked())) + "\n")
       f.write("use_abs     1\n")
       rz = self.ui.display_image.rectZoom.abs()
       f.write("rectzoom    " + str(rz.x()) + " "
@@ -2944,7 +2942,6 @@ class GraphicUserInterface(QMainWindow):
       orientation = param.ORIENT0
     self.setOrientation(int(orientation))
     self.ui.checkBoxProjAutoRange.setChecked(int(self.cfg.autorange))
-    self.ui.checkBoxProjRoi.setChecked(int(self.cfg.projROI))
     try:
       self.ui.display_image.setRectZoom(float(self.cfg.rectzoom[0]), float(self.cfg.rectzoom[1]),
                                         float(self.cfg.rectzoom[2]), float(self.cfg.rectzoom[3]))
