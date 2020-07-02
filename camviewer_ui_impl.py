@@ -567,26 +567,38 @@ class GraphicUserInterface(QMainWindow):
         print "Camera PV %s --> index %d" % (cameraPv, idx)
         cameraIndex = idx
       except:
-        # Can't find an exact match.  Strip off the end, and look for the same base.
-        m=re.search("(.*):([^:]*)$", cameraPv)
-        if m == None:
-          print "Cannot find camera PV %s!" % cameraPv
+        # Can't find an exact match.  Is this a prefix?
+        p = re.compile(cameraPv + ".*$")
+        idx = -1
+        for i in range(len(self.lCameraList)):
+          m = p.search(self.lCameraList[i])
+          if m is not None:
+            idx = i
+            break
+        if idx >= 0:
+          print "Camera PV %s --> index %d" % (cameraPv, idx)
+          cameraIndex = idx
         else:
-          try:
-            pvname = m.group(1)
-            pvnamelen = len(pvname)
-            idx = -1
-            for i in range(len(self.lCameraList)):
-              if self.lCameraList[i][:pvnamelen] == pvname:
-                idx = i
-                break
-            if idx < -1:
-              raise Exception, "No match"
-            print "Camera PV %s --> index %d" % (cameraPv, idx)
-            cameraIndex = idx
-          except:
+          # OK, not a prefix.  Try stripping off the end and look for
+          # the same base.
+          m=re.search("(.*):([^:]*)$", cameraPv)
+          if m == None:
             print "Cannot find camera PV %s!" % cameraPv
-
+          else:
+            try:
+              pvname = m.group(1)
+              pvnamelen = len(pvname)
+              idx = -1
+              for i in range(len(self.lCameraList)):
+                if self.lCameraList[i][:pvnamelen] == pvname:
+                  idx = i
+                  break
+              if idx <= -1:
+                raise Exception, "No match"
+              print "Camera PV %s --> index %d" % (cameraPv, idx)
+              cameraIndex = idx
+            except:
+              print "Cannot find camera PV %s!" % cameraPv
     try:
       self.ui.comboBoxCamera.setCurrentIndex(-1)
       if cameraIndex < 0 or cameraIndex >= len(self.lCameraList):
