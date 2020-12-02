@@ -298,8 +298,27 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
     if (!imageBuffer->useGray) {
         const uint8_t*  pui8new  = cadata8;
         uint32_t*       data       = reinterpret_cast<uint32_t*>(image->bits());
-        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++data, pui8new += 3)
-            *data = RGB(pui8new);
+
+        int orientation = imageBuffer->orientation;
+        int srcwidth  = (orientation&2) ? height : width;
+        int srcheight = (orientation&2) ? width : height;
+        int init_offset  = srcwidth * srcheight * initMult1[orientation] + 
+                           srcwidth * initMult2[orientation] +
+                           initK[orientation];
+        int row_inc      = srcwidth * srcheight * rowIncMult1[orientation] +
+                           srcwidth * rowIncMult2[orientation] +
+                           rowIncK[orientation];
+        int col_inc      = srcwidth * colIncMult[orientation] +
+                           colIncK[orientation];
+
+        pui8new += 3 * init_offset;
+        for (int iRow = 0; iRow < height; ++iRow) {
+            for (int iCol = 0; iCol < width; ++iCol) {
+                *data++ = RGB(pui8new);
+                pui8new += 3 * col_inc;
+            }
+            pui8new += 3* row_inc;
+        }
         return;
     }
 
