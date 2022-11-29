@@ -14,3 +14,9 @@ pycaqtimage.so: pycaqtimage_sip_wrap.sip
 	    -c sippycaqtimagepart0.cpp
 	g++ -g -m64 -shared -L$(QTLIB) -lQtGui \
 	    sippycaqtimagepart0.o -o pycaqtimage.so
+
+clean:
+	-rm camviewer_ui.py advanced_ui.py markers_ui.py specific_ui.py droplet_ui.py xtcrdr_ui.py timeout_ui.py 
+	-rm icon_rc.py 
+	-rm *.pyc *~
+	-rm sip* *.so

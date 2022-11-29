@@ -206,7 +206,9 @@ class GraphicUserInterface(QMainWindow):
     self.lensPv          = None
     self.putlensPv       = None
     self.nordPv          = None
+    self.nelmPv          = None
     self.count           = None
+    self.maxcount        = None
     self.rowPv           = None
     self.colPv           = None
     self.scale           = 1
@@ -1053,6 +1055,10 @@ class GraphicUserInterface(QMainWindow):
       self.iSpecialMouseMode = keepMode
     else:
       self.iSpecialMouseMode = 0
+    if self.iSpecialMouseMode == 0:
+      self.ui.display_image.setCursor(QtCore.Qt.ArrowCursor)
+    else:
+      self.ui.display_image.setCursor(QtCore.Qt.CrossCursor)
       
   def onMarkerSet(self, n, bChecked):
     self.clearSpecialMouseMode(n+1, bChecked)
@@ -1324,6 +1330,12 @@ class GraphicUserInterface(QMainWindow):
       try:
         if self.nordPv:
           self.count = int(self.nordPv.value)
+          if self.count == 0:
+            sz = int(self.rowPv.value) * int(self.colPv.value)
+            if sz > 0 and sz < self.maxcount:
+              self.count = sz
+            else:
+              self.count = self.maxcount
         self.camera.get(count=self.count)
         pyca.flush_io()
       except:
@@ -1383,7 +1395,8 @@ class GraphicUserInterface(QMainWindow):
         pycaqtimage.pyUpdateProj( self.imageBuffer, param.orientation, self.iScaleIndex,
                                   True, self.ui.checkBoxProjAutoRange.isChecked(),
                                   self.iRangeMin, self.iRangeMax, 
-                                  self.ui.display_image.rectRoi.abs(), self.ui.display_image.arectZoom.abs(),
+                                  self.ui.display_image.rectRoi.abs(),
+                                  self.ui.display_image.arectZoom.abs(),
                                   self.imageProjX, self.imageProjY )
       self.ui.projH.update()
       self.ui.projV.update()
@@ -1930,6 +1943,7 @@ class GraphicUserInterface(QMainWindow):
     self.camera    = self.disconnectPv(self.camera)
     self.notify    = self.disconnectPv(self.notify)
     self.nordPv    = self.disconnectPv(self.nordPv)
+    self.nelmPv    = self.disconnectPv(self.nelmPv)
     self.rowPv     = self.disconnectPv(self.rowPv)
     self.colPv     = self.disconnectPv(self.colPv)
     self.shiftPv   = self.disconnectPv(self.shiftPv)
@@ -1976,7 +1990,16 @@ class GraphicUserInterface(QMainWindow):
     except:
       self.nordPv = None
       self.count = None
+    try:
+      self.nelmPv = self.connectPv(sCameraPv + ".NELM")
+      self.maxcount = int(self.nelmPv.value)
+    except:
+      self.nelmPv = None
+      self.maxcount = None
+    if self.count is None or self.count == 0:
+      self.count = self.maxcount
     self.camera = self.connectPv(sCameraPv, count=self.count)
+    print "Connected!"
     if self.camera == None:
       self.ui.label_connected.setText("NO")
       return

@@ -1164,7 +1164,10 @@ ProjVmin\</string>
               </size>
              </property>
              <property name="styleSheet">
-              <string notr="true">color: #0080FF</string>
+              <string notr="true">QPushButton {
+  color: #0080FF;
+}
+</string>
              </property>
              <property name="text">
               <string>1</string>
@@ -2285,7 +2288,7 @@ ProjVmin\</string>
        </size>
       </property>
       <property name="cursor">
-       <cursorShape>CrossCursor</cursorShape>
+       <cursorShape>ArrowCursor</cursorShape>
       </property>
       <property name="mouseTracking">
        <bool>true</bool>
