@@ -6,6 +6,7 @@
 
 #include <Qt/qimage.h>
 #include <fcntl.h>
+#include "arrayobject.h"
 
 extern "C" 
 {
@@ -147,6 +148,7 @@ struct ImageBuffer
   uint32_t* imageData;
   uint32_t* projSumX;
   uint32_t* projSumY;
+  int       freeX, freeY;
   int       iRoiW, iRoiH;
   
   // min/max, for GUI zoom
@@ -182,36 +184,66 @@ static void _pyFreeImageBuffer(void* buffer)
     
   free( imageBuffer->imageData   );
   free( imageBuffer->imageDataF  );
-  free( imageBuffer->projSumX    );
-  free( imageBuffer->projSumY    );
+  if (imageBuffer->freeX)
+    free( imageBuffer->projSumX    );
+  if (imageBuffer->freeY)
+    free( imageBuffer->projSumY    );
 }  
 
-PyObject* pyCreateImageBuffer(QImage* imageDisp, int orientation)
+PyObject* pyCreateImageBuffer(QImage* imageDisp, PyObject *x, PyObject *y, int orientation)
 {
+  PyArrayObject *px = NULL;
+  PyArrayObject *py = NULL;
+  static int first = 1;
+  int lenx, leny;
+  if (first) {
+    first = 0;
+    _import_array(); /* Sigh, for some reason sip chokes on import_array, so we directly call the internal routine. */
+  }
   if (imageDisp == NULL)
     Py_RETURN_NONE;
+  if (x != NULL && PyArray_Check(x))
+    px = (PyArrayObject *)x;
+  if (y != NULL && PyArray_Check(y))
+    py = (PyArrayObject *)y;
 
   ImageBuffer* imageBuffer = (ImageBuffer*) malloc(sizeof(ImageBuffer));
   imageBuffer->imageDisp   = imageDisp;
   imageBuffer->imageData   = (uint32_t*) malloc( imageDisp->width () * imageDisp->height() * sizeof(uint32_t) );
   imageBuffer->imageDataF  = (float*)    malloc( imageDisp->width () * imageDisp->height() * sizeof(float) );
-  imageBuffer->projSumX    = (uint32_t*) malloc( imageDisp->width () * sizeof(uint32_t) );
-  imageBuffer->projSumY    = (uint32_t*) malloc( imageDisp->height() * sizeof(uint32_t) );
+  if (orientation & 2) {
+    lenx = imageDisp->height();
+    leny = imageDisp->width();
+  } else {
+    lenx = imageDisp->width();
+    leny = imageDisp->height();
+  }
+  if (px != NULL && PyArray_NDIM(px) == 1 && 
+      PyArray_DIM(px, 0) >= lenx && PyArray_TYPE(px) == NPY_UINT) {
+      //printf("Using numpy array for projX\n");
+      imageBuffer->projSumX    = (uint32_t *)PyArray_DATA(px);
+      imageBuffer->freeX       = 0;
+  } else {
+      //printf("Allocating memory for projX\n");
+      imageBuffer->projSumX    = (uint32_t*) malloc( lenx * sizeof(uint32_t) );
+      imageBuffer->freeX       = 1;
+  }
+  if (py != NULL && PyArray_NDIM(py) == 1 && 
+      PyArray_DIM(py, 0) >= leny && PyArray_TYPE(py) == NPY_UINT) {
+      //printf("Using numpy array for projY\n");
+      imageBuffer->projSumY    = (uint32_t *)PyArray_DATA(py);
+      imageBuffer->freeY       = 0;
+  } else {
+      //printf("Allocating memory for projY\n");
+      imageBuffer->projSumY    = (uint32_t*) malloc( leny * sizeof(uint32_t) );
+      imageBuffer->freeY       = 1;
+  }
   imageBuffer->iAverage    = 1;
   imageBuffer->iNumAveraged= 0;
   imageBuffer->useGray     = 0;
   imageBuffer->orientation = orientation;
-  if (orientation & 2) {
-      imageBuffer->projSumX    = (uint32_t*) malloc( imageDisp->height() * sizeof(uint32_t) );
-      imageBuffer->projSumY    = (uint32_t*) malloc( imageDisp->width()  * sizeof(uint32_t) );
-      memset(imageBuffer->projSumX, 0, imageDisp->height() * sizeof(uint32_t) );
-      memset(imageBuffer->projSumY, 0, imageDisp->width () * sizeof(uint32_t) );
-  } else {
-      imageBuffer->projSumX    = (uint32_t*) malloc( imageDisp->width () * sizeof(uint32_t) );
-      imageBuffer->projSumY    = (uint32_t*) malloc( imageDisp->height() * sizeof(uint32_t) );
-      memset(imageBuffer->projSumX, 0, imageDisp->width () * sizeof(uint32_t) );
-      memset(imageBuffer->projSumY, 0, imageDisp->height() * sizeof(uint32_t) );
-  }
+  memset(imageBuffer->projSumX, 0, lenx * sizeof(uint32_t) );
+  memset(imageBuffer->projSumY, 0, leny * sizeof(uint32_t) );
   memset(imageBuffer->imageData, 0, imageDisp->width () * imageDisp->height() * sizeof(uint32_t) );
   memset(imageBuffer->imageDataF, 0, imageDisp->width () * imageDisp->height() * sizeof(float) );
 
@@ -882,7 +914,7 @@ void pydspl_setup_color_map(const char* colormap, int iLimitLow, int iLimitHigh,
 void pydspl_setup_gray(int iLimitLow, int iLimitHigh, int iScaleIndex);
 SIP_PYOBJECT pyCreateImagePvCallbackFunc(SIP_PYOBJECT pyImageBuffer);
 SIP_PYOBJECT pyCreateColorImagePvCallbackFunc(SIP_PYOBJECT pyImageBuffer);
-SIP_PYOBJECT pyCreateImageBuffer(QImage* imageDisp, int orientation);
+SIP_PYOBJECT pyCreateImageBuffer(QImage* imageDisp, SIP_PYOBJECT px, SIP_PYOBJECT py, int orientation);
 SIP_PYOBJECT pySetImageBufferGray(SIP_PYOBJECT pyImageBuffer, int gray);
 SIP_PYOBJECT pyRecolorImageBuffer(SIP_PYOBJECT pyImageBuffer);
 SIP_PYOBJECT pyUpdateProj       (SIP_PYOBJECT pyImageBuffer, int iOrientation, int iScaleIndex,

@@ -1,0 +1,7 @@
+*.pyc
+*~
+*_ui.py
+*_rc.py
+*.o
+*.so
+sip*

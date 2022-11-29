@@ -28,6 +28,7 @@ import time
 import tempfile
 import Image
 import functools
+import numpy as np
 
 from PyQt4 import QtCore, uic
 from PyQt4.QtGui import *
@@ -324,8 +325,14 @@ class GraphicUserInterface(QMainWindow):
     self.connect(self.ui.comboBoxScale,  QtCore.SIGNAL("currentIndexChanged(int)"), self.onComboBoxScaleIndexChanged)
     
     self.cameraListFilename  = cameraListFilename
-      
-    self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image, param.orientation)
+  
+    if param.orientation & 2:
+      self.px = np.zeros((param.y), dtype=np.uint32)
+      self.py = np.zeros((param.x),  dtype=np.uint32)
+    else:
+      self.px = np.zeros((param.x),  dtype=np.uint32)
+      self.py = np.zeros((param.y), dtype=np.uint32)
+    self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image, self.px, self.py, param.orientation)
 
     self.updateRoiText()
     self.updateMarkerText(True, True, 0, 15)
@@ -704,7 +711,13 @@ class GraphicUserInterface(QMainWindow):
       return
     param.setImageSize(newx, newy)
     self.ui.display_image.setImageSize(reset)
-    self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image, param.orientation)
+    if param.orientation & 2:
+      self.px = np.zeros((param.y), dtype=np.uint32)
+      self.py = np.zeros((param.x),  dtype=np.uint32)
+    else:
+      self.px = np.zeros((param.x),  dtype=np.uint32)
+      self.py = np.zeros((param.y), dtype=np.uint32)
+    self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image, self.px, self.py, param.orientation)
     if self.camera != None:
       if self.isColor:
         self.camera.processor  = pycaqtimage.pyCreateColorImagePvCallbackFunc(self.imageBuffer)

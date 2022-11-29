@@ -5,11 +5,13 @@ PYTHONINC = $(PSPKG_RELDIR)/include/python2.7
 SIPHDIR   = $(PSPKG_RELDIR)/include/python2.7
 QTINC     = $(PSPKG_RELDIR)/include
 QTLIB     = $(PSPKG_RELDIR)/lib
+NPINC     = $(PSPKG_RELDIR)/python/numpy/core/include/numpy
 
 pycaqtimage.so: pycaqtimage_sip_wrap.sip
-	sip -t $(SIPTAG) -t WS_X11 -I$(SIPINC) \
+	sip -t $(SIPTAG) -t WS_X11 -I$(SIPINC) -I$(NPINC) \
 	    -e -j 1 -c . pycaqtimage_sip_wrap.sip
-	g++ -g -I$(PYTHONINC) -I$(SIPHDIR) -I$(QTINC) -I$(QTINC)/QtCore -I$(QTINC)/QtGui \
+	g++ -g -I$(PYTHONINC) -I$(SIPHDIR) -I$(NPINC) \
+	    -I$(QTINC) -I$(QTINC)/QtCore -I$(QTINC)/QtGui \
 	    -fno-strict-aliasing -fPIC -D_REENTRANT -D__pentium__ -Wall -O4 -m64 \
 	    -c sippycaqtimagepart0.cpp
 	g++ -g -m64 -shared -L$(QTLIB) -lQtGui \

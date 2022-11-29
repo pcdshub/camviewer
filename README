@@ -1,2 +1,5 @@
-We need to do:
-	pyuic4 -o pulnix6740_ui.py pulnix6740.ui
+After cloning this repository, run
+    ./COMPILE.sh
+
+This sets up the compilation environment, runs make, and builds the various
+GUIs and resources needed.
