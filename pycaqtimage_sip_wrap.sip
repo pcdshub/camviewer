@@ -8,12 +8,10 @@
 #include <fcntl.h>
 #include "arrayobject.h"
 
-extern "C" 
-{
-  
 static const unsigned int   MAX_INDEX_PLUS1 = 65536;
 static const uint32_t       ALPHA_VALUE     = 0xff000000;
 static uint32_t             gColorMap[MAX_INDEX_PLUS1];
+//#define DEBUG
 
 /*
  * Read in a colormap file and scale it so it fits the specified range using the specified function
@@ -142,30 +140,36 @@ void pydspl_setup_gray(int iLimitLow, int iLimitHigh, int iScaleIndex)
         gColorMap[i]   = u32HighValue;    
 }
 
+/*
+ * Note: all of these are now oriented!!
+ */
 struct ImageBuffer
 {
-  QImage*   imageDisp;
-  uint32_t* imageData;
-  uint32_t* projSumX;
-  uint32_t* projSumY;
-  int       freeX, freeY;
-  int       iRoiW, iRoiH;
-  
-  // min/max, for GUI zoom
-  //int32_t  iFrameMin, iFrameMax;
-  int32_t  iProjXmin, iProjXmax;
-  int32_t  iProjYmin, iProjYmax;
-  
-  float fRoiPixelMean;
-  float fRoiPixelVar;
-  
-  // Frame averaging function
-  float*    imageDataF;
-  int       iAverage;
-  int       iNumAveraged;
+    QImage*   imageDisp;
 
-  int       useGray;
-  int       orientation;
+    uint32_t* imageData;
+    double*   projSumX;
+    double*   projSumY;
+    int       srcwidth, srcheight;
+    int       imgwidth, imgheight;
+    int       size;
+    int       iRoiW, iRoiH;
+    int       freeX, freeY, freeImage;
+  
+    int32_t  iProjXmin, iProjXmax;
+    int32_t  iProjYmin, iProjYmax;
+  
+    float fRoiPixelMean;
+    float fRoiPixelVar;
+  
+    // Frame averaging function
+    float*    imageDataF;
+    int       iAverage;
+    int       iNumAveraged;
+
+    int       isColor;
+    int       useGray;
+    int       orientation;
 };
 
 /* These must match param.py!! */
@@ -180,295 +184,328 @@ struct ImageBuffer
 
 static void _pyFreeImageBuffer(void* buffer)
 {
-  ImageBuffer* imageBuffer = (ImageBuffer*) buffer;
+    ImageBuffer* imageBuffer = (ImageBuffer*) buffer;
     
-  free( imageBuffer->imageData   );
-  free( imageBuffer->imageDataF  );
-  if (imageBuffer->freeX)
-    free( imageBuffer->projSumX    );
-  if (imageBuffer->freeY)
-    free( imageBuffer->projSumY    );
+    free(imageBuffer->imageDataF);
+    if (imageBuffer->freeX)
+        free(imageBuffer->projSumX);
+    if (imageBuffer->freeY)
+        free(imageBuffer->projSumY);
+    if (imageBuffer->freeImage)
+        free(imageBuffer->imageData);
 }  
 
-PyObject* pyCreateImageBuffer(QImage* imageDisp, PyObject *x, PyObject *y, int orientation)
+/*
+ * Parameters:
+ *    imageDisp - The oriented, false-colored QImage to return.
+ *    px_, py_ - numpy arrays (float64) to hold the (oriented) projections.
+ *    image_ - numpy array (uint32) to hold the current (oriented) image.
+ *    orientation - The orientation constant.
+ *
+ * The new regime is that we *immediately* reorient whatever we are
+ * reading in, and all calculations are on the transformed image.
+ */
+PyObject* pyCreateImageBuffer(QImage* imageDisp, PyObject *px_, PyObject *py_, PyObject *image_, int srcwidth, int srcheight, int orientation)
 {
-  PyArrayObject *px = NULL;
-  PyArrayObject *py = NULL;
-  static int first = 1;
-  int lenx, leny;
-  if (first) {
-    first = 0;
-    _import_array(); /* Sigh, for some reason sip chokes on import_array, so we directly call the internal routine. */
-  }
-  if (imageDisp == NULL)
-    Py_RETURN_NONE;
-  if (x != NULL && PyArray_Check(x))
-    px = (PyArrayObject *)x;
-  if (y != NULL && PyArray_Check(y))
-    py = (PyArrayObject *)y;
+    PyArrayObject *px = NULL;
+    PyArrayObject *py = NULL;
+    PyArrayObject *image = NULL;
+    int lenx, leny;
+    static int first = 1;
+    if (first) {
+        first = 0;
+        _import_array(); /* SIP chokes on import_array, so directly call the internal routine. */
+    }
+    if (imageDisp == NULL)
+        Py_RETURN_NONE;
+    if (px_ != NULL && PyArray_Check(px_))
+        px = (PyArrayObject *)px_;
+    if (py_ != NULL && PyArray_Check(py_))
+        py = (PyArrayObject *)py_;
+    if (image_ != NULL && PyArray_Check(image_))
+        image = (PyArrayObject *)image_;
+  
+    ImageBuffer* imageBuffer = (ImageBuffer*) malloc(sizeof(ImageBuffer));
+    imageBuffer->srcwidth    = srcwidth;
+    imageBuffer->srcheight   = srcheight;
+    if (orientation & 2) {
+        imageBuffer->imgwidth  = lenx = srcheight;
+        imageBuffer->imgheight = leny = srcwidth;
+    } else {
+        imageBuffer->imgwidth  = lenx = srcwidth;
+        imageBuffer->imgheight = leny = srcheight;
+    }
+    imageBuffer->size        = lenx * leny;
+    imageBuffer->imageDisp   = imageDisp;
+    if (px != NULL && PyArray_NDIM(px) == 1 && 
+        PyArray_DIM(px, 0) == lenx && PyArray_TYPE(px) == NPY_DOUBLE) {
+#ifdef DEBUG
+        printf("Using numpy array for projX\n");
+#endif
+        imageBuffer->projSumX    = (double *)PyArray_DATA(px);
+        imageBuffer->freeX       = 0;
+    } else {
+#ifdef DEBUG
+        printf("Allocating memory for projX\n");
+        printf("DIM(0) = %ld, expected %d, type = %d, expected %d\n",
+	       PyArray_DIM(px, 0), lenx, PyArray_TYPE(px), NPY_DOUBLE);
+#endif
+        imageBuffer->projSumX    = (double *) malloc( lenx * sizeof(double) );
+        imageBuffer->freeX       = 1;
+    }
+    if (py != NULL && PyArray_NDIM(py) == 1 && 
+        PyArray_DIM(py, 0) == leny && PyArray_TYPE(py) == NPY_DOUBLE) {
+#ifdef DEBUG
+        printf("Using numpy array for projY\n");
+#endif
+        imageBuffer->projSumY    = (double *)PyArray_DATA(py);
+        imageBuffer->freeY       = 0;
+    } else {
+#ifdef DEBUG
+        printf("Allocating memory for projY\n");
+        printf("DIM(0) = %ld, expected %d, type = %d, expected %d\n",
+	       PyArray_DIM(py, 0), leny, PyArray_TYPE(py), NPY_DOUBLE);
+#endif
+        imageBuffer->projSumY    = (double *) malloc( leny * sizeof(double) );
+        imageBuffer->freeY       = 1;
+    }
+    if (image != NULL && PyArray_NDIM(image) == 2 && 
+        PyArray_DIM(image, 0) == lenx && PyArray_DIM(image, 1) == leny && 
+        PyArray_TYPE(image) == NPY_UINT) {
+#ifdef DEBUG
+        printf("Using numpy array for image\n");
+#endif
+        imageBuffer->imageData   = (uint32_t *)PyArray_DATA(image);
+        imageBuffer->freeImage   = 0;
+    } else {
+#ifdef DEBUG
+        printf("Allocating memory for image\n");
+	if (PyArray_NDIM(image) != 2)
+	    printf("NDIM = %d!\n", PyArray_NDIM(image));
+	else
+            printf("DIM(0) = %ld, expected %d, DIM(1) = %ld, expected %d, type = %d, expected %d\n",
+	           PyArray_DIM(image, 0), lenx, PyArray_DIM(image, 1), leny, PyArray_TYPE(image), NPY_UINT);
+#endif
+        imageBuffer->imageData   = (uint32_t*) malloc( imageBuffer->size * sizeof(uint32_t) );
+        imageBuffer->freeImage   = 1;
+    }
+    imageBuffer->imageDataF  = (float*)    malloc( imageBuffer->size * sizeof(float) );
+    imageBuffer->iAverage     = 1;
+    imageBuffer->iNumAveraged = 0;
+    imageBuffer->isColor      = 0;
+    imageBuffer->useGray      = 0;
+    imageBuffer->orientation  = orientation;
+    memset(imageBuffer->projSumX, 0, lenx * sizeof(double) );
+    memset(imageBuffer->projSumY, 0, leny * sizeof(double) );
+    memset(imageBuffer->imageData, 0, imageBuffer->size * sizeof(uint32_t) );
+    memset(imageBuffer->imageDataF, 0, imageBuffer->size * sizeof(float) );
 
-  ImageBuffer* imageBuffer = (ImageBuffer*) malloc(sizeof(ImageBuffer));
-  imageBuffer->imageDisp   = imageDisp;
-  imageBuffer->imageData   = (uint32_t*) malloc( imageDisp->width () * imageDisp->height() * sizeof(uint32_t) );
-  imageBuffer->imageDataF  = (float*)    malloc( imageDisp->width () * imageDisp->height() * sizeof(float) );
-  if (orientation & 2) {
-    lenx = imageDisp->height();
-    leny = imageDisp->width();
-  } else {
-    lenx = imageDisp->width();
-    leny = imageDisp->height();
-  }
-  if (px != NULL && PyArray_NDIM(px) == 1 && 
-      PyArray_DIM(px, 0) >= lenx && PyArray_TYPE(px) == NPY_UINT) {
-      //printf("Using numpy array for projX\n");
-      imageBuffer->projSumX    = (uint32_t *)PyArray_DATA(px);
-      imageBuffer->freeX       = 0;
-  } else {
-      //printf("Allocating memory for projX\n");
-      imageBuffer->projSumX    = (uint32_t*) malloc( lenx * sizeof(uint32_t) );
-      imageBuffer->freeX       = 1;
-  }
-  if (py != NULL && PyArray_NDIM(py) == 1 && 
-      PyArray_DIM(py, 0) >= leny && PyArray_TYPE(py) == NPY_UINT) {
-      //printf("Using numpy array for projY\n");
-      imageBuffer->projSumY    = (uint32_t *)PyArray_DATA(py);
-      imageBuffer->freeY       = 0;
-  } else {
-      //printf("Allocating memory for projY\n");
-      imageBuffer->projSumY    = (uint32_t*) malloc( leny * sizeof(uint32_t) );
-      imageBuffer->freeY       = 1;
-  }
-  imageBuffer->iAverage    = 1;
-  imageBuffer->iNumAveraged= 0;
-  imageBuffer->useGray     = 0;
-  imageBuffer->orientation = orientation;
-  memset(imageBuffer->projSumX, 0, lenx * sizeof(uint32_t) );
-  memset(imageBuffer->projSumY, 0, leny * sizeof(uint32_t) );
-  memset(imageBuffer->imageData, 0, imageDisp->width () * imageDisp->height() * sizeof(uint32_t) );
-  memset(imageBuffer->imageDataF, 0, imageDisp->width () * imageDisp->height() * sizeof(float) );
-
-  PyObject* pyImageBuffer = PyCObject_FromVoidPtr(imageBuffer, _pyFreeImageBuffer);    
-  return pyImageBuffer;
+    PyObject* pyImageBuffer = PyCObject_FromVoidPtr(imageBuffer, _pyFreeImageBuffer);    
+    return pyImageBuffer;
 }
 
 PyObject* pySetImageBufferGray(PyObject* pyImageBuffer, int gray)
 {
-  ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
-  imageBuffer->useGray = gray;
-  Py_RETURN_NONE;
+    ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
+    imageBuffer->useGray = gray;
+    Py_RETURN_NONE;
 }
 
+PyObject* pySetFrameAverage(int iAverage, PyObject* pyImageBuffer)
+{
+    if ( iAverage == 0 )
+	iAverage = 1;
+    
+    ImageBuffer* imageBuffer  = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
+  
+    if ( iAverage != imageBuffer->iAverage )
+	imageBuffer->iAverage = iAverage;
+    imageBuffer->iNumAveraged = 0;
+  
+    Py_RETURN_NONE;
+}
+
+/*
+ * Copy the imageData into the QImage, possibly false coloring it!
+ */
+static void _pyCopyToQImage(ImageBuffer* imageBuffer, int doFC)
+{
+    uint32_t* src = imageBuffer->imageData;
+    uint32_t* dst = reinterpret_cast<uint32_t*>(imageBuffer->imageDisp->bits());
+
+    if (imageBuffer->imageDisp->height() != imageBuffer->imgheight ||
+	imageBuffer->imageDisp->width() != imageBuffer->imgwidth) {
+	printf("Bad dimensions for imageDisp?!?\n");
+	return;
+    }
+
+    if (doFC) {
+	for (int i = 0; i < imageBuffer->size; i++) {
+	    *dst++ = (*src < MAX_INDEX_PLUS1) ? gColorMap[*src] : 0;
+	    src++;
+	}
+    } else {
+	for (int i = 0; i < imageBuffer->size; i++) {
+	    *dst++ = *src++;
+	}
+    }
+}
+
+/*
+ * We've just changed color maps.  Output the current image again.
+ */
 PyObject* pyRecolorImageBuffer(PyObject* pyImageBuffer)
 {
-  ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
-  /* If the image is supposed to be color, just leave it alone! */
-  if (imageBuffer->useGray || imageBuffer->iAverage != 1) {
-      const uint32_t* pui32Pixel = (const uint32_t*) imageBuffer->imageData;
-      QImage*         image      = imageBuffer->imageDisp;
-      const int       width      = image->width();
-      const int       height     = image->height();
-      uint32_t*       data       = reinterpret_cast<uint32_t*>(image->bits());
-      for (int iPixel = 0; iPixel < width*height; ++iPixel, ++data, ++pui32Pixel)
-          *data = (*pui32Pixel < MAX_INDEX_PLUS1) ? gColorMap[*pui32Pixel] : 0;
-    }
-  Py_RETURN_NONE;
+    ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
+    /* If the image is supposed to be color or if we're averaging, skip it! */
+    if ((imageBuffer->isColor && !imageBuffer->useGray) || imageBuffer->iAverage != 1)
+	_pyCopyToQImage(imageBuffer, 1);
+    Py_RETURN_NONE;
 }
 
 #define GRAY(rgb) ((rgb)[0] + (rgb)[1] + (rgb)[2])
 #define RGB(rgb)  (ALPHA_VALUE | ((rgb)[0] << 16) | ((rgb)[1] << 8) | (rgb)[2])
 /*                             0   0F   90   90F  180 180F  270 270F */
-static int initMult1[8]   = {  0,   0,   0,   0,   1,   1,   1,   1}; /* Scaled by width*height */
-static int initMult2[8]   = {  0,   1,   1,   0,   0,  -1,  -1,   0}; /* Scaled by width */
+static int initMult1[8]   = {  0,   0,   0,   0,   1,   1,   1,   1}; /* Scaled by size */
+static int initMult2[8]   = {  0,   1,   1,   0,   0,  -1,  -1,   0}; /* Scaled by srcwidth */
 static int initK[8]       = {  0,  -1,  -1,   0,  -1,   0,   0,  -1}; /* Constant */
 
-static int colIncMult[8]  = {  0,   0,   1,   1,   0,   0,  -1,  -1}; /* Scaled by width */
+static int colIncMult[8]  = {  0,   0,   1,   1,   0,   0,  -1,  -1}; /* Scaled by srcwidth */
 static int colIncK[8]     = {  1,  -1,   0,   0,  -1,   1,   0,   0}; /* Constant */
 
-static int rowIncMult1[8] = {  0,   0,  -1,  -1,   0,   0,   1,   1}; /* Scaled by width*height */
-static int rowIncMult2[8] = {  0,   2,   0,   0,   0,  -2,   0,   0}; /* Scaled by width */
+static int rowIncMult1[8] = {  0,   0,  -1,  -1,   0,   0,   1,   1}; /* Scaled by size */
+static int rowIncMult2[8] = {  0,   2,   0,   0,   0,  -2,   0,   0}; /* Scaled by srcwidth */
 static int rowIncK[8]     = {  0,   0,  -1,   1,   0,   0,   1,  -1}; /* Constant */
 
-/* width and height are the target QImage sizes!! */
-static void _pyCopyToQImage(ImageBuffer* imageBuffer, int width, int height)
+template <class T>
+void _pyDoAvg(ImageBuffer *imageBuffer, T *cadata)
 {
-    if (imageBuffer->iNumAveraged == imageBuffer->iAverage - 1) {
-        const uint32_t* pui32Pixel = (const uint32_t*) imageBuffer->imageData;
-        uint32_t*       data       = reinterpret_cast<uint32_t*>(imageBuffer->imageDisp->bits());
-        int orientation = imageBuffer->orientation;
-        int srcwidth  = (orientation&2) ? height : width;
-        int srcheight = (orientation&2) ? width : height;
-        int init_offset  = srcwidth * srcheight * initMult1[orientation] + 
-                           srcwidth * initMult2[orientation] +
-                           initK[orientation];
-        int row_inc      = srcwidth * srcheight * rowIncMult1[orientation] +
-                           srcwidth * rowIncMult2[orientation] +
-                           rowIncK[orientation];
-        int col_inc      = srcwidth * colIncMult[orientation] +
-                           colIncK[orientation];
+    T *src           = cadata;
+    uint32_t *dst    = imageBuffer->imageData;
+    float *dstF      = imageBuffer->imageDataF;
+    int orientation  = imageBuffer->orientation;
+    int init_offset  = imageBuffer->size * initMult1[orientation] + 
+	               imageBuffer->srcwidth * initMult2[orientation] +
+	               initK[orientation];
+    int row_inc      = imageBuffer->size * rowIncMult1[orientation] +
+                       imageBuffer->srcwidth * rowIncMult2[orientation] +
+                       rowIncK[orientation];
+    int col_inc      = imageBuffer->srcwidth * colIncMult[orientation] +
+                       colIncK[orientation];
+    int iNewAverage  = imageBuffer->iNumAveraged + 1;
 
-        pui32Pixel += init_offset;
-        for (int iRow = 0; iRow < height; ++iRow) {
-            for (int iCol = 0; iCol < width; ++iCol) {
-                *data++ = (*pui32Pixel < MAX_INDEX_PLUS1) ? gColorMap[*pui32Pixel] : 0;
-                pui32Pixel += col_inc;
-            }
-            pui32Pixel += row_inc;
-        }
+    src += init_offset;
+    if (iNewAverage == 1) {
+	for (int iRow = 0; iRow < imageBuffer->imgheight; ++iRow) {
+	    for (int iCol = 0; iCol < imageBuffer->imgwidth; ++iCol) {
+		*dstF++ = *src;
+		*dst++ = *src;
+		src += col_inc;
+	    }
+	    src += row_inc;
+	}
+    } else {
+	for (int iRow = 0; iRow < imageBuffer->imgheight; ++iRow) {
+	    for (int iCol = 0; iCol < imageBuffer->imgwidth; ++iCol) {
+		*dstF += (*src - *dstF) / iNewAverage;
+		*dst++ = *dstF++;
+		src += col_inc;
+	    }
+	    src += row_inc;
+	}
     }
+    imageBuffer->iNumAveraged = iNewAverage % imageBuffer->iAverage;
+
+    if (iNewAverage == imageBuffer->iAverage)
+	_pyCopyToQImage(imageBuffer, 1);
 }
 
 static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void* usr)
 {
     ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
-    QImage*       image       = imageBuffer->imageDisp;
-    const int     width       = image->width();
-    const int     height      = image->height();
+    uint8_t* cadata8 = reinterpret_cast<uint8_t*>(cadata); /* R, G, B! */
+    uint8_t*  src    = cadata8;
+    uint32_t *dst    = imageBuffer->imageData;
+    float    *dstF   = imageBuffer->imageDataF;
+    int orientation  = imageBuffer->orientation;
+    int init_offset  = imageBuffer->size * initMult1[orientation] + 
+	               imageBuffer->srcwidth * initMult2[orientation] +
+                       initK[orientation];
+    int row_inc      = imageBuffer->size * rowIncMult1[orientation] +
+                       imageBuffer->srcwidth * rowIncMult2[orientation] +
+                       rowIncK[orientation];
+    int col_inc      = imageBuffer->srcwidth * colIncMult[orientation] +
+                       colIncK[orientation];
+    int iNewAverage  = imageBuffer->iNumAveraged + 1;
 
-    uint8_t* cadata8 = static_cast<uint8_t*>(cadata); /* R, G, B! */
-
-    /* If we're using the color image, don't average, scale, or anything, just copy and we're done! */
+    /* If we're using the color image, don't average, just copy and we're done! */
     if (!imageBuffer->useGray) {
-        const uint8_t*  pui8new  = cadata8;
-        uint32_t*       data       = reinterpret_cast<uint32_t*>(image->bits());
-
-        int orientation = imageBuffer->orientation;
-        int srcwidth  = (orientation&2) ? height : width;
-        int srcheight = (orientation&2) ? width : height;
-        int init_offset  = srcwidth * srcheight * initMult1[orientation] + 
-                           srcwidth * initMult2[orientation] +
-                           initK[orientation];
-        int row_inc      = srcwidth * srcheight * rowIncMult1[orientation] +
-                           srcwidth * rowIncMult2[orientation] +
-                           rowIncK[orientation];
-        int col_inc      = srcwidth * colIncMult[orientation] +
-                           colIncK[orientation];
-
-        pui8new += 3 * init_offset;
-        for (int iRow = 0; iRow < height; ++iRow) {
-            for (int iCol = 0; iCol < width; ++iCol) {
-                *data++ = RGB(pui8new);
-                pui8new += 3 * col_inc;
-            }
-            pui8new += 3* row_inc;
-        }
-        return;
-    }
-
-    /* Average the new data into imageDataF/imageData */
-    if (imageBuffer->iNumAveraged == 0) {
-        const uint8_t*  pui8new  = cadata8;
-        float*          pfcur    = imageBuffer->imageDataF;
-
-        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, pui8new += 3) {
-            imageBuffer->imageData[iPixel] = GRAY(pui8new);
-            *pfcur = GRAY(pui8new);
-        }
+        src += 3 * init_offset;
+	for (int iRow = 0; iRow < imageBuffer->imgheight; ++iRow) {
+	    for (int iCol = 0; iCol < imageBuffer->imgwidth; ++iCol) {
+		*dst++ = RGB(src);
+		src += 3 * col_inc;
+	    }
+	    src += 3 * row_inc;
+	}
+	_pyCopyToQImage(imageBuffer, 0);
     } else {
-        float*          pfcur    = imageBuffer->imageDataF;
-        uint32_t*       pui32cur = imageBuffer->imageData;      
-        const uint8_t*  pui8new = cadata8;
-        int             iNewAverage = imageBuffer->iNumAveraged + 1;
-        
-        for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, pui8new += 3) {
-            *pfcur    += (GRAY(pui8new) - *pfcur) / iNewAverage;
-            *pui32cur  = (unsigned int) *pfcur;
-        }
-    }
-    imageBuffer->iNumAveraged = (imageBuffer->iNumAveraged + 1) % imageBuffer->iAverage;
+	if (iNewAverage == 1) {
+	    for (int iRow = 0; iRow < imageBuffer->imgheight; ++iRow) {
+		for (int iCol = 0; iCol < imageBuffer->imgwidth; ++iCol) {
+		    *dstF = GRAY(src);
+		    *dst++ = *dstF++;
+		    src += 3 * col_inc;
+		}
+		src += 3 * row_inc;
+	    }
+	} else {
+	    for (int iRow = 0; iRow < imageBuffer->imgheight; ++iRow) {
+		for (int iCol = 0; iCol < imageBuffer->imgwidth; ++iCol) {
+		    *dstF += (GRAY(src) - *dstF) / iNewAverage;
+		    *dst++ = *dstF++;
+		    src += 3 * col_inc;
+		}
+		src += 3 * row_inc;
+	    }
+	}
+	imageBuffer->iNumAveraged = iNewAverage % imageBuffer->iAverage;
 
-    /* Copy imageData into the array, false coloring as we go. */
-    _pyCopyToQImage(imageBuffer, width, height);
+	if (iNewAverage == imageBuffer->iAverage)
+	    _pyCopyToQImage(imageBuffer, 1);
+    }
 }
  
 static void _pyImagePvCallback(void* cadata, long count, size_t size, void* usr)
 {
   ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
-  QImage*       image       = imageBuffer->imageDisp;
-  const int     width       = image->width();
-  const int     height      = image->height();
 
   if (size != 1 && size != 2 && size != 4) {
     printf("Image pixel size is %d bytes?\n", (int) size);
     return;
   }
-  /* Average the new data into imageDataF/imageData */
   switch (size) {
-    case 4: {
-        float*          pfcur    = imageBuffer->imageDataF;
-        uint32_t*       pui32cur = imageBuffer->imageData;      
-        const uint32_t* pui32new  = static_cast<uint32_t*>(cadata);
-
-        if (imageBuffer->iNumAveraged == 0) {
-            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui32new) {
-                *pui32cur = (int) *pui32new;
-                *pfcur = *pui32cur;
-            }
-        } else {
-            int             iNewAverage = imageBuffer->iNumAveraged + 1;
-
-            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui32new) {
-                *pfcur    += (((int) *pui32new) - *pfcur) / iNewAverage;
-                *pui32cur  = (unsigned int) *pfcur;
-            }
-        }
+    case 4:
+	_pyDoAvg(imageBuffer, reinterpret_cast<uint32_t*>(cadata));
         break;
-    }
-    case 2: {
-        float*          pfcur    = imageBuffer->imageDataF;
-        uint32_t*       pui32cur = imageBuffer->imageData;      
-        const uint16_t* pui16new = static_cast<uint16_t*>(cadata);
-
-        if (imageBuffer->iNumAveraged == 0) {
-            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui16new) {
-                *pui32cur = (int) *pui16new;
-                *pfcur = *pui32cur;
-            }
-        } else {
-            int             iNewAverage = imageBuffer->iNumAveraged + 1;
-
-            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui16new) {
-                *pfcur    += (((int) *pui16new) - *pfcur) / iNewAverage;
-                *pui32cur  = (unsigned int) *pfcur;
-            }
-        }
+    case 2:
+	_pyDoAvg(imageBuffer, reinterpret_cast<uint16_t*>(cadata));
         break;
-    }
-    case 1: {
-        float*          pfcur    = imageBuffer->imageDataF;
-        uint32_t*       pui32cur = imageBuffer->imageData;      
-        const uint8_t*  pui8new  = static_cast<uint8_t*>(cadata);
-
-        if (imageBuffer->iNumAveraged == 0) {
-            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui8new) {
-                *pui32cur = (int) *pui8new;
-                *pfcur = *pui32cur;
-            }
-        } else {
-            int             iNewAverage = imageBuffer->iNumAveraged + 1;
-            
-            for (int iPixel = 0; iPixel < width*height; ++iPixel, ++pfcur, ++pui32cur, ++pui8new) {
-                *pfcur    += (((int) *pui8new) - *pfcur) / iNewAverage;
-                *pui32cur  = (unsigned int) *pfcur;
-            }
-        }
+    case 1:
+	_pyDoAvg(imageBuffer, reinterpret_cast<uint32_t*>(cadata));
         break;
-    }
   }    
-  imageBuffer->iNumAveraged = (imageBuffer->iNumAveraged + 1) % imageBuffer->iAverage;
-
-  /* Copy imageData into the array, false coloring as we go. */
-  _pyCopyToQImage(imageBuffer, width, height);
 }
 
 PyObject* pyCreateImagePvCallbackFunc(PyObject* pyImageBuffer)
 {
   // reinterpret_cast not allowed between func ptr and void* by ISO C++
   void* func        = (void*)_pyImagePvCallback;
-  void* imageBuffer = PyCObject_AsVoidPtr( pyImageBuffer );
+  ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
 
-  //printf( "pyCreateImagePvCallbackFunc(): imagedata %p\n", imageBuffer ); //!!debug
+  imageBuffer->isColor      = 0;
   
-  PyObject* pyfunc = PyCObject_FromVoidPtrAndDesc(func, imageBuffer, NULL);    
+  PyObject* pyfunc = PyCObject_FromVoidPtrAndDesc(func, (void *)imageBuffer, NULL);
   return pyfunc;
 }        
 
@@ -476,455 +513,203 @@ PyObject* pyCreateColorImagePvCallbackFunc(PyObject* pyImageBuffer)
 {
   // reinterpret_cast not allowed between func ptr and void* by ISO C++
   void* func        = (void*)_pyColorImagePvCallback;
-  void* imageBuffer = PyCObject_AsVoidPtr( pyImageBuffer );
+  ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
 
-  //printf( "pyCreateColorImagePvCallbackFunc(): imagedata %p\n", imageBuffer ); //!!debug
+  imageBuffer->isColor      = 1;
   
-  PyObject* pyfunc = PyCObject_FromVoidPtrAndDesc(func, imageBuffer, NULL);    
+  PyObject* pyfunc = PyCObject_FromVoidPtrAndDesc(func, (void *)imageBuffer, NULL);
   return pyfunc;
 }        
 
-void findMinMax(ImageBuffer* imageBuffer, bool bProjRoi, int xmin, int xmax, int ymin, int ymax)
+static void _findMinMax(ImageBuffer* imageBuffer)
 {
-  imageBuffer->iProjXmin = 1<<15;
-  imageBuffer->iProjXmax = -1;
-  imageBuffer->iProjYmin = 1<<15;
-  imageBuffer->iProjYmax = -1;
-  
-  if ( bProjRoi ) {                  
-    for (int iX=xmin; iX < xmax; ++iX) {
-      if ( imageBuffer->projSumX[iX] == 0xFFFFFFFF )
-        continue;
-        
-      int iValue = (int) (imageBuffer->projSumX[iX] / imageBuffer->iRoiH);      
-      if (iValue < imageBuffer->iProjXmin)
-        imageBuffer->iProjXmin = iValue;
-      if (iValue > imageBuffer->iProjXmax)
-        imageBuffer->iProjXmax = iValue;      
+    imageBuffer->iProjXmin = 1<<15;
+    imageBuffer->iProjXmax = -1;
+    imageBuffer->iProjYmin = 1<<15;
+    imageBuffer->iProjYmax = -1;
+    
+    for (int iX=0; iX < imageBuffer->imgwidth; ++iX) {
+	int iValue = imageBuffer->projSumX[iX];
+	if (iValue < imageBuffer->iProjXmin)
+	    imageBuffer->iProjXmin = iValue;
+	if (iValue > imageBuffer->iProjXmax)
+	    imageBuffer->iProjXmax = iValue;      
     }
-        
-    for (int iY=ymin; iY < ymax; ++iY) {
-      if ( imageBuffer->projSumY[iY] == 0xFFFFFFFF )
-        continue;
-        
-      int iValue = (int) (imageBuffer->projSumY[iY] / imageBuffer->iRoiW);      
-      if (iValue < imageBuffer->iProjYmin)
-        imageBuffer->iProjYmin = iValue;
-      if (iValue > imageBuffer->iProjYmax)
-        imageBuffer->iProjYmax = iValue;
+    
+    for (int iY=0; iY < imageBuffer->imgheight; ++iY) {
+	int iValue = imageBuffer->projSumY[iY];
+	if (iValue < imageBuffer->iProjYmin)
+	    imageBuffer->iProjYmin = iValue;
+	if (iValue > imageBuffer->iProjYmax)
+	    imageBuffer->iProjYmax = iValue;
     }        
-  }
-  
-  if ( imageBuffer->iProjXmax == -1 ) {
-    imageBuffer->iProjXmin = 0;
-    imageBuffer->iProjXmax = 1;
-  } else {
-    if ( imageBuffer->iProjXmin > 0 )
-      --imageBuffer->iProjXmin;
-    ++imageBuffer->iProjXmax;
-  }
-
-  if ( imageBuffer->iProjYmax == -1 ) {
-    imageBuffer->iProjYmin = 0;
-    imageBuffer->iProjYmax = 1;
-  } else {
-    if ( imageBuffer->iProjYmin > 0 )
-      --imageBuffer->iProjYmin;
-    ++imageBuffer->iProjYmax;
-  }  
-}
-
-void computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi)
-{
-  QImage*   imageDisp = imageBuffer->imageDisp;               
-  uint32_t* projSumX  = imageBuffer->projSumX;
-  uint32_t* projSumY  = imageBuffer->projSumY;
-  int width  = (imageBuffer->orientation&2) ? imageDisp->height() : imageDisp->width();
-  int height = (imageBuffer->orientation&2) ? imageDisp->width() : imageDisp->height();
-  memset(projSumX, 0xFF, width  * sizeof(uint32_t));
-  memset(projSumY, 0xFF, height * sizeof(uint32_t));
-  
-  int x1  = (int) rectRoi->x();
-  int x2  = x1 + (int) rectRoi->width() - 1;
-  if ( x1 > x2 ) {int xtmp = x1; x1 = x2; x2 = xtmp;}
-  if ( x1 < 0 ) x1 = 0;
-  else if ( x1 >= width ) x1 = width-1;
-  if ( x2 < 0 ) x2 = 0;
-  else if ( x2 >= width ) x2 = width-1;    
-
-  int y1  = (int) rectRoi->y();
-  int y2  = y1 + (int) rectRoi->height() - 1;
-  if ( y1 > y2 ) {int ytmp = y1; y1 = y2; y2 = ytmp;}
-  if ( y1 < 0 ) y1 = 0;
-  else if ( y1 >= height ) y1 = height-1;
-  if ( y2 < 0 ) y2 = 0;
-  else if ( y2 >= height ) y2 = height-1;
-  
-  uint32_t* const pImgValue       = imageBuffer->imageData;
-  const int iLinePixelsOrg        = width;
-  uint64_t  u64PixelSum           = 0;
-  uint64_t  u64PixelSqSum         = 0;
-  uint32_t* pPixelLineStart       = pImgValue + y1 * iLinePixelsOrg + x1;
-
-  for (int iY = y1; iY <= y2; ++iY, pPixelLineStart += iLinePixelsOrg) {
-    if (iY < 0)
-      continue;
-    if (iY >= height)
-      break;
-      
-    uint32_t* pPixel = pPixelLineStart;
-    for (int iX = x1; iX <= x2; ++iX, ++pPixel)
-    {
-      if (iX < 0)
-        continue;
-      if (iX >= width)
-        break;
-        
-      const int iValue = *pPixel;
-      if ( iValue >= 0x10000) {
-        printf("Pixel value (%d,%d) too large: value 0x%x\n", iX, iY, iValue);
-        continue;
-      }
-      projSumX[iX]  += iValue;
-      projSumY[iY]  += iValue;
-      u64PixelSum   += iValue;
-      /* Sigh... if iValue > 49000 or so, the square of an int will be negative! */
-      u64PixelSqSum += iValue*(uint64_t) iValue;
+    
+    if ( imageBuffer->iProjXmax == -1 ) {
+	imageBuffer->iProjXmin = 0;
+	imageBuffer->iProjXmax = 1;
+    } else {
+	if ( imageBuffer->iProjXmin > 0 )
+	    --imageBuffer->iProjXmin;
+	++imageBuffer->iProjXmax;
     }
-  }
-      
-  imageBuffer->iRoiW = x2 - x1 + 1;
-  imageBuffer->iRoiH = y2 - y1 + 1;
-  const float w = imageBuffer->iRoiW;
-  const float h = imageBuffer->iRoiH;
-  const float fNumRoiPixels = w * h;
-  
-  //printf("computeRoiProj(): Pixel Sum %Ld  SqSum %Ld  x2 %d x1 %d y2 %d y1 %d NumPixels %f\n",
-  //	   (long long int) u64PixelSum, (long long int) u64PixelSqSum, x2, x1, y2, y1, fNumRoiPixels ); // !! for debug
-  if ( fNumRoiPixels > 0 ) {
-    imageBuffer->fRoiPixelMean = u64PixelSum   / fNumRoiPixels;
-    imageBuffer->fRoiPixelVar  = u64PixelSqSum / fNumRoiPixels - imageBuffer->fRoiPixelMean * imageBuffer->fRoiPixelMean;
-  } else {
-    imageBuffer->fRoiPixelMean  = 0;
-    imageBuffer->fRoiPixelVar   = 0;             
-  }
+    
+    if ( imageBuffer->iProjYmax == -1 ) {
+	imageBuffer->iProjYmin = 0;
+	imageBuffer->iProjYmax = 1;
+    } else {
+	if ( imageBuffer->iProjYmin > 0 )
+	    --imageBuffer->iProjYmin;
+	++imageBuffer->iProjYmax;
+    }  
 }
 
-static void _pyDoProj(uint32_t *pImgProj, int imin, int imax, uint32_t *projSum, int iRoi, 
-                      int iScaleIndex, int projmin, int projmax, float scale, uint32_t u32ColorProj,
-                      int limit, int offset, int iLineI, int iLineIdx, int dir)
+static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi)
 {
-    for (int idx=imin; idx < imax; ++idx) {
-        if (projSum[idx] == 0xFFFFFFFF)
-            continue;
-        
-        float fValue = projSum[idx] / iRoi;
-      
-        if (fValue < 0) {
-            printf("_pyDoProj(): Invalid ProjSum[%d] : %lf\n", idx, fValue);
-            continue;
-        }
-      
-        int iProjValue;
-        if (fValue <= projmin)
-            iProjValue = limit - 1;
-        else if (fValue >= projmax)
-            iProjValue = 0;
-        else {
-            float fIndex;
-            switch (iScaleIndex) {
-            case 1: /* Log2 */
-                fIndex = log2(1 + (fValue - projmin) / scale);
-                break;
-            case 2: /* LogE */
-                fIndex = log(1 + (M_E - 1) * (fValue - projmin) / scale);
-                break;
-            case 3: /* Log10 */
-                fIndex = log10(1 + (10. - 1) * (fValue - projmin) / scale);
-                break;
-            case 4: /* Exp2 */
-                fIndex = (exp2((fValue - projmin) / scale) - 1);
-                break;
-            case 5: /* ExpE */
-                fIndex = (exp((fValue - projmin) / scale) - 1)/(M_E - 1);
-                break;
-            case 6: /* Exp10 */
-                fIndex = (exp10((fValue - projmin) / scale) - 1)/(10. - 1);
-                break;
-            case 0: /* Linear */
-            default:
-                fIndex = (fValue - projmin) / scale;
-                break;
-            }
-            iProjValue = (int) ((limit-1) * (1.0 - fIndex));
-        }
+    double*   projSumX  = imageBuffer->projSumX;
+    double*   projSumY  = imageBuffer->projSumY;
+    int       width     = imageBuffer->imgwidth;
+    int       height    = imageBuffer->imgheight;
 
-        for (int i = iProjValue; i < limit; i++)
-            *(pImgProj + ( iLineI * i + iLineIdx * (offset + dir * idx) )) = u32ColorProj;
+    for (int iX = 0; iX < width;  projSumX[iX++] = 0);
+    for (int iY = 0; iY < height; projSumY[iY++] = 0);
+
+    /*
+     * Arrange that x1 < x2 and y1 < y2 and they are all in bounds!
+     */
+    int x1  = (int) rectRoi->x();
+    int x2  = x1 + (int) rectRoi->width() - 1;
+    if ( x1 > x2 ) { int xtmp = x1; x1 = x2; x2 = xtmp; }
+    if ( x1 < 0 )
+        x1 = 0;
+    else if ( x1 >= width ) 
+	x1 = width-1;
+    if ( x2 < 0 ) 
+	x2 = 0;
+    else if ( x2 >= width )
+	x2 = width-1;    
+
+    int y1  = (int) rectRoi->y();
+    int y2  = y1 + (int) rectRoi->height() - 1;
+    if ( y1 > y2 ) { int ytmp = y1; y1 = y2; y2 = ytmp; }
+    if ( y1 < 0 )
+	y1 = 0;
+    else if ( y1 >= height ) 
+	y1 = height-1;
+    if ( y2 < 0 ) 
+	y2 = 0;
+    else if ( y2 >= height ) 
+	y2 = height-1;
+  
+    uint32_t* const pImgValue       = imageBuffer->imageData;
+    uint64_t  u64PixelSum           = 0;
+    uint64_t  u64PixelSqSum         = 0;
+    uint32_t* pPixelLineStart       = pImgValue + y1 * width + x1;
+
+    for (int iY = y1; iY <= y2; ++iY, pPixelLineStart += width) {
+	uint32_t* pPixel = pPixelLineStart;
+	for (int iX = x1; iX <= x2; ++iX, ++pPixel) {
+	    int iValue = *pPixel;
+	    if ( iValue >= 0x10000) {
+		printf("Pixel value (%d,%d) too large: value 0x%x\n", iX, iY, iValue);
+		continue;
+	    }
+	    projSumX[iX]  += iValue;
+	    projSumY[iY]  += iValue;
+	    u64PixelSum   += iValue;
+	    /* Sigh... if iValue > 49000 or so, the square of an int will be negative! */
+	    u64PixelSqSum += iValue*(uint64_t) iValue;
+	}
+    }
+      
+    imageBuffer->iRoiW = x2 - x1 + 1;
+    imageBuffer->iRoiH = y2 - y1 + 1;
+    const float w = imageBuffer->iRoiW;
+    const float h = imageBuffer->iRoiH;
+    const float fNumRoiPixels = w * h;
+  
+    /* Scale it down! */
+    for (int iX = x1; iX <= x2; iX++)
+	if (projSumX[iX] > 0)
+	    projSumX[iX] /= h;
+    for (int iY = y1; iY <= y2; iY++)
+	if (projSumY[iY] > 0)
+	    projSumY[iY] /= w;
+
+    if ( fNumRoiPixels > 0 ) {
+	imageBuffer->fRoiPixelMean = u64PixelSum   / fNumRoiPixels;
+	imageBuffer->fRoiPixelVar  = u64PixelSqSum / fNumRoiPixels - imageBuffer->fRoiPixelMean * imageBuffer->fRoiPixelMean;
+    } else {
+	imageBuffer->fRoiPixelMean  = 0;
+	imageBuffer->fRoiPixelVar   = 0;             
     }
 }
 
-/*                    0   0F  90  90F 180 180F 270 270F*/
-static int Xdir[8] = { 1, -1, -1,  1, -1,   1,  1,  -1 };
-static int Ydir[8] = { 1,  1,  1,  1, -1,  -1, -1,  -1 };
-
-PyObject* pyUpdateProj( PyObject* pyImageBuffer, int iOrientation, int iScaleIndex, 
-                        bool bProjRoi, bool bProjAutoRange,
-                        unsigned int uMin, unsigned int uMax, 
-                        QRectF* rectRoi, QRectF* rectZoom, 
-                        QImage* imageProjX, QImage* imageProjY )
+PyObject* pyUpdateProj(PyObject* pyImageBuffer, bool bProjAutoRange,
+		       int uMin, int uMax, QRectF* rectRoi)
 {  
     ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
   
     /*
      * Compute the ROI projection values, and also update the mean/variance
      */
-    computeRoiProj(imageBuffer, rectRoi);
-  
-    QImage*         imageDisp     = imageBuffer->imageDisp;             
-    int width  = (imageBuffer->orientation&2) ? imageDisp->height() : imageDisp->width();
-    int height = (imageBuffer->orientation&2) ? imageDisp->width() : imageDisp->height();
+    _computeRoiProj(imageBuffer, rectRoi);
 
-    const int       xmin      = (int) (rectZoom->x() < 0 ? 0 : rectZoom->x());
-    const int       xmax      = (int) (rectZoom->x() + rectZoom->width() > width 
-                                       ? width : rectZoom->x() + rectZoom->width());
-    const int       ymin      = (int) (rectZoom->y() < 0 ? 0 : rectZoom->y());
-    const int       ymax      = (int) (rectZoom->y() + rectZoom->height() > height
-                                       ? height : rectZoom->y() + rectZoom->height());
-    
-    /*
-     * Look at the Zoom region to find the min/max values of ProjX/ProjY/ROI
-     */
-   
-    if (bProjAutoRange)
-        findMinMax(imageBuffer, bProjRoi, xmin, xmax, ymin, ymax);
-    else {
+    if (bProjAutoRange) {
+        _findMinMax(imageBuffer);
+    } else {
         imageBuffer->iProjXmin = uMin;
         imageBuffer->iProjXmax = uMax;
         imageBuffer->iProjYmin = uMin;
         imageBuffer->iProjYmax = uMax;
     }
-  
-    const float  fPixelValueRangeX = (float) ( (imageBuffer->iProjXmin != imageBuffer->iProjXmax) ? 
-                                               imageBuffer->iProjXmax-imageBuffer->iProjXmin: 1);  
-    const float  fPixelValueRangeY = (float) ( (imageBuffer->iProjYmin != imageBuffer->iProjYmax) ? 
-                                               imageBuffer->iProjYmax-imageBuffer->iProjYmin: 1);  
-  
-    int iOffsetX    = ( imageProjX->width()  - width ) /2;
-    int iOffsetY    = ( imageProjY->height() - height ) /2;    
-  
-    const int       iLinePixelsPx   = imageProjX->width();
-    const int       iLinePixelsPy   = imageProjY->width();
-  
-    imageProjX->fill( 0xFFFFFFFF );
-    imageProjY->fill( 0xFFFFFFFF );   
-    
-    const uint32_t  u32ColorProj  = 0xFF00CC00;
-
-    int xd = Xdir[imageBuffer->orientation];
-    int yd = Ydir[imageBuffer->orientation];
-    if (xd < 0)
-        iOffsetX += width - 1;
-    if (yd < 0)
-        iOffsetY += height - 1;
-
-    if ( bProjRoi ) {
-        if (imageBuffer->orientation&2) {
-            _pyDoProj((uint32_t*) imageProjY->bits(), xmin, xmax, imageBuffer->projSumX, imageBuffer->iRoiH,
-                      iScaleIndex, imageBuffer->iProjXmin, imageBuffer->iProjXmax, fPixelValueRangeX, u32ColorProj, 
-                      imageProjY->width(), iOffsetX, 1, iLinePixelsPy, xd);
-            _pyDoProj((uint32_t*) imageProjX->bits(), ymin, ymax, imageBuffer->projSumY, imageBuffer->iRoiW,
-                      iScaleIndex, imageBuffer->iProjYmin, imageBuffer->iProjYmax, fPixelValueRangeY, u32ColorProj, 
-                      imageProjX->height(), iOffsetY, iLinePixelsPx, 1, yd);
-        } else {
-            _pyDoProj((uint32_t*) imageProjX->bits(), xmin, xmax, imageBuffer->projSumX, imageBuffer->iRoiH,
-                      iScaleIndex, imageBuffer->iProjXmin, imageBuffer->iProjXmax, fPixelValueRangeX, u32ColorProj, 
-                      imageProjX->height(), iOffsetX, iLinePixelsPx, 1, xd);
-            _pyDoProj((uint32_t*) imageProjY->bits(), ymin, ymax, imageBuffer->projSumY, imageBuffer->iRoiW,
-                      iScaleIndex, imageBuffer->iProjYmin, imageBuffer->iProjYmax, fPixelValueRangeY, u32ColorProj, 
-                      imageProjY->width(), iOffsetY, 1, iLinePixelsPy, yd);
-        }
-    }
 
     return Py_BuildValue("ffiiii", imageBuffer->fRoiPixelMean, imageBuffer->fRoiPixelVar, 
                          imageBuffer->iProjXmin, imageBuffer->iProjXmax, imageBuffer->iProjYmin, imageBuffer->iProjYmax);
 }
+
+/*
+ * Given a QPointF p and an array of image data s, assign d to the value at the point.
+ */
+#define GPX(p, d, s)                                                 \
+    if ((p)->x() < 0 || (p)->x() >= imageBuffer->imgwidth ||         \
+        (p)->y() < 0 || (p)->y() >= imageBuffer->imgheight)          \
+	d = -1;                                                      \
+    else                                                             \
+	d = (s)[(int)((p)->y() * imageBuffer->imgwidth + (p)->x())]
+
   
-PyObject* pyGetPixelValue( PyObject* pyImageBuffer, QPointF* cursor, QPointF* marker1, QPointF* marker2, 
-  QPointF* marker3, QPointF* marker4)
+PyObject* pyGetPixelValue(PyObject* pyImageBuffer, QPointF* cursor, QPointF* marker1, QPointF* marker2, 
+			  QPointF* marker3, QPointF* marker4)
 {
-  ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
-  uint32_t*    pImgValue   = (uint32_t*) imageBuffer->imageData;     
-  QImage*      imageDisp   = imageBuffer->imageDisp;           
-  int orientation = imageBuffer->orientation;
-  int srcwidth  = (orientation&2) ? imageDisp->height() : imageDisp->width();
-  int srcheight = (orientation&2) ? imageDisp->width() : imageDisp->height();
+    ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
+    uint32_t*    pImgValue   = (uint32_t*) imageBuffer->imageData;     
   
-  uint32_t     u32ValueCursor;
-  if (cursor->x() < 0 || cursor->x() >= srcwidth || cursor->y() < 0 || cursor->y() >= srcheight)
-    u32ValueCursor = -1;
-  else
-    u32ValueCursor = pImgValue[ (int) cursor->y() * srcwidth + (int) cursor->x() ];    
-
-  uint32_t     u32Value1;
-  if (marker1->x() < 0 || marker1->x() >= srcwidth || marker1->y() < 0 || marker1->y() >= srcheight)
-    u32Value1 = -1;
-  else
-    u32Value1 = pImgValue[ (int) marker1->y() * srcwidth + (int) marker1->x() ];    
-
-  uint32_t     u32Value2;
-  if (marker2->x() < 0 || marker2->x() >= srcwidth || marker2->y() < 0 || marker2->y() >= srcheight)
-    u32Value2 = -1;
-  else
-    u32Value2 = pImgValue[ (int) marker2->y() * srcwidth + (int) marker2->x() ];    
-
-  uint32_t     u32Value3;
-  if (marker3->x() < 0 || marker3->x() >= srcwidth || marker3->y() < 0 || marker3->y() >= srcheight)
-    u32Value3 = -1;
-  else
-    u32Value3 = pImgValue[ (int) marker3->y() * srcwidth + (int) marker3->x() ];    
-
-  uint32_t     u32Value4;
-  if (marker4->x() < 0 || marker4->x() >= srcwidth || marker4->y() < 0 || marker4->y() >= srcheight)
-    u32Value4 = -1;
-  else
-    u32Value4 = pImgValue[ (int) marker4->y() * srcwidth + (int) marker4->x() ];    
+    uint32_t     u32ValueCursor, u32Value1, u32Value2, u32Value3, u32Value4;
+    GPX(cursor,  u32ValueCursor, pImgValue);
+    GPX(marker1, u32Value1,      pImgValue);
+    GPX(marker2, u32Value2,      pImgValue);
+    GPX(marker3, u32Value3,      pImgValue);
+    GPX(marker4, u32Value4,      pImgValue);
     
-  return Py_BuildValue("iiiiii", u32ValueCursor, u32Value1, u32Value2, u32Value3, u32Value4, 
-                       (imageBuffer->iNumAveraged == 0 ? 1 : imageBuffer->iNumAveraged));
+    return Py_BuildValue("iiiiii", u32ValueCursor, u32Value1, u32Value2, u32Value3, u32Value4, 
+			 (imageBuffer->iNumAveraged == 0 ? 1 : imageBuffer->iNumAveraged));
 }
-
-PyObject* pySetFrameAverage(int iAverage, PyObject* pyImageBuffer)
-{
-  if ( iAverage == 0 )
-    iAverage = 1;
-    
-  ImageBuffer* imageBuffer  = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
-  
-  if ( iAverage != imageBuffer->iAverage )
-    imageBuffer->iAverage = iAverage;
-  imageBuffer->iNumAveraged = 0;
-  
-  Py_RETURN_NONE;
-}
-
-PyObject* pyGetImageData( PyObject* pyImageBuffer, bool bPortrait )
-{
-  ImageBuffer*    imageBuffer  = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );    
-  const int       iWidth       = imageBuffer->imageDisp->width();
-  const int       iHeight      = imageBuffer->imageDisp->height(); 
-  const int       iNumPixels   = iWidth * iHeight;    
-  PyObject*       pyImageData  = PyTuple_New(iNumPixels);
-  
-  if ( bPortrait )
-  {
-    const uint32_t* pImageDataLine  = imageBuffer->imageData + iWidth * (iHeight-1);
-    int             iPixel          = 0;
-    for (int iX=0; iX < iWidth; ++iX, ++pImageDataLine) 
-    {
-      const uint32_t* pImageData = pImageDataLine;
-      for (int iY=0; iY < iHeight; ++iY, ++iPixel, pImageData -= iWidth) 
-        PyTuple_SetItem(pyImageData, iPixel, PyInt_FromLong(*pImageData));
-    }
-  }
-  else
-  {
-    const uint32_t* pImageData  = imageBuffer->imageData;           
-    for (int iPixel=0; iPixel<iNumPixels; iPixel++, ++pImageData) 
-      PyTuple_SetItem(pyImageData, iPixel, PyInt_FromLong(*pImageData));
-  }
-  
-  return pyImageData;
-}
-
-PyObject* pyGetImageData8bit( PyObject* pyImageBuffer, bool bPortrait, int depth )
-{
-  ImageBuffer*    imageBuffer  = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );    
-  const int       iWidth       = imageBuffer->imageDisp->width();
-  const int       iHeight      = imageBuffer->imageDisp->height(); 
-  const int       iNumPixels   = iWidth * iHeight;
-  const int       max_index1   = (1 << depth);
-  PyObject*       pyImageData  = PyTuple_New(iNumPixels);
-  
-  if ( bPortrait )
-  {
-    const uint32_t* pImageDataLine  = imageBuffer->imageData + iWidth * (iHeight-1);
-    int             iPixel          = 0;
-    for (int iX=0; iX < iWidth; ++iX, ++pImageDataLine) 
-    {
-      const uint32_t* pImageData = pImageDataLine;
-      for (int iY=0; iY < iHeight; ++iY, ++iPixel, pImageData -= iWidth) 
-        PyTuple_SetItem(pyImageData, iPixel, PyInt_FromLong(*pImageData * 256/max_index1));
-    }
-  }
-  else
-  {
-    const uint32_t* pImageData  = imageBuffer->imageData;           
-    for (int iPixel=0; iPixel<iNumPixels; iPixel++, ++pImageData) 
-      PyTuple_SetItem(pyImageData, iPixel, PyInt_FromLong(*pImageData * 256/max_index1));
-  }
-  
-  return pyImageData;
-}  
-
-PyObject* pySaveRawImageData( PyObject* pyImageBuffer, bool bPortrait, const char* sFileName)
-{
-  ImageBuffer*    imageBuffer  = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
-  const int       iWidth       = imageBuffer->imageDisp->width();
-  const int       iHeight      = imageBuffer->imageDisp->height(); 
-  const int       iNumPixels   = iWidth * iHeight;    
-
-  uint16_t*       pu16Data      = (uint16_t*) malloc( iNumPixels * sizeof(uint16_t));     
-            
-  if ( bPortrait )
-  {
-    uint16_t*       pu16DataUpdate  = pu16Data;
-    const uint32_t* pImageDataLine  = imageBuffer->imageData + iWidth * (iHeight-1);
-    for (int iX=0; iX < iWidth; ++iX, ++pImageDataLine) 
-    {
-      const uint32_t* pImageData = pImageDataLine;
-      for (int iY=0; iY < iHeight; ++iY, ++pu16DataUpdate, pImageData -= iWidth) 
-        *pu16DataUpdate = * (uint16_t*) pImageData;
-    }
-  }
-  else
-  {
-    const uint32_t* pu32ImageData   = imageBuffer->imageData;     
-    uint16_t*       pu16DataUpdate  = pu16Data;
-    for (int iPixel=0; iPixel<iNumPixels; iPixel++, ++pu32ImageData, ++pu16DataUpdate) 
-      *pu16DataUpdate = * (uint16_t*) pu32ImageData;      
-  }
-    
-    
-  int fd = open(sFileName, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-  if (fd == -1)
-    Py_RETURN_FALSE;
-    
-  write(fd, pu16Data, iNumPixels * sizeof(uint16_t));
-  close(fd);
-  Py_RETURN_TRUE;
-}
-
-} // extern "C"
-
 
 %End
 
 void pydspl_setup_color_map(const char* colormap, int iLimitLow, int iLimitHigh, int iScaleIndex);
 void pydspl_setup_gray(int iLimitLow, int iLimitHigh, int iScaleIndex);
+
+SIP_PYOBJECT pyCreateImageBuffer(QImage* imageDisp, SIP_PYOBJECT px_, SIP_PYOBJECT py_, SIP_PYOBJECT image_, int w, int h, int orientation);
+SIP_PYOBJECT pySetImageBufferGray(SIP_PYOBJECT pyImageBuffer, int gray);
+SIP_PYOBJECT pySetFrameAverage  (int iAverage, SIP_PYOBJECT pyImageBuffer);
+SIP_PYOBJECT pyRecolorImageBuffer(SIP_PYOBJECT pyImageBuffer);
+
 SIP_PYOBJECT pyCreateImagePvCallbackFunc(SIP_PYOBJECT pyImageBuffer);
 SIP_PYOBJECT pyCreateColorImagePvCallbackFunc(SIP_PYOBJECT pyImageBuffer);
-SIP_PYOBJECT pyCreateImageBuffer(QImage* imageDisp, SIP_PYOBJECT px, SIP_PYOBJECT py, int orientation);
-SIP_PYOBJECT pySetImageBufferGray(SIP_PYOBJECT pyImageBuffer, int gray);
-SIP_PYOBJECT pyRecolorImageBuffer(SIP_PYOBJECT pyImageBuffer);
-SIP_PYOBJECT pyUpdateProj       (SIP_PYOBJECT pyImageBuffer, int iOrientation, int iScaleIndex,
-                                  bool bProjRoi, bool bProjAutoRange,
-                                  int uMin, int uMax, QRectF* rectRoi, QRectF* rectZoom,
-                                  QImage* imageProjX, QImage* imageProjY ); 
+
+SIP_PYOBJECT pyUpdateProj       (SIP_PYOBJECT pyImageBuffer, bool bProjAutoRange,
+				 int uMin, int uMax, QRectF* rectRoi);
 SIP_PYOBJECT pyGetPixelValue    (SIP_PYOBJECT pyImageBuffer, QPointF* cursor, 
                                   QPointF* marker1, QPointF* marker2, 
                                   QPointF* marker3, QPointF* marker4);
-SIP_PYOBJECT pySetFrameAverage  (int iAverage, SIP_PYOBJECT pyImageBuffer);
-SIP_PYOBJECT pyGetImageData     (SIP_PYOBJECT pyImageBuffer, bool bPortrait);
-SIP_PYOBJECT pyGetImageData8bit (SIP_PYOBJECT pyImageBuffer, bool bPortrait, int depth);
-SIP_PYOBJECT pySaveRawImageData (SIP_PYOBJECT pyImageBuffer, bool bPortrait, const char* sFileName);

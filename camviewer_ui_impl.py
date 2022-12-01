@@ -34,9 +34,6 @@ from PyQt4 import QtCore, uic
 from PyQt4.QtGui import *
 from PyQt4.QtCore import QTime, QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject
 
-import DisplayImage
-import ProjV
-import ProjH
 import param
 
 #
@@ -257,6 +254,8 @@ class GraphicUserInterface(QMainWindow):
 
     self.ui         = Ui_MainWindow()
     self.ui.setupUi(self)
+    self.ui.projH.set_x()
+    self.ui.projV.set_y()
     self.RPSpacer = QSpacerItem(20, 0, QSizePolicy.Minimum, QSizePolicy.Expanding)
     self.ui.RightPanel.addItem(self.RPSpacer)
 
@@ -327,12 +326,15 @@ class GraphicUserInterface(QMainWindow):
     self.cameraListFilename  = cameraListFilename
   
     if param.orientation & 2:
-      self.px = np.zeros((param.y), dtype=np.uint32)
-      self.py = np.zeros((param.x),  dtype=np.uint32)
+      self.px = np.zeros((param.y), dtype=np.float64)
+      self.py = np.zeros((param.x),  dtype=np.float64)
+      self.image = np.zeros((param.y, param.x), dtype=np.uint32)
     else:
-      self.px = np.zeros((param.x),  dtype=np.uint32)
-      self.py = np.zeros((param.y), dtype=np.uint32)
-    self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image, self.px, self.py, param.orientation)
+      self.px = np.zeros((param.x), dtype=np.float64)
+      self.py = np.zeros((param.y),  dtype=np.float64)
+      self.image = np.zeros((param.x, param.y), dtype=np.uint32)
+    self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image, self.px, self.py, 
+                                                       self.image, param.x, param.y, param.orientation)
 
     self.updateRoiText()
     self.updateMarkerText(True, True, 0, 15)
@@ -344,12 +346,6 @@ class GraphicUserInterface(QMainWindow):
     self.ui.projV.doResize(sizeProjY)
 
     self.ui.display_image.doResize(QSize(self.viewwidth, self.viewheight))
-
-    sizeProjX       = QSize(param.maxd, self.projsize)
-    self.imageProjX = QImage(sizeProjX, QImage.Format_RGB32) # image
-
-    sizeProjY       = QSize(self.projsize, param.maxd)
-    self.imageProjY = QImage(sizeProjY, QImage.Format_RGB32) # image
     
     self.updateCameraCombo()
     
@@ -712,12 +708,15 @@ class GraphicUserInterface(QMainWindow):
     param.setImageSize(newx, newy)
     self.ui.display_image.setImageSize(reset)
     if param.orientation & 2:
-      self.px = np.zeros((param.y), dtype=np.uint32)
-      self.py = np.zeros((param.x),  dtype=np.uint32)
+      self.px = np.zeros((param.y), dtype=np.float64)
+      self.py = np.zeros((param.x),  dtype=np.float64)
+      self.image = np.zeros((param.y, param.x), dtype=np.uint32)
     else:
-      self.px = np.zeros((param.x),  dtype=np.uint32)
-      self.py = np.zeros((param.y), dtype=np.uint32)
-    self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image, self.px, self.py, param.orientation)
+      self.px = np.zeros((param.x), dtype=np.float64)
+      self.py = np.zeros((param.y),  dtype=np.float64)
+      self.image = np.zeros((param.x, param.y), dtype=np.uint32)
+    self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image, self.px, self.py, 
+                                                       self.image, param.x, param.y, param.orientation)
     if self.camera != None:
       if self.isColor:
         self.camera.processor  = pycaqtimage.pyCreateColorImagePvCallbackFunc(self.imageBuffer)
@@ -726,10 +725,6 @@ class GraphicUserInterface(QMainWindow):
         self.camera.processor  = pycaqtimage.pyCreateImagePvCallbackFunc(self.imageBuffer)
 #        self.ui.grayScale.setVisible(False)
       pycaqtimage.pySetImageBufferGray(self.imageBuffer, self.ui.grayScale.isChecked())
-    sizeProjX       = QSize(param.maxd, self.projsize)
-    self.imageProjX = QImage(sizeProjX, QImage.Format_RGB32) # image
-    sizeProjY       = QSize(self.projsize, param.maxd)
-    self.imageProjY = QImage(sizeProjY, QImage.Format_RGB32) # image
 
   def doShowProj(self):
     v = self.ui.showproj.isChecked()
@@ -1004,11 +999,11 @@ class GraphicUserInterface(QMainWindow):
     self.updateMarkerValue()
     
   def updateMarkerValue(self):          
-    lValue = pycaqtimage.pyGetPixelValue(self.imageBuffer, self.ui.display_image.cursorPos.abs(), 
-                                         self.ui.display_image.lMarker[0].abs(),
-                                         self.ui.display_image.lMarker[1].abs(),
-                                         self.ui.display_image.lMarker[2].abs(),
-                                         self.ui.display_image.lMarker[3].abs())
+    lValue = pycaqtimage.pyGetPixelValue(self.imageBuffer, self.ui.display_image.cursorPos.oriented(), 
+                                         self.ui.display_image.lMarker[0].oriented(),
+                                         self.ui.display_image.lMarker[1].oriented(),
+                                         self.ui.display_image.lMarker[2].oriented(),
+                                         self.ui.display_image.lMarker[3].oriented())
     self.averageCur = lValue[5]
     sMarkerInfoText = ""
     if lValue[0] >= 0:
@@ -1233,7 +1228,8 @@ class GraphicUserInterface(QMainWindow):
       fileName = str(QFileDialog.getSaveFileName(self, "Save Image...", ".", "Images (*.raw *.jpg *.png *.bmp *.pgm *.tif)"))
       if fileName == "":
         raise Exception, "No File Name Specified"
-      
+      raise Exception, "File Name Not Implemented!"
+      """      
       if fileName.lower().endswith(".raw"):
         bSaveOk = pycaqtimage.pySaveRawImageData(self.imageBuffer, param.orientation, fileName)
         if not bSaveOk:
@@ -1250,6 +1246,7 @@ class GraphicUserInterface(QMainWindow):
           raise Exception, "File type not supported: %s" % (fileName)
         QMessageBox.information(self, "File Save Succeeded", "Image has been saved to an 8-bit image file: %s" % (fileName) )
         print 'Saved to an 8-bit image file %s' %(fileName)            
+      """
     except Exception, e:
       print "fileSave failed:", e
       QMessageBox.warning(self, "File Save Failed", str(e))
@@ -1279,7 +1276,6 @@ class GraphicUserInterface(QMainWindow):
     self.ui.orient270F.setChecked(orientation == param.ORIENT270F)
     if param.orientation != orientation:
       param.orientation = orientation
-#      if reorient and (self.viewwidth != self.viewheight):
       if reorient:
         self.changeSize(self.viewheight, self.viewwidth, self.projsize, True)
     self.updateMarkerText(True, True, 0, 15)
@@ -1405,15 +1401,12 @@ class GraphicUserInterface(QMainWindow):
   def updateProj(self):
     try:
       (roiMean, roiVar, projXmin, projXmax, projYmin, projYmax) = \
-        pycaqtimage.pyUpdateProj( self.imageBuffer, param.orientation, self.iScaleIndex,
-                                  True, self.ui.checkBoxProjAutoRange.isChecked(),
+        pycaqtimage.pyUpdateProj( self.imageBuffer, self.ui.checkBoxProjAutoRange.isChecked(),
                                   self.iRangeMin, self.iRangeMax, 
-                                  self.ui.display_image.rectRoi.abs(),
-                                  self.ui.display_image.arectZoom.abs(),
-                                  self.imageProjX, self.imageProjY )
-      self.ui.projH.update()
-      self.ui.projV.update()
-            
+                                  self.ui.display_image.rectRoi.oriented() )
+      self.ui.projH.makeImage(projXmin, projXmax, projYmin, projYmax)
+      self.ui.projV.makeImage(projXmin, projXmax, projYmin, projYmax)
+
       if roiMean == 0:
         roiVarByMean = 0
       else:
@@ -1422,14 +1415,9 @@ class GraphicUserInterface(QMainWindow):
       self.ui.labelRoiInfo.setText( "ROI Mean %-7.2f Std %-7.2f Var/Mean %-7.2f (%d,%d) W %d H %d" % (
         roiMean, math.sqrt(roiVar), roiVarByMean,
         roi.x(), roi.y(), roi.width(), roi.height() ) )        
-      if param.isRotated():
-        self.ui.labelProjHmax.setText( "%d -" % projYmax )
-        self.ui.labelProjMin.setText ( "%d\n%d\\" % (projYmin, projXmin) )
-        self.ui.labelProjVmax.setText( "| %d" % projXmax )
-      else:
-        self.ui.labelProjHmax.setText( "%d -" % projXmax )
-        self.ui.labelProjMin.setText ( "%d\n%d\\" % (projXmin, projYmin) )
-        self.ui.labelProjVmax.setText( "| %d" % projYmax )
+      self.ui.labelProjHmax.setText( "%d -" % projXmax )
+      self.ui.labelProjMin.setText ( "%d\n%d\\" % (projXmin, projYmin) )
+      self.ui.labelProjVmax.setText( "| %d" % projYmax )
     except Exception, e:
       print "updateProj:: exception: ", e             
       
