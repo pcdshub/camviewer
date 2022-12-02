@@ -16,14 +16,12 @@ from dialogs import timeoutdialog
 from dialogs import forcedialog
 
 import sys, os
-sys.path.append(os.getcwd() + "/pycaqtimage")
-import pycaqtimage
+from pycaqtimage import pycaqtimage
 import pyca
 import math
 import re
 import time
 import tempfile
-#import Image
 import functools
 import numpy as np
 

@@ -135,7 +135,6 @@ class ProjWidget(QWidget):
     canvas.draw()
     width, height = canvas.get_width_height()
     img = QImage(canvas.buffer_rgba(), width, height, QImage.Format_ARGB32)
-    img.save("/cds/home/m/mcbrowne/controls/camviewer/img.jpg", format=None, quality=-1)
     if self.is_x:
       self.image = img
     else:

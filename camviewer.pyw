@@ -55,13 +55,11 @@ if __name__ == '__main__':
   except:
     pass
 
-  #MCB??? QApplication.setGraphicsSystem("raster")
   app = QApplication([''])
   gui = GraphicUserInterface(app, cwd, options.instrument, options.camera, options.camerapv,
                              cameraListFilename, cfgdir, activedir,
                              rate, options.idle, options)
   try:
-#    sys.setcheckinterval(1000) # default is 100
     gui.show()
     retval = app.exec_()
   except KeyboardInterrupt:
