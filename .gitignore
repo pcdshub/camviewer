@@ -5,3 +5,6 @@
 *.o
 *.so
 sip*
+pycaqtimage/Makefile
+pycaqtimage/pycaqtimage.sbf
+pycaqtimage/pycaqtimage.exp

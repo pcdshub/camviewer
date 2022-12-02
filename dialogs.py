@@ -2,8 +2,6 @@ import os
 import advanced_ui
 import markers_ui
 import specific_ui
-import droplet_ui
-import xtcrdr_ui
 import timeout_ui
 from PyQt5 import QtCore, QtNetwork, uic
 from PyQt5.QtGui import *
@@ -49,20 +47,6 @@ class specificdialog(QDialog):
 
     def closeEvent(self, event):
       QDialog.closeEvent(self, event)
-
-class dropletdialog(QDialog):
-    def __init__(self, gui, parent=None):
-      QWidget.__init__(self, parent)
-      self.gui = gui
-      self.ui = droplet_ui.Ui_Dialog()
-      self.ui.setupUi(self)
-
-class xtcrdrdialog(QDialog):
-    def __init__(self, gui, parent=None):
-      QWidget.__init__(self, parent)
-      self.gui = gui
-      self.ui = xtcrdr_ui.Ui_Dialog()
-      self.ui.setupUi(self)
 
 class timeoutdialog(QDialog):
     def __init__(self, gui, idle, parent=None):

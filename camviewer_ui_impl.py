@@ -9,12 +9,9 @@
 #
 from camviewer_ui import Ui_MainWindow
 from psp.Pv import Pv
-#from xtcrdr import xtcrdr
 from dialogs import advdialog
 from dialogs import markerdialog
 from dialogs import specificdialog
-from dialogs import dropletdialog
-from dialogs import xtcrdrdialog
 from dialogs import timeoutdialog
 from dialogs import forcedialog
 
@@ -151,7 +148,6 @@ class GraphicUserInterface(QMainWindow):
   miscUpdate = pyqtSignal()
   avgUpdate = pyqtSignal()
   sizeUpdate = pyqtSignal()
-  IOCUpdate = pyqtSignal()
   cross1Update = pyqtSignal()
   cross2Update = pyqtSignal()
   cross3Update = pyqtSignal()
@@ -207,7 +203,6 @@ class GraphicUserInterface(QMainWindow):
     self.connected       = False
     self.cameraBase      = ""
     self.camera          = None
-    self.camtype         = None
     self.notify          = None
     self.haveNewImage    = False
     self.lastGetDone     = True
@@ -221,13 +216,6 @@ class GraphicUserInterface(QMainWindow):
     self.rowPv           = None
     self.colPv           = None
     self.scale           = 1
-    self.shiftPv         = None
-    self.iocRoiXPv       = None
-    self.iocRoiYPv       = None
-    self.iocRoiHPv       = None
-    self.iocRoiWPv       = None
-    self.params1Pv        = None
-    self.params2Pv        = None
     self.fLensPrevValue  = -1
     self.fLensValue      = 0
     self.avgState        = SINGLE_FRAME
@@ -243,11 +231,6 @@ class GraphicUserInterface(QMainWindow):
     self.globmarkpvs2    = []
     self.pulnixmodes     = [":SetAsyncShutter", ":SetManualShutter", ":SetDirectShutter"]
     self.lastimagetime   = [0, 0]
-    self.simtype = None
-    self.xtcrdr = None
-    self.xtcdir = os.getenv("HOME")
-    self.xtclocs = []
-    self.xtcidx  = 0
     self.dispspec = 0
     self.otherpvs = []
 
@@ -296,13 +279,6 @@ class GraphicUserInterface(QMainWindow):
     self.specificdialog = specificdialog(self)
     self.specificdialog.hide()
     
-    self.dropletdialog = dropletdialog(self)
-    self.dropletdialog.hide()
-    
-    self.xtcrdrdialog = xtcrdrdialog(self)
-    self.xtcrdrdialog.hide()
-    self.xtcdirinit()
-    
     self.timeoutdialog = timeoutdialog(self, idle)
     self.timeoutdialog.hide()
 
@@ -322,11 +298,8 @@ class GraphicUserInterface(QMainWindow):
     self.ui.labelLens.setVisible(False)
     self.ui.horizontalSliderLens.setVisible(False)
     self.ui.lineEditLens.setVisible(False)
-    self.ui.groupBoxIOC.setVisible(False)
     self.ui.rem_avg.setVisible(False)
     self.ui.remote_average.setVisible(False)
-    self.ui.menuDroplet.menuAction().setVisible(False)
-    self.ui.groupBoxDrop.setVisible(False)
 
     # Resize the main window!
     self.ui.display_image.setImageSize(False)
@@ -448,13 +421,10 @@ class GraphicUserInterface(QMainWindow):
     self.miscUpdate.connect(self.onMiscUpdate)
     self.avgUpdate.connect(self.onAvgUpdate)
     self.sizeUpdate.connect(self.onSizeUpdate)
-    self.IOCUpdate.connect(self.onIOCUpdate)
     self.cross1Update.connect(lambda : self.onCrossUpdate(0))
     self.cross2Update.connect(lambda : self.onCrossUpdate(1))
     self.cross3Update.connect(lambda : self.onCrossUpdate(2))
     self.cross4Update.connect(lambda : self.onCrossUpdate(3))
-    self.param1Update.connect(self.onParam1Update)
-    self.param2Update.connect(self.onParam2Update)
     self.timeoutExpiry.connect(self.onTimeoutExpiry)
 
     self.ui.showconf.triggered.connect(self.doShowConf)
@@ -468,65 +438,16 @@ class GraphicUserInterface(QMainWindow):
 
     self.advdialog.ui.buttonBox.clicked.connect(self.onAdvanced)
     self.specificdialog.ui.buttonBox.clicked.connect(self.onSpecific)
-    self.dropletdialog.ui.buttonBox.clicked.connect(self.onDroplet)
 
     self.specificdialog.ui.cameramodeG.currentIndexChanged.connect(lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeG, n))
-    self.specificdialog.ui.cameramodeP.currentIndexChanged.connect(lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeP, n))
-    self.specificdialog.ui.cameramodeO.currentIndexChanged.connect(lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeO, n))
-
     self.specificdialog.ui.gainG.returnPressed.connect(lambda : self.lineFloatWriteCallback(self.specificdialog.ui.gainG))
-    self.specificdialog.ui.gainAP.returnPressed.connect(lambda : self.lineIntWriteCallback(self.specificdialog.ui.gainAP))
-    self.specificdialog.ui.gainBP.returnPressed.connect(lambda : self.lineIntWriteCallback(self.specificdialog.ui.gainBP))
-    self.specificdialog.ui.gainO.returnPressed.connect(lambda : self.lineFloatWriteCallback(self.specificdialog.ui.gainO))
-    self.specificdialog.ui.gainU.returnPressed.connect(lambda : self.lineIntWriteCallback(self.specificdialog.ui.gainU))
-
     self.specificdialog.ui.timeG.returnPressed.connect(lambda : self.lineFloatWriteCallback(self.specificdialog.ui.timeG))
-    self.specificdialog.ui.timeO.returnPressed.connect(lambda : self.lineIntWriteCallback(self.specificdialog.ui.timeO))
-
     self.specificdialog.ui.periodG.returnPressed.connect(lambda : self.lineFloatWriteCallback(self.specificdialog.ui.periodG))
-    self.specificdialog.ui.periodO.returnPressed.connect(lambda : self.lineIntWriteCallback(self.specificdialog.ui.periodO))
-
-    self.specificdialog.ui.timeP.currentIndexChanged.connect(lambda n: self.comboWriteCallback(self.specificdialog.ui.timeP, n))
-    self.specificdialog.ui.timeU.currentIndexChanged.connect(lambda n: self.comboWriteCallback(self.specificdialog.ui.timeU, n))
-
     self.specificdialog.ui.runButtonG.clicked.connect(lambda : self.buttonWriteCallback(self.specificdialog.ui.runButtonG))
-
-    self.ui.IOC_RoiX.returnPressed.connect(self.onIOCROIX)
-    self.ui.IOC_RoiY.returnPressed.connect(self.onIOCROIY)
-    self.ui.IOC_RoiW.returnPressed.connect(self.onIOCROIW)
-    self.ui.IOC_RoiH.returnPressed.connect(self.onIOCROIH)
-    self.ui.shiftText.returnPressed.connect(self.onShiftText)
-    self.ui.shiftSlider.valueChanged.connect(self.onShiftSliderChanged )
-    self.ui.shiftSlider.sliderReleased.connect( self.onShiftSliderReleased)
-
-    # Droplet stuff!
-    self.ui.setROI.clicked.connect(self.onDropRoiSet)
-    self.ui.fetchROI.clicked.connect(self.onDropRoiFetch)
-    self.ui.actionFetchROI1.triggered.connect(self.onFetchROI1)
-    self.ui.actionFetchROI2.triggered.connect(self.onFetchROI2)
-    self.ui.actionSetROI1.triggered.connect(self.onSetROI1)
-    self.ui.actionSetROI2.triggered.connect(self.onSetROI2)
-    self.ui.actionShowDrop.triggered.connect(self.onShowDropAction)
-    self.ui.showdrops.stateChanged.connect(self.onShowDrops)
-    self.ui.param1_0.returnPressed.connect(self.onParam1_0)
-    self.ui.param1_1.returnPressed.connect(self.onParam1_1)
-    self.ui.param2_0.returnPressed.connect(self.onParam2_0)
-    self.ui.param2_1.returnPressed.connect(self.onParam2_1)
-    self.ui.actionAdjustDrop.triggered.connect(self.doShowDroplet)
-    self.ui.ROI1.toggled.connect(self.onDebugROI1)
-    self.ui.ROI2.toggled.connect(self.onDebugROI2)
-    self.ui.dropDebug.toggled.connect(self.onDropDebug)
     
     # set camera pv and start display
     self.ui.menuCameras.triggered.connect(self.onCameraMenuSelect)
     self.ui.comboBoxCamera.currentIndexChanged.connect(self.onCameraSelect)
-
-    self.xtcrdrdialog.ui.dirselect.clicked.connect(self.onXtcrdrDir)
-    self.xtcrdrdialog.ui.openButton.clicked.connect(self.onXtcrdrOpen)
-    self.xtcrdrdialog.ui.prevButton.clicked.connect(self.onXtcrdrPrev)
-    self.xtcrdrdialog.ui.nextButton.clicked.connect(self.onXtcrdrNext)
-    self.xtcrdrdialog.ui.skipButton.clicked.connect(self.onXtcrdrSkip)
-    self.xtcrdrdialog.ui.backButton.clicked.connect(self.onXtcrdrBack)
 
     # Sigh, we might change this if taking a one-liner!
     camera = options.camera
@@ -598,8 +519,6 @@ class GraphicUserInterface(QMainWindow):
     self.advdialog.close()
     self.markerdialog.close()
     self.specificdialog.close()
-    self.dropletdialog.close()
-    self.xtcrdrdialog.close()
     if self.cfg == None:
       self.dumpConfig()
     QMainWindow.closeEvent(self, event)
@@ -731,11 +650,6 @@ class GraphicUserInterface(QMainWindow):
     self.ui.groupBoxZoom.setVisible(v)
     self.ui.groupBoxROI.setVisible(v)
     self.ui.RightPanel.invalidate()
-    if self.lType[self.index] == "IC":
-      self.ui.groupBoxIOC.setVisible(v)
-      self.ui.shiftWidget.setVisible(v and self.shiftPv != None)
-    else:
-      self.ui.groupBoxIOC.setVisible(False)
     self.finishResize()
     if self.cfg == None:
       # print("done doShowConf")
@@ -849,84 +763,8 @@ class GraphicUserInterface(QMainWindow):
           self.onCrossUpdate(3)
       else:
         self.useglobmarks2 = self.disconnectMarkerPVs2()
-      self.ui.showdrops.setChecked(self.useglobmarks2)
-      self.ui.actionShowDrop.setChecked(self.useglobmarks2)
       if self.cfg == None:
         self.dumpConfig()
-
-  def onShowDropAction(self):
-    self.setUseGlobalMarkers2(self.ui.actionShowDrop.isChecked())
-
-  def onShowDrops(self, newval):
-    self.setUseGlobalMarkers2(newval != 0)
-
-  def onParam1_0(self):
-    try:
-      v = float(self.ui.param1_0.text())
-      l = list(self.params1Pv.value)
-      l[0] = v
-      self.params1Pv.put(tuple(l))
-      pyca.flush_io()
-    except:
-      self.ui.param1_0.setText("%g" % self.params1Pv.value[0])
-      self.dropletdialog.ui.param1_0.setText("%g" % self.params1Pv.value[0])
-
-  def onParam1_1(self):
-    try:
-      v = float(self.ui.param1_1.text())
-      l = list(self.params1Pv.value)
-      l[1] = v
-      self.params1Pv.put(tuple(l))
-      pyca.flush_io()
-    except:
-      self.ui.param1_1.setText("%g" % self.params1Pv.value[1])
-      self.dropletdialog.ui.param1_1.setText("%g" % self.params1Pv.value[1])
-
-  def onParam2_0(self):
-    try:
-      v = float(self.ui.param2_0.text())
-      l = list(self.params2Pv.value)
-      l[0] = v
-      self.params2Pv.put(tuple(l))
-      pyca.flush_io()
-    except:
-      self.ui.param2_0.setText("%g" % self.params2Pv.value[0])
-      self.dropletdialog.ui.param2_0.setText("%g" % self.params2Pv.value[0])
-
-  def onParam2_1(self):
-    try:
-      v = float(self.ui.param2_1.text())
-      l = list(self.params2Pv.value)
-      l[1] = v
-      self.params2Pv.put(tuple(l))
-      pyca.flush_io()
-    except:
-      self.ui.param2_1.setText("%g" % self.params2Pv.value[1])
-      self.dropletdialog.ui.param2_1.setText("%g" % self.params2Pv.value[1])
-
-  def onParam1Update(self):
-    self.ui.param1_0.setText("%g" % self.params1Pv.value[0])
-    self.dropletdialog.ui.param1_0.setText("%g" % self.params1Pv.value[0])
-    self.ui.param1_1.setText("%g" % self.params1Pv.value[1])
-    self.dropletdialog.ui.param1_1.setText("%g" % self.params1Pv.value[1])
-
-  def onParam2Update(self):
-    self.ui.param2_0.setText("%g" % self.params2Pv.value[0])
-    self.dropletdialog.ui.param2_0.setText("%g" % self.params2Pv.value[0])
-    self.ui.param2_1.setText("%g" % self.params2Pv.value[1])
-    self.dropletdialog.ui.param2_1.setText("%g" % self.params2Pv.value[1])
-
-  def param1Callback(self, exception=None):           
-    if exception is None:
-      self.param1Update.emit()
-    else:
-      print("noise1Callback(): %-30s " % (self.name), exception)
-
-  def param2Callback(self, exception=None):           
-    if exception is None:
-      self.param2Update.emit()
-    else:
-      print("noise2Callback(): %-30s " % (self.name), exception)
 
   def onMarkerTextEnter(self, n):
     self.ui.display_image.lMarker[n].setRel(float(self.ui.xmark[n].text()), 
@@ -1481,6 +1319,11 @@ class GraphicUserInterface(QMainWindow):
 
         if sEvrNew != "":
           sEvr = sEvrNew
+
+        if sType != 'GE' and sType != 'AD':
+          print("Unsupported camera type: %s for %s (%s)" % (sType, sCameraPv, sCameraDesc))
+          iCamera -= 1
+          continue
           
         self.lType      .append(sType)
         self.lFlags     .append(sFlag)
@@ -1520,173 +1363,19 @@ class GraphicUserInterface(QMainWindow):
       except:
         pass
     return None
-
-  def xtcdirinit(self):
-    self.xtcrdrdialog.ui.currentdir.setText(self.xtcdir)
-    self.xtcrdrdialog.ui.xtcfile.clear()
-    dirlist = os.listdir(self.xtcdir)
-    dirlist.sort()
-    for file in dirlist:
-      match = re.search("(e...-r....)-s..-c...xtc", file)
-      if match:
-        self.xtcrdrdialog.ui.xtcfile.addItem(match.group(1))
-
-  def onXtcrdrDir(self):
-    file = str(QFileDialog.getExistingDirectory(self, "XTC File Directory", self.xtcdir))
-    if file != "":
-      self.xtcdir = file;
-      self.xtcdirinit()
-
-  def findatom(self, name):
-    length = len(name)
-    for a in self.xtcrdr.atoms:
-      if a[-length:] == name:
-        return a
-    return None
-  
-  def onXtcrdrOpen(self):
-    try:
-      file = self.xtcdir + "/" + self.xtcrdrdialog.ui.xtcfile.currentText() + "-s00"
-      self.xtcrdr = xtcrdr()
-      self.xtcidx = 0
-      l = self.xtcrdr.open(str(file))
-      if (l == None):
-        QMessageBox.critical(None,
-                             "Error", "Failed to open %s" % (str(file)),
-                             QMessageBox.Ok, QMessageBox.Ok)
-        return
-      self.xtclocs = [l]
-      self.xtcrdrdialog.ui.location.setText("%d:%d" % self.xtclocs[self.xtcidx])
-      #
-      # Search for an atom that identifies the correct type of camera.
-      # If we have two or more, do we want a combobox to choose and not
-      # just take the first?
-      #
-      camera_atom = ""
-      if self.simtype == "O":
-        p = re.compile("\|Opal1000-")
-        for atom in self.xtcrdr.atoms:
-          if p.search(atom) != None:
-            camera_atom = atom
-            break
-      elif self.simtype == "P":
-        # Future pulnix code.
-        pass
-      self.xtcrdr.associate(camera_atom, self.notify)
-      self.xtcrdr.associate(camera_atom, self.camera)
-
-      atom = self.findatom("DX1")
-      if (atom):
-        self.xtcrdr.associate(atom, self.globmarkpvs2[0])
-
-      atom = self.findatom("DY1")
-      if (atom):
-        self.xtcrdr.associate(atom, self.globmarkpvs2[1])
-
-      atom = self.findatom("DX2")
-      if (atom):
-        self.xtcrdr.associate(atom, self.globmarkpvs2[2])
-
-      atom = self.findatom("DY2")
-      if (atom):
-        self.xtcrdr.associate(atom, self.globmarkpvs2[3])
-
-      self.xtcrdr.process()
-    except:
-      pass
-
-  def onXtcrdrNext(self):
-    if self.xtcrdr == None:
-      return
-    try:
-      newloc = self.xtcrdr.next()
-      if newloc != None:
-        self.xtcidx += 1
-        if self.xtcidx == len(self.xtclocs):
-          self.xtclocs.append(newloc)
-        self.xtcrdrdialog.ui.location.setText("%d:%d" % self.xtclocs[self.xtcidx])
-        self.xtcrdr.process()
-    except:
-      pass
-
-  def onXtcrdrSkip(self):
-    if self.xtcrdr == None:
-      return
-    try:
-      v = int(self.xtcrdrdialog.ui.skipCount.text())
-      while (v > 0):
-        newloc = self.xtcrdr.next()
-        if newloc != None:
-          self.xtcidx += 1
-          if self.xtcidx == len(self.xtclocs):
-            self.xtclocs.append(newloc)
-          v -= 1
-        else:
-          self.xtcrdr.moveto(self.xtclocs[self.xtcidx])
-          v = 0
-      self.xtcrdrdialog.ui.location.setText("%d:%d" % self.xtclocs[self.xtcidx])
-      self.xtcrdr.process()
-    except:
-      pass
-
-  def onXtcrdrPrev(self):
-    if self.xtcrdr == None or self.xtcidx == 0:
-      return
-    try:
-      self.xtcidx -= 1
-      self.xtcrdr.moveto(self.xtclocs[self.xtcidx])
-      self.xtcrdrdialog.ui.location.setText("%d:%d" % self.xtclocs[self.xtcidx])
-      self.xtcrdr.process()
-    except:
-      pass
-
-  def onXtcrdrBack(self):
-    if self.xtcrdr == None or self.xtcidx == 0:
-      return
-    try:
-      v = int(self.xtcrdrdialog.ui.skipCount.text())
-      if (v > self.xtcidx):
-        self.xtcidx = 0
-      else:
-        self.xtcidx -= v
-      self.xtcrdr.moveto(self.xtclocs[self.xtcidx])
-      self.xtcrdrdialog.ui.location.setText("%d:%d" % self.xtclocs[self.xtcidx])
-      self.xtcrdr.process()
-    except:
-      pass
   
   def connectPv(self, name, timeout=5.0, count=None):
     try:
-      if self.simtype == None:
-        pv = Pv(name, count=count, initialize=True)
-        try:
-          pv.wait_ready(timeout)
-        except Exception as exc:
-          print(exc)
-          QMessageBox.critical(None,
-                               "Error", "Failed to initialize PV %s" % (name),
-                               QMessageBox.Ok, QMessageBox.Ok)
-          return None
-        return pv
-      elif self.simtype == "O":
-        tgt = name.split(":")[-1]
-        if tgt[0:5] == "Cross":
-          return None
-        pv = Pv(name, True)
-        if tgt[0:2] == "DX" or tgt[0:2] == "DY":
-          pv.setvalue(0)
-        elif tgt == "N_OF_ROW" or tgt == "N_OF_COL":
-          pv.setvalue(1024)
-        elif tgt == "N_OF_BITS":
-          pv.setvalue(12)
-        elif tgt == "LIVE_IMAGE_FULL":
-          pv.setvalue(tuple(1024*1024*[0]))
-        elif tgt[0:6] == "PARAMS":
-          pv.setvalue(25*[0.0])
-          pv.value[0] = 0.5
-        else:
-          print("Do we need to simulate %s?" % name)
-        return pv
+      pv = Pv(name, count=count, initialize=True)
+      try:
+        pv.wait_ready(timeout)
+      except Exception as exc:
+        print(exc)
+        QMessageBox.critical(None,
+                             "Error", "Failed to initialize PV %s" % (name),
+                             QMessageBox.Ok, QMessageBox.Ok)
+        return None
+      return pv
     except Exception as exc:
       print(exc)
       QMessageBox.critical(None,
@@ -1844,28 +1533,6 @@ class GraphicUserInterface(QMainWindow):
       self.ui.display_image.readpvname = self.camera.name
     else:
       self.ui.display_image.readpvname = None
-    if self.iocRoiXPv != None:
-      self.ui.IOC_RoiX.readpvname = self.iocRoiXPv.name
-    else:
-      self.ui.IOC_RoiX.readpvname = None
-    if self.iocRoiYPv != None:
-      self.ui.IOC_RoiY.readpvname = self.iocRoiYPv.name
-    else:
-      self.ui.IOC_RoiY.readpvname = None
-    if self.iocRoiWPv != None:
-      self.ui.IOC_RoiW.readpvname = self.iocRoiWPv.name
-    else:
-      self.ui.IOC_RoiW.readpvname = None
-    if self.iocRoiHPv != None:
-      self.ui.IOC_RoiH.readpvname = self.iocRoiHPv.name
-    else:
-      self.ui.IOC_RoiH.readpvname = None
-    if self.shiftPv != None:
-      self.ui.shiftSlider.readpvname = self.shiftPv.name
-      self.ui.shiftText.readpvname = self.shiftPv.name
-    else:
-      self.ui.shiftSlider.readpvname = None
-      self.ui.shiftText.readpvname = None
     if self.lensPv != None:
       self.ui.horizontalSliderLens.readpvname = self.lensPv.name
       self.ui.lineEditLens.readpvname = self.lensPv.name
@@ -1885,42 +1552,10 @@ class GraphicUserInterface(QMainWindow):
     self.nelmPv    = self.disconnectPv(self.nelmPv)
     self.rowPv     = self.disconnectPv(self.rowPv)
     self.colPv     = self.disconnectPv(self.colPv)
-    self.shiftPv   = self.disconnectPv(self.shiftPv)
-    self.iocRoiXPv = self.disconnectPv(self.iocRoiXPv)
-    self.iocRoiYPv = self.disconnectPv(self.iocRoiYPv)
-    self.iocRoiWPv = self.disconnectPv(self.iocRoiWPv)
-    self.iocRoiHPv = self.disconnectPv(self.iocRoiHPv)
-    self.params1Pv = self.disconnectPv(self.params1Pv)
-    self.params2Pv = self.disconnectPv(self.params2Pv)
-    sType = self.lType[index]
-    # XTC is a special hack to display images from a file.
-    if sType == "XTC":
-      if "O" in self.lFlags[index]:
-        # A simulated Opal.
-        self.simtype = "O"
-        self.xtcrdrdialog.show()
-      else:
-        self.simtype = None
-        self.xtcrdrdialog.hide()
-    else:
-      self.simtype = None
-      self.xtcrdrdialog.hide()
-    self.xtcrdr = None
 
-    self.cfgname = self.cameraBase + "," + sType
+    self.cfgname = self.cameraBase + ",GE"
     if self.lFlags[index] != "":
       self.cfgname += "," + self.lFlags[index]
-
-    # Set camera type
-    print("Setting camtype for %s ..." % ( sType ))
-    if sType == "GE" or sType == "XTC" or sType == "DREC":
-      self.camtype = [sType]
-    else:
-      self.camtype = caget(self.cameraBase + ":ID")
-      if self.camtype != None and self.camtype != "":
-        self.camtype = self.camtype.split()
-      else:
-        self.camtype = ["unknown"]
 
     # Try to connect to the camera
     try:
@@ -1945,115 +1580,27 @@ class GraphicUserInterface(QMainWindow):
 
     # Try to get the camera size!
     self.scale = 1
-    if sType == "IC":
-      if "Z" in self.lFlags[index]:
-        self.rowPv     = self.connectPv(self.cameraBase + ":IMAGE:DoPrj.NOVA")
-        self.colPv     = self.connectPv(self.cameraBase + ":IMAGE:DoPrj.NOVB")
-        self.shiftPv   = None
-        self.iocRoiXPv = self.connectPv(self.cameraBase + ":ROI_X_Start")
-        self.iocRoiYPv = self.connectPv(self.cameraBase + ":ROI_Y_Start")
-        self.iocRoiWPv = self.connectPv(self.cameraBase + ":ROI_X_End")
-        self.iocRoiHPv = self.connectPv(self.cameraBase + ":ROI_Y_End")
-        self.bits = 8
-      elif "R" in self.lFlags[index]:
-        self.rowPv     = self.connectPv(self.cameraBase + ":ROI_YNP")
-        self.colPv     = self.connectPv(self.cameraBase + ":ROI_XNP")
-        self.shiftPv   = None
-        self.iocRoiXPv = self.connectPv(self.cameraBase + ":ROI_X")
-        self.iocRoiYPv = self.connectPv(self.cameraBase + ":ROI_Y")
-        self.iocRoiWPv = self.connectPv(self.cameraBase + ":ROI_XNP")
-        self.iocRoiHPv = self.connectPv(self.cameraBase + ":ROI_YNP")
-        self.bits = 12
-      elif "M" in self.lFlags[index]:
-        self.rowPv     = self.connectPv(self.cameraBase + ":IC_YNP")
-        self.colPv     = self.connectPv(self.cameraBase + ":IC_XNP")
-        self.shiftPv   = None
-        self.iocRoiXPv = self.connectPv(self.cameraBase + ":ROI_X_SET")
-        self.iocRoiYPv = self.connectPv(self.cameraBase + ":ROI_Y_SET")
-        self.iocRoiWPv = self.connectPv(self.cameraBase + ":ROI_XNP_SET")
-        self.iocRoiHPv = self.connectPv(self.cameraBase + ":ROI_YNP_SET")
-        self.bits = caget(self.cameraBase + ":ROI_BITS")   # This should be monitored!
-      else:
-        self.rowPv     = self.connectPv(self.cameraBase + ":COMPRESSOR.VALF")
-        self.colPv     = self.connectPv(self.cameraBase + ":COMPRESSOR.VALE")
-        self.shiftPv   = self.connectPv(self.cameraBase + ":SHIFT")
-        self.iocRoiXPv = self.connectPv(self.cameraBase + ":ROI_X")
-        self.iocRoiYPv = self.connectPv(self.cameraBase + ":ROI_Y")
-        self.iocRoiWPv = self.connectPv(self.cameraBase + ":ROI_XNP")
-        self.iocRoiHPv = self.connectPv(self.cameraBase + ":ROI_YNP")
-        self.bits = 8
-      self.ui.groupBoxIOC.setVisible(self.ui.showconf.isChecked())
-      self.ui.shiftWidget.setVisible(self.ui.showconf.isChecked() and self.shiftPv != None)
-      self.isColor = False
-    elif sType == "GE":
-      if caget(self.cameraBase + ":ArraySize0_RBV") == 3:
-        # It's a color camera!
-        self.rowPv = self.connectPv(self.cameraBase + ":ArraySize2_RBV")
-        self.colPv = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
-        self.isColor = True
-        self.bits = caget(self.cameraBase + ":BIT_DEPTH")
-        if self.bits == None:
-          self.bits = 10
-      else:
-        # Just B/W!
-        self.rowPv = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
-        self.colPv = self.connectPv(self.cameraBase + ":ArraySize0_RBV")
-        self.isColor = False
-        if self.lFlags[index] != "":
-          self.bits = int(self.lFlags[index])
-        else:
-          self.bits = caget(self.cameraBase + ":BitsPerPixel_RBV")
-          if self.bits == None:
-            self.bits = caget(self.cameraBase + ":BIT_DEPTH")
-            if self.bits == None:
-              self.bits = 8
-        self.ui.groupBoxIOC.setVisible(False)
-    elif sType == "MCC":
-      self.rowPv = self.connectPv(self.cameraBase + ":ROI_YNP")
-      self.colPv = self.connectPv(self.cameraBase + ":ROI_XNP")
-      self.ui.groupBoxIOC.setVisible(False)
-      if self.simtype == None:
-        self.bits = caget(self.cameraBase + ":N_OF_BITS")
-      elif self.simtype == "O":
-        self.bits = 12
-      else:
-        self.bits = None
-      if (self.bits == None):
-        self.bits = 12              # Sigh.  This is probably more than enough.
-      self.isColor = False
-    elif sType == "DREC":
-      self.rowPv = self.connectPv(self.cameraBase + ".CROW")
-      self.colPv = self.connectPv(self.cameraBase + ".CCOL")
-      self.bits = caget(self.cameraBase + ".CBIT")
-      self.ui.groupBoxIOC.setVisible(False)
-      self.isColor = False
+    if caget(self.cameraBase + ":ArraySize0_RBV") == 3:
+      # It's a color camera!
+      self.rowPv = self.connectPv(self.cameraBase + ":ArraySize2_RBV")
+      self.colPv = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
+      self.isColor = True
+      self.bits = caget(self.cameraBase + ":BIT_DEPTH")
+      if self.bits == None:
+        self.bits = 10
     else:
-      if sType == "LIO" or sType == "LI":
-        self.scale = 2
-      if sType == "LIX":
-        self.scale = 2
-        self.colPv = self.connectPv(self.cameraBase + ":ROI_XNP")
-        self.rowPv = self.connectPv(self.cameraBase + ":ROI_YNP")
-      else:
-        self.rowPv = self.connectPv(self.cameraBase + ":N_OF_ROW")
-        self.colPv = self.connectPv(self.cameraBase + ":N_OF_COL")
-      self.ui.groupBoxIOC.setVisible(False)
-      if self.simtype == None:
-        self.bits = caget(self.cameraBase + ":N_OF_BITS")
-      elif self.simtype == "O":
-        self.bits = 12
-      else:
-        self.bits = None
-      if (self.bits == None):
-        self.bits = 12              # Sigh.  This is probably more than enough.
+      # Just B/W!
+      self.rowPv = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
+      self.colPv = self.connectPv(self.cameraBase + ":ArraySize0_RBV")
       self.isColor = False
-
-    havedrop = "D" in self.lFlags[index]
-    self.ui.menuDroplet.menuAction().setVisible(havedrop)
-    self.ui.groupBoxDrop.setVisible(havedrop)
-    if havedrop:
-      self.params1Pv = self.connectPv(self.cameraBase + ":PARAMS1")
-      self.params2Pv = self.connectPv(self.cameraBase + ":PARAMS2")
+      if self.lFlags[index] != "":
+        self.bits = int(self.lFlags[index])
+      else:
+        self.bits = caget(self.cameraBase + ":BitsPerPixel_RBV")
+        if self.bits == None:
+          self.bits = caget(self.cameraBase + ":BIT_DEPTH")
+          if self.bits == None:
+            self.bits = 8
       
     self.maxcolor = (1 << self.bits) - 1
     self.ui.horizontalSliderRangeMin.setMaximum(self.maxcolor)
@@ -2091,27 +1638,12 @@ class GraphicUserInterface(QMainWindow):
     self.notify.monitor(pyca.DBE_VALUE, False, 1) # Just 1 pixel, so a new image is available.
     self.rowPv.monitor(pyca.DBE_VALUE)
     self.colPv.monitor(pyca.DBE_VALUE)
-    if self.shiftPv != None:
-      self.shiftPv.add_monitor_callback(self.iocroiCallback)
-    if self.iocRoiXPv != None:
-      self.iocRoiXPv.add_monitor_callback(self.iocroiCallback)
-    if self.iocRoiYPv != None:
-      self.iocRoiYPv.add_monitor_callback(self.iocroiCallback)
-    if self.iocRoiWPv != None:
-      self.iocRoiWPv.add_monitor_callback(self.iocroiCallback)
-    if self.iocRoiHPv != None:
-      self.iocRoiHPv.add_monitor_callback(self.iocroiCallback)
-    if self.params1Pv != None:
-      self.params1Pv.add_monitor_callback(self.param1Callback)
-    if self.params2Pv != None:
-      self.params2Pv.add_monitor_callback(self.param2Callback)
     pyca.flush_io()
     self.sWindowTitle = "Camera: " + self.lCameraDesc[index]
     self.setWindowTitle("MainWindow")
     self.advdialog.setWindowTitle(self.sWindowTitle + " Advanced Mode")
     self.markerdialog.setWindowTitle(self.sWindowTitle + " Marker Settings")
     self.specificdialog.setWindowTitle(self.sWindowTitle + " Camera Settings")
-    self.dropletdialog.setWindowTitle(self.sWindowTitle + " Droplet Settings")
 
     # Get camera configuration
     self.getConfig()
@@ -2164,8 +1696,6 @@ class GraphicUserInterface(QMainWindow):
       self.connectCamera(sCameraPv + ":IMAGE_CMPX", index)
     elif sType == "GE":
       self.connectCamera(sCameraPv + ":ArrayData", index)
-    elif sType == "XTC":
-      self.connectCamera(sCameraPv + ":LIVE_IMAGE_FULL", index)
     elif sType == "MCC":
 #     self.connectCamera(sCameraPv + ":IMAGE", index)
       self.connectCamera(sCameraPv + ":BUFD_IMG", index)
@@ -2253,9 +1783,6 @@ class GraphicUserInterface(QMainWindow):
     else:
       self.advdialog.hide()
 
-  def doShowDroplet(self):
-    self.dropletdialog.show()
-
   def doShowSpecific(self):
     try:
       if self.camera == None:
@@ -2265,12 +1792,8 @@ class GraphicUserInterface(QMainWindow):
                              "Warning", "Camera-specific configuration is on main screen!",
                              QMessageBox.Ok, QMessageBox.Ok)
         return
-      camtype = self.camtype[0]
-      if camtype == "UP685":
-        raise Exception
-      else:
-        self.specificdialog.resize(400,1)
-        self.specificdialog.show()
+      self.specificdialog.resize(400,1)
+      self.specificdialog.show()
     except:
       pass
 
@@ -2358,46 +1881,13 @@ class GraphicUserInterface(QMainWindow):
       caput(button.writepvname, 0)
 
   def setupSpecific(self):
-    self.specificdialog.ui.gigeBox.hide()
-    self.specificdialog.ui.opalBox.hide()
-    self.specificdialog.ui.pulnixBox.hide()
-    self.specificdialog.ui.up900Box.hide()
-    camtype = self.camtype[0]
-    if camtype == "UP685":
-      return
-    if camtype == "UP900":
-      self.specificdialog.ui.up900Box.show()
-      self.setupComboMonitor   (":Shutter",  self.specificdialog.ui.timeU,       ":Shutter")
-      self.setupLineEditMonitor(":ReadGain", self.specificdialog.ui.gainU,       ":Gain")
-      return
-    if (camtype == "OPAL-1000m/CL" or camtype == "OPAL-1000m/Q" or
-          camtype == "OPAL-4000m/CL"):
-      self.specificdialog.ui.opalBox.show()
-      self.ui.actionGlobalMarkers.setChecked(self.useglobmarks)
-      self.setupComboMonitor   (":MO",       self.specificdialog.ui.cameramodeO, ":SetMO")
-      self.setupLineEditMonitor(":ReadGain", self.specificdialog.ui.gainO,       ":Gain")
-      self.setupLineEditMonitor(":IT",       self.specificdialog.ui.timeO,       ":SetIT")
-      self.setupLineEditMonitor(":FP",       self.specificdialog.ui.periodO,     ":SetFP")
-      return
-    if camtype == "JAI,":
-      self.specificdialog.ui.pulnixBox.show()
-      self.specificdialog.ui.cameramodeP.hide()  # This just doesn't work!
-      self.specificdialog.ui.cmlabelP.hide()
-      self.ui.actionGlobalMarkers.setChecked(self.useglobmarks)
-      self.setupComboMonitor   (":ShutterMode", self.specificdialog.ui.cameramodeP, None)
-      self.setupComboMonitor   (":Shutter",     self.specificdialog.ui.timeP,       ":Shutter")
-      self.setupLineEditMonitor(":GainA",       self.specificdialog.ui.gainAP,      ":GainA")
-      self.setupLineEditMonitor(":GainB",       self.specificdialog.ui.gainBP,      ":GainB")
-      return
-    if camtype == "GE":
-      self.specificdialog.ui.gigeBox.show()
-      self.ui.actionGlobalMarkers.setChecked(self.useglobmarks)
-      self.setupComboMonitor   (":TriggerMode_RBV",   self.specificdialog.ui.cameramodeG, ":TriggerMode")
-      self.setupLineEditMonitor(":Gain_RBV",          self.specificdialog.ui.gainG,       ":Gain")
-      self.setupLineEditMonitor(":AcquireTime_RBV",   self.specificdialog.ui.timeG,       ":AcquireTime")
-      self.setupLineEditMonitor(":AcquirePeriod_RBV", self.specificdialog.ui.periodG,     ":AcquirePeriod")
-      self.setupButtonMonitor  (":Acquire",           self.specificdialog.ui.runButtonG,  ":Acquire")
-      return
+    self.ui.actionGlobalMarkers.setChecked(self.useglobmarks)
+    self.setupComboMonitor   (":TriggerMode_RBV",   self.specificdialog.ui.cameramodeG, ":TriggerMode")
+    self.setupLineEditMonitor(":Gain_RBV",          self.specificdialog.ui.gainG,       ":Gain")
+    self.setupLineEditMonitor(":AcquireTime_RBV",   self.specificdialog.ui.timeG,       ":AcquireTime")
+    self.setupLineEditMonitor(":AcquirePeriod_RBV", self.specificdialog.ui.periodG,     ":AcquirePeriod")
+    self.setupButtonMonitor  (":Acquire",           self.specificdialog.ui.runButtonG,  ":Acquire")
+    return
 
   def changeSize(self, newwidth, newheight, newproj, settext, doresize=True):
     if( self.colPv == None or self.colPv == 0 or
@@ -2447,28 +1937,6 @@ class GraphicUserInterface(QMainWindow):
 
   def onSpecific(self, button):
     pass
-
-  def onDroplet(self, button):
-    role = self.dropletdialog.ui.buttonBox.buttonRole(button)
-    if role == QDialogButtonBox.ApplyRole or role == QDialogButtonBox.AcceptRole:
-      try:
-        nf1 = float(self.dropletdialog.ui.noisefloor1.text())
-        l = list(self.params1Pv.value)
-        l[0] = nf1
-        self.params1Pv.put(tuple(l))
-      except:
-        print("onDroplet threw an exception")
-      try:
-        nf2 = float(self.dropletdialog.ui.noisefloor2.text())
-        l = list(self.params2Pv.value)
-        l[0] = nf2
-        self.params2Pv.put(tuple(l))
-      except:
-        print("onDroplet threw an exception")
-      try:
-        pyca.flush_io()
-      except:
-        print("onDroplet threw an exception")
         
   def onOpenEvr(self):
     iCamera = self.ui.comboBoxCamera.currentIndex()
@@ -2570,96 +2038,6 @@ class GraphicUserInterface(QMainWindow):
       except pyca.caexc as e:
         print('channel access exception: %s' %(e))
 
-  def onShiftText(self):
-    try:
-      value = int(self.ui.shiftText.text())
-      if value < 0: value = 0
-      if value > 8: value = 8
-      self.ui.shiftText.setText(str(value))
-      self.ui.shiftSlider.setValue(value)
-      self.shiftPv.put(value)
-      pyca.flush_io()
-    except pyca.pyexc as e:
-      print('pyca exception: %s' %(e))
-    except pyca.caexc as e:
-      print('channel access exception: %s' %(e))
-    except:
-      pass
-
-  def onShiftSliderChanged(self, newSliderValue):
-    self.ui.shiftText.setText(str(newSliderValue))
-                           
-  def onShiftSliderReleased(self):
-    newSliderValue = self.ui.shiftSlider.value()
-    try:
-      self.shiftPv.put(newSliderValue)
-      pyca.flush_io()
-    except pyca.pyexc as e:
-      print('pyca exception: %s' %(e))
-    except pyca.caexc as e:
-      print('channel access exception: %s' %(e))
-
-  def onIOCROI(self, gui, name):
-    try:
-      v = int(gui.text())
-      caput(name, v)
-    except:
-      pass
-
-  def onIOCROIX(self):
-    self.onIOCROI(self.ui.IOC_RoiX, self.cameraBase + ":ROI_X_SET")
-
-  def onIOCROIY(self):
-    self.onIOCROI(self.ui.IOC_RoiY, self.cameraBase + ":ROI_Y_SET")
-
-  def onIOCROIW(self):
-    self.onIOCROI(self.ui.IOC_RoiW, self.cameraBase + ":ROI_XNP_SET")
-
-  def onIOCROIH(self):
-    self.onIOCROI(self.ui.IOC_RoiH, self.cameraBase + ":ROI_YNP_SET")
-
-  # Note: this function is called by the CA library, from another thread
-  def iocroiCallback(self, exception=None):           
-    if exception is None:
-      self.IOCUpdate.emit()
-    else:
-      print("iocroiCallback(): %-30s " % (self.name), exception)
-
-  def onIOCUpdate(self):
-    if (self.shiftPv != None):
-      try:
-        v = int(self.shiftPv.value)
-        self.ui.shiftText.setText(str(v))
-        self.ui.shiftSlider.setValue(v)
-      except:
-        pass
-    if (self.iocRoiXPv != None):
-      try:
-        v = int(self.iocRoiXPv.value)
-        self.ui.IOC_RoiX.setText(str(v))
-      except:
-        pass
-    if (self.iocRoiYPv != None):
-      try:
-        v = int(self.iocRoiYPv.value)
-        self.ui.IOC_RoiY.setText(str(v))
-      except:
-        pass
-      pass
-    if (self.iocRoiHPv != None):
-      try:
-        v = int(self.iocRoiHPv.value)
-        self.ui.IOC_RoiH.setText(str(v))
-      except:
-        pass
-      pass
-    if (self.iocRoiWPv != None):
-      try:
-        v = int(self.iocRoiWPv.value)
-        self.ui.IOC_RoiW.setText(str(v))
-      except:
-        pass
-
   def onReconnect(self):
     self.timeoutdialog.reconn()
 
@@ -2722,17 +2100,12 @@ class GraphicUserInterface(QMainWindow):
   def setDispSpec(self, v):
     if v != self.dispspec:
       if v == 0:
-        self.specificdialog.ui.verticalLayout.addWidget(self.specificdialog.ui.gigeBox)
-        self.specificdialog.ui.verticalLayout.addWidget(self.specificdialog.ui.pulnixBox)
-        self.specificdialog.ui.verticalLayout.addWidget(self.specificdialog.ui.opalBox)
-        self.specificdialog.ui.verticalLayout.addWidget(self.specificdialog.ui.buttonBox)
+        self.specificdialog.ui.verticalLayout.addWidget(self.specificdialog.ui.areadetBox)
       else:
         # Sigh.  The last item is a spacer which we need to keep as the last item!
         spc = self.ui.RightPanel.itemAt(self.ui.RightPanel.count() - 1)
         self.ui.RightPanel.removeItem(spc)
-        self.ui.RightPanel.addWidget(self.specificdialog.ui.gigeBox)
-        self.ui.RightPanel.addWidget(self.specificdialog.ui.pulnixBox)
-        self.ui.RightPanel.addWidget(self.specificdialog.ui.opalBox)
+        self.ui.RightPanel.addWidget(self.specificdialog.ui.areadetBox)
         self.ui.RightPanel.addItem(spc)
         self.specificdialog.ui.verticalLayout.removeWidget(self.specificdialog.ui.buttonBox)
       self.ui.RightPanel.invalidate()
@@ -2772,7 +2145,6 @@ class GraphicUserInterface(QMainWindow):
       lMarker = self.ui.display_image.lMarker
       for i in range(4):
         f.write("m%d          %d %d\n" % (i+1, lMarker[i].abs().x(), lMarker[i].abs().y()))
-      g.write("xtcdir      " + self.xtcdir + "\n")
       g.write("dispspec    " + str(self.dispspec) + "\n")
 
       f.close()
@@ -2951,8 +2323,6 @@ class GraphicUserInterface(QMainWindow):
       self.useglobmarks2 = False
     if self.useglobmarks2:
       self.useglobmarks2 = self.connectMarkerPVs2()
-    self.ui.showdrops.setChecked(self.useglobmarks2)
-    self.ui.actionShowDrop.setChecked(self.useglobmarks2)
     if self.useglobmarks:
       self.onCrossUpdate(0)
       self.onCrossUpdate(1)
@@ -2975,10 +2345,6 @@ class GraphicUserInterface(QMainWindow):
         self.ui.display_image.lMarker[3].setRel(int(self.cfg.m4[0]), int(self.cfg.m4[1]))
     self.updateMarkerText()
     self.changeSize(int(newwidth), int(newheight), int(newproj), False)
-    try:
-      self.xtcdir = self.cfg.xtcdir
-    except:
-      self.xtcdir = os.getenv("HOME")
     try:
       # OK, see if we've delayed the command line orientation setting until now.
       orientation = self.cfg.cmd_orientation

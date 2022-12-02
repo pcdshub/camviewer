@@ -1,7 +1,7 @@
 SHELL = /bin/bash
 ENV = export PCDS_CONDA_VER=5.1.1; source /cds/group/pcds/pyps/conda/pcds_conda;
 ALL = pycaqtimage/pycaqtimage.so camviewer_ui.py advanced_ui.py markers_ui.py \
-      specific_ui.py droplet_ui.py xtcrdr_ui.py timeout_ui.py icon_rc.py 
+      specific_ui.py timeout_ui.py icon_rc.py 
 
 all: $(ALL)
 
@@ -21,12 +21,6 @@ markers_ui.py: markers.ui
 specific_ui.py: specific.ui
 	$(ENV) pyuic5 -o specific_ui.py specific.ui
 
-droplet_ui.py: droplet.ui
-	$(ENV) pyuic5 -o droplet_ui.py droplet.ui
-
-xtcrdr_ui.py: xtcrdr.ui
-	$(ENV) pyuic5 -o xtcrdr_ui.py xtcrdr.ui
-
 timeout_ui.py: timeout.ui
 	$(ENV) pyuic5 -o timeout_ui.py timeout.ui
 
@@ -39,3 +33,4 @@ clean:
 	-rm *.pyc *~
 	-rm pycaqtimage/sip*
 	-rm pycaqtimage/*.{exp,sbf,so}
+	-rm -rf __pycache__
