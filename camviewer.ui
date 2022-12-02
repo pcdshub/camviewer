@@ -2356,7 +2356,6 @@ ProjVmin\</string>
      <string>Data Processing</string>
     </property>
     <addaction name="FileSave"/>
-    <addaction name="PostElog"/>
    </widget>
    <widget class="QMenu" name="menuOrientation">
     <property name="title">
@@ -2497,11 +2496,6 @@ ProjVmin\</string>
   <action name="FileSave">
    <property name="text">
     <string>Save to File</string>
-   </property>
-  </action>
-  <action name="PostElog">
-   <property name="text">
-    <string>Post to E-Log</string>
    </property>
   </action>
   <action name="ZoomIn">

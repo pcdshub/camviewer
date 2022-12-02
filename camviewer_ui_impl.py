@@ -18,21 +18,22 @@ from dialogs import xtcrdrdialog
 from dialogs import timeoutdialog
 from dialogs import forcedialog
 
+import sys, os
+sys.path.append(os.getcwd() + "/pycaqtimage")
 import pycaqtimage
 import pyca
-import sys
 import math
-import os
 import re
 import time
 import tempfile
-import Image
+#import Image
 import functools
 import numpy as np
 
-from PyQt4 import QtCore, uic
-from PyQt4.QtGui import *
-from PyQt4.QtCore import QTime, QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject
+from PyQt5 import QtCore, uic
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import QTime, QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject, pyqtSignal
 
 import param
 
@@ -41,29 +42,27 @@ import param
 #
 def caput(pvname,value,timeout=1.0):
   try:
-    pv = Pv(pvname)
-    pv.connect(timeout)
-    pv.get(ctrl=False, timeout=timeout)
+    pv = Pv(pvname, initialize=True)
+    pv.wait_ready(timeout)
     pv.put(value, timeout)
     pv.disconnect()
-  except pyca.pyexc, e:
-    print 'pyca exception: %s' %(e)
-  except pyca.caexc, e:
-    print 'channel access exception: %s' %(e)
+  except pyca.pyexc as e:
+    print('pyca exception: %s' %(e))
+  except pyca.caexc as e:
+    print('channel access exception: %s' %(e))
 
-def caget(pvname,timeout=1.0):
+def caget(pvname, timeout=1.0):
   try:
-    pv = Pv(pvname)
-    pv.connect(timeout)
-    pv.get(ctrl=False, timeout=timeout)
+    pv = Pv(pvname, initialize=True)
+    pv.wait_ready(timeout)
     v = pv.value
     pv.disconnect()
     return v
-  except pyca.pyexc, e:
-    print 'pyca exception: %s' %(e)
+  except pyca.pyexc as e:
+    print('pyca exception: %s' %(e))
     return None
-  except pyca.caexc, e:
-    print 'channel access exception: %s' %(e)
+  except pyca.caexc as e:
+    print('channel access exception: %s' %(e))
     return None
 
 #
@@ -91,7 +90,7 @@ class cfginfo():
     self.dict[attr] = val
   
   def __getattr__(self, name):
-    if self.dict.has_key(name):
+    if name in self.dict.keys():
       return self.dict[name]
     else:
       raise AttributeError
@@ -147,8 +146,20 @@ REMOTE_AVERAGE = 1
 LOCAL_AVERAGE  = 2
 
 class GraphicUserInterface(QMainWindow):
+  # Define our signals.
+  imageUpdate = pyqtSignal()
+  miscUpdate = pyqtSignal()
+  avgUpdate = pyqtSignal()
+  sizeUpdate = pyqtSignal()
+  IOCUpdate = pyqtSignal()
+  cross1Update = pyqtSignal()
+  cross2Update = pyqtSignal()
+  cross3Update = pyqtSignal()
+  cross4Update = pyqtSignal()
+  param1Update = pyqtSignal()
+  param2Update = pyqtSignal()
+  timeoutExpiry = pyqtSignal()
 
-#  def __init__(self, app, cwd, instrument, cameraIndex, cameraPv, ...)
   def __init__(self, app, cwd, instrument, camera, cameraPv,
                cameraListFilename, cfgdir, activedir, rate, idle, options):
     QMainWindow.__init__(self)
@@ -321,7 +332,7 @@ class GraphicUserInterface(QMainWindow):
     self.ui.display_image.setImageSize(False)
     
     self.iScaleIndex = 0
-    self.connect(self.ui.comboBoxScale,  QtCore.SIGNAL("currentIndexChanged(int)"), self.onComboBoxScaleIndexChanged)
+    self.ui.comboBoxScale.currentIndexChanged.connect(self.onComboBoxScaleIndexChanged)
     
     self.cameraListFilename  = cameraListFilename
   
@@ -349,41 +360,37 @@ class GraphicUserInterface(QMainWindow):
     
     self.updateCameraCombo()
     
-    self.connect(self.ui.checkBoxProjAutoRange, QtCore.SIGNAL("stateChanged(int)"), self.onCheckProjUpdate)
+    self.ui.checkBoxProjAutoRange.stateChanged.connect(self.onCheckProjUpdate)
     
-    self.connect(self.ui.horizontalSliderRangeMin , QtCore.SIGNAL("valueChanged(int)"), self.onSliderRangeMinChanged )
-    self.connect(self.ui.horizontalSliderRangeMax, QtCore.SIGNAL("valueChanged(int)"), self.onSliderRangeMaxChanged)
-    self.connect(self.ui.lineEditRangeMin , QtCore.SIGNAL("returnPressed()"), self.onRangeMinTextEnter )
-    self.connect(self.ui.lineEditRangeMax, QtCore.SIGNAL("returnPressed()"), self.onRangeMaxTextEnter)    
+    self.ui.horizontalSliderRangeMin.valueChanged.connect(self.onSliderRangeMinChanged)
+    self.ui.horizontalSliderRangeMax.valueChanged.connect(self.onSliderRangeMaxChanged)
+    self.ui.lineEditRangeMin.returnPressed.connect(self.onRangeMinTextEnter)
+    self.ui.lineEditRangeMax.returnPressed.connect(self.onRangeMaxTextEnter)    
 
-    self.connect(self.ui.horizontalSliderLens , QtCore.SIGNAL("sliderReleased()"), self.onSliderLensReleased )
-    self.connect(self.ui.horizontalSliderLens , QtCore.SIGNAL("valueChanged(int)"), self.onSliderLensChanged )
-    self.connect(self.ui.lineEditLens , QtCore.SIGNAL("returnPressed()"), self.onLensEnter )
+    self.ui.horizontalSliderLens.sliderReleased.connect(self.onSliderLensReleased)
+    self.ui.horizontalSliderLens.valueChanged.connect(self.onSliderLensChanged)
+    self.ui.lineEditLens.returnPressed.connect(self.onLensEnter)
 
-    self.connect(self.ui.singleframe, QtCore.SIGNAL("toggled(bool)"), self.onCheckDisplayUpdate)
-    self.connect(self.ui.grayScale,   QtCore.SIGNAL("stateChanged(int)"), self.onCheckGrayUpdate)
-    self.connect(self.ui.rem_avg,     QtCore.SIGNAL("toggled(bool)"), self.onCheckDisplayUpdate)
-    self.connect(self.ui.local_avg,   QtCore.SIGNAL("toggled(bool)"), self.onCheckDisplayUpdate)
-    self.connect(self.ui.remote_average, QtCore.SIGNAL("returnPressed()"), self.onRemAvgEnter )
+    self.ui.singleframe.toggled.connect(self.onCheckDisplayUpdate)
+    self.ui.grayScale.stateChanged.connect(self.onCheckGrayUpdate)
+    self.ui.rem_avg.toggled.connect(self.onCheckDisplayUpdate)
+    self.ui.local_avg.toggled.connect(self.onCheckDisplayUpdate)
+    self.ui.remote_average.returnPressed.connect(self.onRemAvgEnter)
     
-    self.connect(self.ui.comboBoxColor, QtCore.SIGNAL("currentIndexChanged(int)"), self.onComboBoxColorIndexChanged)
+    self.ui.comboBoxColor.currentIndexChanged.connect(self.onComboBoxColorIndexChanged)
     self.hot() # default option
 
     for i in range(4):
-      self.connect(self.ui.xmark[i], QtCore.SIGNAL("returnPressed()"),
-                   functools.partial(self.onMarkerTextEnter, i))
-      self.connect(self.ui.ymark[i], QtCore.SIGNAL("returnPressed()"),
-                   functools.partial(self.onMarkerTextEnter, i))
+      self.ui.xmark[i].returnPressed.connect(functools.partial(self.onMarkerTextEnter, i))
+      self.ui.ymark[i].returnPressed.connect(functools.partial(self.onMarkerTextEnter, i))
  
-      self.connect(self.markerdialog.xmark[i], QtCore.SIGNAL("returnPressed()"),
-                   functools.partial(self.onMarkerDialogEnter, i))
-      self.connect(self.markerdialog.ymark[i], QtCore.SIGNAL("returnPressed()"),
-                   functools.partial(self.onMarkerDialogEnter, i))
+      self.markerdialog.xmark[i].returnPressed.connect(functools.partial(self.onMarkerDialogEnter, i))
+      self.markerdialog.ymark[i].returnPressed.connect(functools.partial(self.onMarkerDialogEnter, i))
 
-    self.connect(self.ui.Disp_RoiX, QtCore.SIGNAL("returnPressed()"), self.onRoiTextEnter)
-    self.connect(self.ui.Disp_RoiY, QtCore.SIGNAL("returnPressed()"), self.onRoiTextEnter)
-    self.connect(self.ui.Disp_RoiW, QtCore.SIGNAL("returnPressed()"), self.onRoiTextEnter)
-    self.connect(self.ui.Disp_RoiH, QtCore.SIGNAL("returnPressed()"), self.onRoiTextEnter)
+    self.ui.Disp_RoiX.returnPressed.connect(self.onRoiTextEnter)
+    self.ui.Disp_RoiY.returnPressed.connect(self.onRoiTextEnter)
+    self.ui.Disp_RoiW.returnPressed.connect(self.onRoiTextEnter)
+    self.ui.Disp_RoiH.returnPressed.connect(self.onRoiTextEnter)
     
     #
     # Special Mouse Mode:
@@ -391,167 +398,135 @@ class GraphicUserInterface(QMainWindow):
     self.iSpecialMouseMode = 0
 
     for i in range(4):
-      self.connect(self.ui.pBM[i], QtCore.SIGNAL("clicked(bool)"),
-                   functools.partial(self.onMarkerSet, i))
-      self.connect(self.markerdialog.pBM[i], QtCore.SIGNAL("clicked(bool)"),
-                   functools.partial(self.onMarkerDialogSet, i))
-      self.connect(self.ui.actM[i], QtCore.SIGNAL("triggered()"),
-                   functools.partial(self.onMarkerTrig, i))
+      self.ui.pBM[i].clicked.connect(functools.partial(self.onMarkerSet, i))
+      self.markerdialog.pBM[i].clicked.connect(functools.partial(self.onMarkerDialogSet, i))
+      self.ui.actM[i].triggered.connect(functools.partial(self.onMarkerTrig, i))
 
-    self.connect(self.ui.pushButtonRoiSet  , QtCore.SIGNAL("clicked(bool)"), self.onRoiSet)
-    self.connect(self.ui.pushButtonRoiReset, QtCore.SIGNAL("clicked()"), self.onRoiReset)
+    self.ui.pushButtonRoiSet.clicked.connect(self.onRoiSet)
+    self.ui.pushButtonRoiReset.clicked.connect(self.onRoiReset)
 
-    self.connect(self.ui.actionMS      , QtCore.SIGNAL("triggered()"), self.onMarkerSettingsTrig)
-    self.connect(self.ui.actionROI     , QtCore.SIGNAL("triggered()"), self.onRoiTrig)
-    self.connect(self.ui.actionResetROI, QtCore.SIGNAL("triggered()"), self.onRoiReset)
-    self.connect(self.ui.actionResetMarkers, QtCore.SIGNAL("triggered()"), self.onMarkerReset)
+    self.ui.actionMS.triggered.connect(self.onMarkerSettingsTrig)
+    self.ui.actionROI.triggered.connect(self.onRoiTrig)
+    self.ui.actionResetROI.triggered.connect(self.onRoiReset)
+    self.ui.actionResetMarkers.triggered.connect(self.onMarkerReset)
 
-    self.connect(self.ui.pushButtonZoomRoi  , QtCore.SIGNAL("clicked()"), self.onZoomRoi)
-    self.connect(self.ui.pushButtonZoomIn   , QtCore.SIGNAL("clicked()"), self.onZoomIn)
-    self.connect(self.ui.pushButtonZoomOut  , QtCore.SIGNAL("clicked()"), self.onZoomOut)
-    self.connect(self.ui.pushButtonZoomReset, QtCore.SIGNAL("clicked()"), self.onZoomReset)
+    self.ui.pushButtonZoomRoi.clicked.connect(self.onZoomRoi)
+    self.ui.pushButtonZoomIn.clicked.connect(self.onZoomIn)
+    self.ui.pushButtonZoomOut.clicked.connect(self.onZoomOut)
+    self.ui.pushButtonZoomReset.clicked.connect(self.onZoomReset)
 
-    self.connect(self.ui.actionZoomROI  , QtCore.SIGNAL("triggered()"), self.onZoomRoi)
-    self.connect(self.ui.actionZoomIn   , QtCore.SIGNAL("triggered()"), self.onZoomIn)
-    self.connect(self.ui.actionZoomOut  , QtCore.SIGNAL("triggered()"), self.onZoomOut)
-    self.connect(self.ui.actionZoomReset, QtCore.SIGNAL("triggered()"), self.onZoomReset)
+    self.ui.actionZoomROI.triggered.connect(self.onZoomRoi)
+    self.ui.actionZoomIn.triggered.connect(self.onZoomIn)
+    self.ui.actionZoomOut.triggered.connect(self.onZoomOut)
+    self.ui.actionZoomReset.triggered.connect(self.onZoomReset)
 
-    self.connect(self.ui.actionReconnect, QtCore.SIGNAL("triggered()"), self.onReconnect)
-    self.connect(self.ui.actionForce    , QtCore.SIGNAL("triggered()"), self.onForceDisco)
+    self.ui.actionReconnect.triggered.connect(self.onReconnect)
+    self.ui.actionForce.triggered.connect(self.onForceDisco)
     
-    self.connect(self.rfshTimer, QtCore.SIGNAL("timeout()"), self.UpdateRate)
+    self.rfshTimer.timeout.connect(self.UpdateRate)
     self.rfshTimer.start(1000)
 
-    self.connect(self.imageTimer, QtCore.SIGNAL("timeout()"), self.wantImage)
+    self.imageTimer.timeout.connect(self.wantImage)
     self.imageTimer.start(1000.0 / rate)
 
-    self.connect(self.discoTimer, QtCore.SIGNAL("timeout()"), self.do_disco)
+    self.discoTimer.timeout.connect(self.do_disco)
 
-    self.connect(self.ui.average  , QtCore.SIGNAL("returnPressed()"), self.onAverageSet)
-    self.connect(self.ui.orient0,    QtCore.SIGNAL("triggered()"), 
-                 lambda : self.setOrientation(param.ORIENT0))
-    self.connect(self.ui.orient90,   QtCore.SIGNAL("triggered()"),
-                 lambda : self.setOrientation(param.ORIENT90))
-    self.connect(self.ui.orient180,  QtCore.SIGNAL("triggered()"),
-                 lambda : self.setOrientation(param.ORIENT180))
-    self.connect(self.ui.orient270,  QtCore.SIGNAL("triggered()"),
-                 lambda : self.setOrientation(param.ORIENT270))
-    self.connect(self.ui.orient0F,   QtCore.SIGNAL("triggered()"),
-                 lambda : self.setOrientation(param.ORIENT0F))
-    self.connect(self.ui.orient90F,  QtCore.SIGNAL("triggered()"),
-                 lambda : self.setOrientation(param.ORIENT90F))
-    self.connect(self.ui.orient180F, QtCore.SIGNAL("triggered()"),
-                 lambda : self.setOrientation(param.ORIENT180F))
-    self.connect(self.ui.orient270F, QtCore.SIGNAL("triggered()"),
-                 lambda : self.setOrientation(param.ORIENT270F))
+    self.ui.average.returnPressed.connect(self.onAverageSet)
+    self.ui.orient0.triggered.connect(lambda : self.setOrientation(param.ORIENT0))
+    self.ui.orient90.triggered.connect(lambda : self.setOrientation(param.ORIENT90))
+    self.ui.orient180.triggered.connect(lambda : self.setOrientation(param.ORIENT180))
+    self.ui.orient270.triggered.connect(lambda : self.setOrientation(param.ORIENT270))
+    self.ui.orient0F.triggered.connect(lambda : self.setOrientation(param.ORIENT0F))
+    self.ui.orient90F.triggered.connect(lambda : self.setOrientation(param.ORIENT90F))
+    self.ui.orient180F.triggered.connect(lambda : self.setOrientation(param.ORIENT180F))
+    self.ui.orient270F.triggered.connect(lambda : self.setOrientation(param.ORIENT270F))
     self.setOrientation(param.ORIENT0) # default to use unrotated
     
-    self.connect(self.ui.FileSave, QtCore.SIGNAL("triggered()"), self.onfileSave)    
-    self.connect(self.ui.PostElog, QtCore.SIGNAL("triggered()"), self.onPostElog)    
+    self.ui.FileSave.triggered.connect(self.onfileSave)    
     
-    self.event = QObject()
-    self.connect(self.event, QtCore.SIGNAL("onImageUpdate"), self.onImageUpdate)
-    self.connect(self.event, QtCore.SIGNAL("onMiscUpdate"), self.onMiscUpdate)
-    self.connect(self.event, QtCore.SIGNAL("onAvgUpdate"), self.onAvgUpdate)
-    self.connect(self.event, QtCore.SIGNAL("onSizeUpdate"), self.onSizeUpdate)
-    self.connect(self.event, QtCore.SIGNAL("onIOCUpdate"), self.onIOCUpdate)
-    self.connect(self.event, QtCore.SIGNAL("onCross1Update"),
-                 lambda : self.onCrossUpdate(0))
-    self.connect(self.event, QtCore.SIGNAL("onCross2Update"),
-                 lambda : self.onCrossUpdate(1))
-    self.connect(self.event, QtCore.SIGNAL("onCross3Update"),
-                 lambda : self.onCrossUpdate(2))
-    self.connect(self.event, QtCore.SIGNAL("onCross4Update"),
-                 lambda : self.onCrossUpdate(3))
-    self.connect(self.event, QtCore.SIGNAL("onParam1Update"), self.onParam1Update)
-    self.connect(self.event, QtCore.SIGNAL("onParam2Update"), self.onParam2Update)
-    self.connect(self.event, QtCore.SIGNAL("onTimeoutExpiry"), self.onTimeoutExpiry)
+    self.imageUpdate.connect(self.onImageUpdate)
+    self.miscUpdate.connect(self.onMiscUpdate)
+    self.avgUpdate.connect(self.onAvgUpdate)
+    self.sizeUpdate.connect(self.onSizeUpdate)
+    self.IOCUpdate.connect(self.onIOCUpdate)
+    self.cross1Update.connect(lambda : self.onCrossUpdate(0))
+    self.cross2Update.connect(lambda : self.onCrossUpdate(1))
+    self.cross3Update.connect(lambda : self.onCrossUpdate(2))
+    self.cross4Update.connect(lambda : self.onCrossUpdate(3))
+    self.param1Update.connect(self.onParam1Update)
+    self.param2Update.connect(self.onParam2Update)
+    self.timeoutExpiry.connect(self.onTimeoutExpiry)
 
-    self.connect(self.ui.showconf,   QtCore.SIGNAL("triggered()"), self.doShowConf)
-    self.connect(self.ui.showproj,   QtCore.SIGNAL("triggered()"), self.doShowProj)
-    self.connect(self.ui.showmarker,   QtCore.SIGNAL("triggered()"), self.doShowMarker)
-    self.connect(self.ui.showexpert, QtCore.SIGNAL("triggered()"), self.onExpertMode)
-    self.connect(self.ui.showspecific, QtCore.SIGNAL("triggered()"), self.doShowSpecific)
-    self.connect(self.ui.actionGlobalMarkers, QtCore.SIGNAL("triggered()"), self.onGlobMarks)
-    self.connect(self.advdialog.ui.showevr, QtCore.SIGNAL("clicked()"), self.onOpenEvr)
+    self.ui.showconf.triggered.connect(self.doShowConf)
+    self.ui.showproj.triggered.connect(self.doShowProj)
+    self.ui.showmarker.triggered.connect(self.doShowMarker)
+    self.ui.showexpert.triggered.connect(self.onExpertMode)
+    self.ui.showspecific.triggered.connect(self.doShowSpecific)
+    self.ui.actionGlobalMarkers.triggered.connect(self.onGlobMarks)
+    self.advdialog.ui.showevr.clicked.connect(self.onOpenEvr)
     self.onExpertMode()
 
-    self.connect(self.advdialog.ui.buttonBox, QtCore.SIGNAL("clicked(QAbstractButton *)"), self.onAdvanced)
-    self.connect(self.specificdialog.ui.buttonBox, QtCore.SIGNAL("clicked(QAbstractButton *)"), self.onSpecific)
-    self.connect(self.dropletdialog.ui.buttonBox, QtCore.SIGNAL("clicked(QAbstractButton *)"), self.onDroplet)
+    self.advdialog.ui.buttonBox.clicked.connect(self.onAdvanced)
+    self.specificdialog.ui.buttonBox.clicked.connect(self.onSpecific)
+    self.dropletdialog.ui.buttonBox.clicked.connect(self.onDroplet)
 
-    self.connect(self.specificdialog.ui.cameramodeG, QtCore.SIGNAL("currentIndexChanged(int)"),
-                 lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeG, n))
-    self.connect(self.specificdialog.ui.cameramodeP, QtCore.SIGNAL("currentIndexChanged(int)"),
-                 lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeP, n))
-    self.connect(self.specificdialog.ui.cameramodeO, QtCore.SIGNAL("currentIndexChanged(int)"),
-                 lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeO, n))
+    self.specificdialog.ui.cameramodeG.currentIndexChanged.connect(lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeG, n))
+    self.specificdialog.ui.cameramodeP.currentIndexChanged.connect(lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeP, n))
+    self.specificdialog.ui.cameramodeO.currentIndexChanged.connect(lambda n: self.comboWriteCallback(self.specificdialog.ui.cameramodeO, n))
 
-    self.connect(self.specificdialog.ui.gainG,  QtCore.SIGNAL("returnPressed()"),
-                 lambda : self.lineFloatWriteCallback(self.specificdialog.ui.gainG))
-    self.connect(self.specificdialog.ui.gainAP, QtCore.SIGNAL("returnPressed()"),
-                 lambda : self.lineIntWriteCallback(self.specificdialog.ui.gainAP))
-    self.connect(self.specificdialog.ui.gainBP, QtCore.SIGNAL("returnPressed()"),
-                 lambda : self.lineIntWriteCallback(self.specificdialog.ui.gainBP))
-    self.connect(self.specificdialog.ui.gainO , QtCore.SIGNAL("returnPressed()"),
-                 lambda : self.lineFloatWriteCallback(self.specificdialog.ui.gainO))
-    self.connect(self.specificdialog.ui.gainU,  QtCore.SIGNAL("returnPressed()"),
-                 lambda : self.lineIntWriteCallback(self.specificdialog.ui.gainU))
+    self.specificdialog.ui.gainG.returnPressed.connect(lambda : self.lineFloatWriteCallback(self.specificdialog.ui.gainG))
+    self.specificdialog.ui.gainAP.returnPressed.connect(lambda : self.lineIntWriteCallback(self.specificdialog.ui.gainAP))
+    self.specificdialog.ui.gainBP.returnPressed.connect(lambda : self.lineIntWriteCallback(self.specificdialog.ui.gainBP))
+    self.specificdialog.ui.gainO.returnPressed.connect(lambda : self.lineFloatWriteCallback(self.specificdialog.ui.gainO))
+    self.specificdialog.ui.gainU.returnPressed.connect(lambda : self.lineIntWriteCallback(self.specificdialog.ui.gainU))
 
-    self.connect(self.specificdialog.ui.timeG,  QtCore.SIGNAL("returnPressed()"),
-                 lambda : self.lineFloatWriteCallback(self.specificdialog.ui.timeG))
-    self.connect(self.specificdialog.ui.timeO,  QtCore.SIGNAL("returnPressed()"),
-                 lambda : self.lineIntWriteCallback(self.specificdialog.ui.timeO))
+    self.specificdialog.ui.timeG.returnPressed.connect(lambda : self.lineFloatWriteCallback(self.specificdialog.ui.timeG))
+    self.specificdialog.ui.timeO.returnPressed.connect(lambda : self.lineIntWriteCallback(self.specificdialog.ui.timeO))
 
-    self.connect(self.specificdialog.ui.periodG,  QtCore.SIGNAL("returnPressed()"),
-                 lambda : self.lineFloatWriteCallback(self.specificdialog.ui.periodG))
-    self.connect(self.specificdialog.ui.periodO,  QtCore.SIGNAL("returnPressed()"),
-                 lambda : self.lineIntWriteCallback(self.specificdialog.ui.periodO))
+    self.specificdialog.ui.periodG.returnPressed.connect(lambda : self.lineFloatWriteCallback(self.specificdialog.ui.periodG))
+    self.specificdialog.ui.periodO.returnPressed.connect(lambda : self.lineIntWriteCallback(self.specificdialog.ui.periodO))
 
-    self.connect(self.specificdialog.ui.timeP, QtCore.SIGNAL("currentIndexChanged(int)"),
-                 lambda n: self.comboWriteCallback(self.specificdialog.ui.timeP, n))
-    self.connect(self.specificdialog.ui.timeU, QtCore.SIGNAL("currentIndexChanged(int)"),
-                 lambda n: self.comboWriteCallback(self.specificdialog.ui.timeU, n))
+    self.specificdialog.ui.timeP.currentIndexChanged.connect(lambda n: self.comboWriteCallback(self.specificdialog.ui.timeP, n))
+    self.specificdialog.ui.timeU.currentIndexChanged.connect(lambda n: self.comboWriteCallback(self.specificdialog.ui.timeU, n))
 
-    self.connect(self.specificdialog.ui.runButtonG, QtCore.SIGNAL("clicked()"),
-                 lambda : self.buttonWriteCallback(self.specificdialog.ui.runButtonG))
+    self.specificdialog.ui.runButtonG.clicked.connect(lambda : self.buttonWriteCallback(self.specificdialog.ui.runButtonG))
 
-    self.connect(self.ui.IOC_RoiX,    QtCore.SIGNAL("returnPressed()"), self.onIOCROIX)
-    self.connect(self.ui.IOC_RoiY,    QtCore.SIGNAL("returnPressed()"), self.onIOCROIY)
-    self.connect(self.ui.IOC_RoiW,    QtCore.SIGNAL("returnPressed()"), self.onIOCROIW)
-    self.connect(self.ui.IOC_RoiH,    QtCore.SIGNAL("returnPressed()"), self.onIOCROIH)
-    self.connect(self.ui.shiftText,   QtCore.SIGNAL("returnPressed()"), self.onShiftText)
-    self.connect(self.ui.shiftSlider, QtCore.SIGNAL("valueChanged(int)"), self.onShiftSliderChanged )
-    self.connect(self.ui.shiftSlider, QtCore.SIGNAL("sliderReleased()"),  self.onShiftSliderReleased)
+    self.ui.IOC_RoiX.returnPressed.connect(self.onIOCROIX)
+    self.ui.IOC_RoiY.returnPressed.connect(self.onIOCROIY)
+    self.ui.IOC_RoiW.returnPressed.connect(self.onIOCROIW)
+    self.ui.IOC_RoiH.returnPressed.connect(self.onIOCROIH)
+    self.ui.shiftText.returnPressed.connect(self.onShiftText)
+    self.ui.shiftSlider.valueChanged.connect(self.onShiftSliderChanged )
+    self.ui.shiftSlider.sliderReleased.connect( self.onShiftSliderReleased)
 
     # Droplet stuff!
-    self.connect(self.ui.setROI,          QtCore.SIGNAL("clicked()"), self.onDropRoiSet)
-    self.connect(self.ui.fetchROI,        QtCore.SIGNAL("clicked()"), self.onDropRoiFetch)
-    self.connect(self.ui.actionFetchROI1, QtCore.SIGNAL("triggered()"), self.onFetchROI1)
-    self.connect(self.ui.actionFetchROI2, QtCore.SIGNAL("triggered()"), self.onFetchROI2)
-    self.connect(self.ui.actionSetROI1,   QtCore.SIGNAL("triggered()"), self.onSetROI1)
-    self.connect(self.ui.actionSetROI2,   QtCore.SIGNAL("triggered()"), self.onSetROI2)
-    self.connect(self.ui.actionShowDrop,  QtCore.SIGNAL("triggered()"), self.onShowDropAction)
-    self.connect(self.ui.showdrops,       QtCore.SIGNAL("stateChanged(int)"), self.onShowDrops)
-    self.connect(self.ui.param1_0,        QtCore.SIGNAL("returnPressed()"), self.onParam1_0)
-    self.connect(self.ui.param1_1,        QtCore.SIGNAL("returnPressed()"), self.onParam1_1)
-    self.connect(self.ui.param2_0,        QtCore.SIGNAL("returnPressed()"), self.onParam2_0)
-    self.connect(self.ui.param2_1,        QtCore.SIGNAL("returnPressed()"), self.onParam2_1)
-    self.connect(self.ui.actionAdjustDrop,QtCore.SIGNAL("triggered()"), self.doShowDroplet)
-    self.connect(self.ui.ROI1,            QtCore.SIGNAL("toggled(bool)"), self.onDebugROI1)
-    self.connect(self.ui.ROI2,            QtCore.SIGNAL("toggled(bool)"), self.onDebugROI2)
-    self.connect(self.ui.dropDebug,       QtCore.SIGNAL("toggled(bool)"), self.onDropDebug)
+    self.ui.setROI.clicked.connect(self.onDropRoiSet)
+    self.ui.fetchROI.clicked.connect(self.onDropRoiFetch)
+    self.ui.actionFetchROI1.triggered.connect(self.onFetchROI1)
+    self.ui.actionFetchROI2.triggered.connect(self.onFetchROI2)
+    self.ui.actionSetROI1.triggered.connect(self.onSetROI1)
+    self.ui.actionSetROI2.triggered.connect(self.onSetROI2)
+    self.ui.actionShowDrop.triggered.connect(self.onShowDropAction)
+    self.ui.showdrops.stateChanged.connect(self.onShowDrops)
+    self.ui.param1_0.returnPressed.connect(self.onParam1_0)
+    self.ui.param1_1.returnPressed.connect(self.onParam1_1)
+    self.ui.param2_0.returnPressed.connect(self.onParam2_0)
+    self.ui.param2_1.returnPressed.connect(self.onParam2_1)
+    self.ui.actionAdjustDrop.triggered.connect(self.doShowDroplet)
+    self.ui.ROI1.toggled.connect(self.onDebugROI1)
+    self.ui.ROI2.toggled.connect(self.onDebugROI2)
+    self.ui.dropDebug.toggled.connect(self.onDropDebug)
     
     # set camera pv and start display
-    self.connect(self.ui.menuCameras, QtCore.SIGNAL("triggered(QAction *)"), self.onCameraMenuSelect)
-    self.connect(self.ui.comboBoxCamera, QtCore.SIGNAL("currentIndexChanged(int)"), self.onCameraSelect)
+    self.ui.menuCameras.triggered.connect(self.onCameraMenuSelect)
+    self.ui.comboBoxCamera.currentIndexChanged.connect(self.onCameraSelect)
 
-    self.connect(self.xtcrdrdialog.ui.dirselect,  QtCore.SIGNAL("clicked()"), self.onXtcrdrDir)
-    self.connect(self.xtcrdrdialog.ui.openButton, QtCore.SIGNAL("clicked()"), self.onXtcrdrOpen)
-    self.connect(self.xtcrdrdialog.ui.prevButton, QtCore.SIGNAL("clicked()"), self.onXtcrdrPrev)
-    self.connect(self.xtcrdrdialog.ui.nextButton, QtCore.SIGNAL("clicked()"), self.onXtcrdrNext)
-    self.connect(self.xtcrdrdialog.ui.skipButton, QtCore.SIGNAL("clicked()"), self.onXtcrdrSkip)
-    self.connect(self.xtcrdrdialog.ui.backButton, QtCore.SIGNAL("clicked()"), self.onXtcrdrBack)
+    self.xtcrdrdialog.ui.dirselect.clicked.connect(self.onXtcrdrDir)
+    self.xtcrdrdialog.ui.openButton.clicked.connect(self.onXtcrdrOpen)
+    self.xtcrdrdialog.ui.prevButton.clicked.connect(self.onXtcrdrPrev)
+    self.xtcrdrdialog.ui.nextButton.clicked.connect(self.onXtcrdrNext)
+    self.xtcrdrdialog.ui.skipButton.clicked.connect(self.onXtcrdrSkip)
+    self.xtcrdrdialog.ui.backButton.clicked.connect(self.onXtcrdrBack)
 
     # Sigh, we might change this if taking a one-liner!
     camera = options.camera
@@ -569,7 +544,7 @@ class GraphicUserInterface(QMainWindow):
     if cameraPv != None:
       try:
         idx = self.lCameraList.index(cameraPv)
-        print "Camera PV %s --> index %d" % (cameraPv, idx)
+        print("Camera PV %s --> index %d" % (cameraPv, idx))
         cameraIndex = idx
       except:
         # Can't find an exact match.  Is this a prefix?
@@ -581,14 +556,14 @@ class GraphicUserInterface(QMainWindow):
             idx = i
             break
         if idx >= 0:
-          print "Camera PV %s --> index %d" % (cameraPv, idx)
+          print("Camera PV %s --> index %d" % (cameraPv, idx))
           cameraIndex = idx
         else:
           # OK, not a prefix.  Try stripping off the end and look for
           # the same base.
           m=re.search("(.*):([^:]*)$", cameraPv)
           if m == None:
-            print "Cannot find camera PV %s!" % cameraPv
+            print("Cannot find camera PV %s!" % cameraPv)
           else:
             try:
               pvname = m.group(1)
@@ -599,15 +574,15 @@ class GraphicUserInterface(QMainWindow):
                   idx = i
                   break
               if idx <= -1:
-                raise Exception, "No match"
-              print "Camera PV %s --> index %d" % (cameraPv, idx)
+                raise Exception("No match")
+              print("Camera PV %s --> index %d" % (cameraPv, idx))
               cameraIndex = idx
             except:
-              print "Cannot find camera PV %s!" % cameraPv
+              print("Cannot find camera PV %s!" % cameraPv)
     try:
       self.ui.comboBoxCamera.setCurrentIndex(-1)
       if cameraIndex < 0 or cameraIndex >= len(self.lCameraList):
-        print "Invalid camera index %d" % cameraIndex
+        print("Invalid camera index %d" % cameraIndex)
         cameraIndex = 0
       self.ui.comboBoxCamera.setCurrentIndex(int(cameraIndex))
     except: pass
@@ -734,7 +709,7 @@ class GraphicUserInterface(QMainWindow):
     self.ui.projectionFrame.setVisible(v)
     self.finishResize()
     if self.cfg == None:
-      # print "done doShowProj"
+      # print("done doShowProj")
       self.dumpConfig()
 
   def doShowMarker(self):
@@ -744,7 +719,7 @@ class GraphicUserInterface(QMainWindow):
     self.ui.RightPanel.invalidate()
     self.finishResize()
     if self.cfg == None:
-      # print "done doShowMarker"
+      # print("done doShowMarker")
       self.dumpConfig()
 
   def doShowConf(self):
@@ -763,7 +738,7 @@ class GraphicUserInterface(QMainWindow):
       self.ui.groupBoxIOC.setVisible(False)
     self.finishResize()
     if self.cfg == None:
-      # print "done doShowConf"
+      # print("done doShowConf")
       self.dumpConfig()
 
   def onDropDebug(self, newval):
@@ -943,15 +918,15 @@ class GraphicUserInterface(QMainWindow):
 
   def param1Callback(self, exception=None):           
     if exception is None:
-      self.event.emit(QtCore.SIGNAL("onParam1Update"))
+      self.param1Update.emit()
     else:
-      print "noise1Callback(): %-30s " % (self.name), exception
+      print("noise1Callback(): %-30s " % (self.name), exception)
 
   def param2Callback(self, exception=None):           
     if exception is None:
-      self.event.emit(QtCore.SIGNAL("onParam2Update"))
+      self.param2Update.emit()
     else:
-      print "noise2Callback(): %-30s " % (self.name), exception
+      print("noise2Callback(): %-30s " % (self.name), exception)
 
   def onMarkerTextEnter(self, n):
     self.ui.display_image.lMarker[n].setRel(float(self.ui.xmark[n].text()), 
@@ -1221,49 +1196,24 @@ class GraphicUserInterface(QMainWindow):
     self.clear()
     self.rfshTimer.stop()
     self.imageTimer.stop()
-    #print "shutdown"
+    #print("shutdown")
 
   def onfileSave(self):
     try:
-      fileName = str(QFileDialog.getSaveFileName(self, "Save Image...", ".", "Images (*.raw *.jpg *.png *.bmp *.pgm *.tif)"))
+      fileName = QFileDialog.getSaveFileName(self, "Save Image...", self.cwd, "Images (*.npy *.jpg *.png *.bmp *.pgm *.tif)")[0]
       if fileName == "":
-        raise Exception, "No File Name Specified"
-      raise Exception, "File Name Not Implemented!"
-      """      
-      if fileName.lower().endswith(".raw"):
-        bSaveOk = pycaqtimage.pySaveRawImageData(self.imageBuffer, param.orientation, fileName)
-        if not bSaveOk:
-          raise Exception, "Failed to Save to Raw File %s" % (fileName)
-        QMessageBox.information(self, "File Save Succeeded", "Image has been saved to a 16-bit raw file: %s" % (fileName) )
-        print 'Saved to a 16-bit raw file %s' %(fileName)            
-      else:      
-        imageData = pycaqtimage.pyGetImageData8bit(self.imageBuffer, param.orientation, self.bits)
-        image = Image.new('L', param.getSizeTuple())
-        image.putdata(imageData)
-        try:
-          image.save(fileName)
-        except:
-          raise Exception, "File type not supported: %s" % (fileName)
-        QMessageBox.information(self, "File Save Succeeded", "Image has been saved to an 8-bit image file: %s" % (fileName) )
-        print 'Saved to an 8-bit image file %s' %(fileName)            
-      """
-    except Exception, e:
-      print "fileSave failed:", e
-      QMessageBox.warning(self, "File Save Failed", str(e))
-
-  def onPostElog(self):
-    sTmpJpeg = tempfile.NamedTemporaryFile(mode='r+b',suffix='.jpeg') 
-    sFnJpg   = sTmpJpeg.name
-    if 0 == os.system('import -trim -frame -border -crop 972x1164+0+0 -window "%s" %s' % (self.sWindowTitle, sFnJpg)):
-      print "Window saved to %s" % sFnJpg
-      if 0 == \
-        os.system('LogBookImagePoster.py -i %s -w https://pswww/pcdsn/ws-auth -u %sopr -e current -d "%s" -a "%s"' %\
-          (self.instrument.upper(), self.instrument.lower(), self.sWindowTitle, sFnJpg) ):
-        #os.system('LogBookImagePoster.py -i XCS -w https://pswww/pcdsn/ws-auth -u xcsopr -e current -d "%s" -a "%s"' %\
-        #  (self.sWindowTitle, sFnJpg) ):
-        print "Elog Post Okay"
+        raise Exception("No File Name Specified")
+      if fileName.lower().endswith(".npy"):
+        np.save(fileName, self.image)
+        QMessageBox.information(self, "File Save Succeeded", "Image has been saved as a numpy file: %s" % (fileName) )
+        print('Saved to a numpy file %s' %(fileName))
       else:
-        print "Elog Post Failed"
+        self.ui.display_image.image.save(fileName, format=None, quality=-1)
+        QMessageBox.information(self, "File Save Succeeded", "Image has been saved to an image file: %s" % (fileName) )
+        print('Saved to an image file %s' %(fileName))
+    except Exception as e:
+      print("fileSave failed:", e)
+      QMessageBox.warning(self, "File Save Failed", str(e))
 
   def setOrientation(self, orientation, reorient=True):
     self.ui.orient0.setChecked(orientation == param.ORIENT0)
@@ -1301,9 +1251,9 @@ class GraphicUserInterface(QMainWindow):
   # Note: this function is called by the CA library, from another thread
   def sizeCallback(self, exception=None):           
     if exception is None:
-      self.event.emit(QtCore.SIGNAL("onSizeUpdate"))
+      self.sizeUpdate.emit()
     else:
-      print "sizeCallback(): %-30s " % (self.name), exception
+      print("sizeCallback(): %-30s " % (self.name), exception)
 
   def onSizeUpdate(self):
     try:
@@ -1345,13 +1295,12 @@ class GraphicUserInterface(QMainWindow):
               self.count = sz
             else:
               self.count = self.maxcount
-        self.camera.get(count=self.count)
+        self.camera.get(timeout=None)
         pyca.flush_io()
       except:
         pass
       self.haveNewImage = False
       self.lastGetDone = False
-
 
   # Note: this function is called by the CA library, from another thread, when we have a new image.
   def imagePvUpdateCallback(self, exception=None):
@@ -1359,10 +1308,10 @@ class GraphicUserInterface(QMainWindow):
     if exception is None:
       currentTime       =  time.time()
       self.dataUpdates  += 1
-      self.event.emit(QtCore.SIGNAL("onImageUpdate")) # Send out the signal to notify windows update (in the GUI thread)
+      self.imageUpdate.emit() # Send out the signal to notify windows update (in the GUI thread)
       self.wantImage(False)
     else:
-      print "imagePvUpdateCallback(): %-30s " %(self.name), exception
+      print("imagePvUpdateCallback(): %-30s " %(self.name), exception)
 
   # Note: this function is triggered by getting a new image.
   def onImageUpdate(self):
@@ -1376,20 +1325,20 @@ class GraphicUserInterface(QMainWindow):
       self.updateMarkerValue()
       self.updateMiscInfo()
       self.updateall()
-    except Exception, e:
-      print e
+    except Exception as e:
+      print(e)
 
   # Note: this function is called by the CA library, from another thread      
   def lensPvUpdateCallback(self, exception = None):
     if exception is None:
       self.fLensValue = float(self.lensPv.value)
-      self.event.emit(QtCore.SIGNAL("onMiscUpdate")) # Send out the signal to notify windows update (in the GUI thread)
+      self.miscUpdate.emit() # Send out the signal to notify windows update (in the GUI thread)
     else:
-      print "lensPvUpdateCallback(): %-30s " %(self.name), exception
+      print("lensPvUpdateCallback(): %-30s " %(self.name), exception)
 
   def avgPvUpdateCallback(self, exception = None):
     if exception is None:
-      self.event.emit(QtCore.SIGNAL("onAvgUpdate"))
+      self.avgUpdate.emit()
 
   def onMiscUpdate(self):    
     self.updateMiscInfo()
@@ -1418,8 +1367,8 @@ class GraphicUserInterface(QMainWindow):
       self.ui.labelProjHmax.setText( "%d -" % projXmax )
       self.ui.labelProjMin.setText ( "%d\n%d\\" % (projXmin, projYmin) )
       self.ui.labelProjVmax.setText( "| %d" % projYmax )
-    except Exception, e:
-      print "updateProj:: exception: ", e             
+    except Exception as e:
+      print("updateProj:: exception: ", e)
       
   def updateMiscInfo(self):
     if self.avgState == LOCAL_AVERAGE:
@@ -1552,15 +1501,15 @@ class GraphicUserInterface(QMainWindow):
           self.ui.menuCameras.addAction(action)
           self.camactions.append(action)
         except:
-          print "Failed to create camera action for %s" % sCameraDesc
+          print("Failed to create camera action for %s" % sCameraDesc)
         
         if sLensPv == "": sLensPv = "None"
-        print "Camera [%d] %s Pv %s Evr %s LensPv %s" % (iCamera, sCameraDesc, sCameraPv, sEvr, sLensPv)
+        print("Camera [%d] %s Pv %s Evr %s LensPv %s" % (iCamera, sCameraDesc, sCameraPv, sEvr, sLensPv))
         
     except:
       #import traceback
       #traceback.print_exc(file=sys.stdout)
-      print '!! Failed to read camera pv list from \"%s\"' % (fnCameraList)
+      print('!! Failed to read camera pv list from \"%s\"' % (fnCameraList))
       sys.exit(0)
 
   def disconnectPv(self, pv):
@@ -1709,22 +1658,13 @@ class GraphicUserInterface(QMainWindow):
   def connectPv(self, name, timeout=5.0, count=None):
     try:
       if self.simtype == None:
-        pv = Pv(name)
-        pv.count = count
+        pv = Pv(name, count=count, initialize=True)
         try:
-          pv.connect(timeout)
+          pv.wait_ready(timeout)
         except Exception as exc:
-          print exc
+          print(exc)
           QMessageBox.critical(None,
-                               "Error", "Failed to connect to PV %s" % (name),
-                               QMessageBox.Ok, QMessageBox.Ok)
-          return None
-        try:
-          pv.get(False, timeout, count=count)
-        except Exception as exc:
-          print exc
-          QMessageBox.critical(None,
-                               "Error", "Connected, but unable to read PV %s" % (name),
+                               "Error", "Failed to initialize PV %s" % (name),
                                QMessageBox.Ok, QMessageBox.Ok)
           return None
         return pv
@@ -1732,7 +1672,6 @@ class GraphicUserInterface(QMainWindow):
         tgt = name.split(":")[-1]
         if tgt[0:5] == "Cross":
           return None
-
         pv = Pv(name, True)
         if tgt[0:2] == "DX" or tgt[0:2] == "DY":
           pv.setvalue(0)
@@ -1746,11 +1685,10 @@ class GraphicUserInterface(QMainWindow):
           pv.setvalue(25*[0.0])
           pv.value[0] = 0.5
         else:
-          print "Do we need to simulate %s?" % name
+          print("Do we need to simulate %s?" % name)
         return pv
-        
     except Exception as exc:
-      print exc
+      print(exc)
       QMessageBox.critical(None,
                            "Error", "Failed to connect to PV %s" % (name),
                            QMessageBox.Ok, QMessageBox.Ok)
@@ -1781,8 +1719,8 @@ class GraphicUserInterface(QMainWindow):
       if self.markhash[fid][2] == secs and self.markhash[fid][3] == secs:
         self.ui.display_image.lMarker[3].setAbs(self.markhash[fid][6], self.markhash[fid][7])
       self.updateMarkerText(True, True, 0, 12)
-    except Exception, e:
-      print "updateCross3and4 exception: %s" % e
+    except Exception as e:
+      print("updateCross3and4 exception: %s" % e)
 
   def addmarkhash(self, pv, idx):
     fid = pv.nsec & 0x1ffff
@@ -1795,31 +1733,31 @@ class GraphicUserInterface(QMainWindow):
 
   def cross1mon(self, exception=None):           
     if exception is None:
-      self.event.emit(QtCore.SIGNAL("onCross1Update"))
+      self.cross1Update.emit()
       
   def cross2mon(self, exception=None):           
     if exception is None:
-      self.event.emit(QtCore.SIGNAL("onCross2Update"))
+      self.cross2Update.emit()
 
   def cross3Xmon(self, exception=None):           
     if exception is None:
       if self.addmarkhash(self.globmarkpvs2[0], 0):
-        self.event.emit(QtCore.SIGNAL("onCross3Update"))
+        self.cross3Update.emit()
 
   def cross3Ymon(self, exception=None):           
     if exception is None:
       if self.addmarkhash(self.globmarkpvs2[1], 1):
-        self.event.emit(QtCore.SIGNAL("onCross3Update"))
+        self.cross3Update.emit()
 
   def cross4Xmon(self, exception=None):           
     if exception is None:
       if self.addmarkhash(self.globmarkpvs2[2], 2):
-        self.event.emit(QtCore.SIGNAL("onCross4Update"))
+        self.cross4Update.emit()
 
   def cross4Ymon(self, exception=None):           
     if exception is None:
       if self.addmarkhash(self.globmarkpvs2[3], 3):
-        self.event.emit(QtCore.SIGNAL("onCross4Update"))
+        self.cross4Update.emit()
 
   def connectMarkerPVs(self):
     self.globmarkpvs = [self.connectPv(self.ctrlBase + ":Cross1X"),
@@ -1851,10 +1789,10 @@ class GraphicUserInterface(QMainWindow):
                          self.connectPv(self.ctrlBase + ":DY2_SLOW")]
     if None in self.globmarkpvs2:
       return self.disconnectMarkerPVs2()
-    self.globmarkpvs2[0].monitor_cb = self.cross3Xmon
-    self.globmarkpvs2[1].monitor_cb = self.cross3Ymon
-    self.globmarkpvs2[2].monitor_cb = self.cross4Xmon
-    self.globmarkpvs2[3].monitor_cb = self.cross4Ymon
+    self.globmarkpvs2[0].add_monitor_callback(self.cross3Xmon)
+    self.globmarkpvs2[1].add_monitor_callback(self.cross3Ymon)
+    self.globmarkpvs2[2].add_monitor_callback(self.cross4Xmon)
+    self.globmarkpvs2[3].add_monitor_callback(self.cross4Ymon)
     for i in self.globmarkpvs2:
       i.monitor(pyca.DBE_VALUE)
     self.ui.Disp_Xmark3.readpvname = self.globmarkpvs2[0].name
@@ -1974,7 +1912,7 @@ class GraphicUserInterface(QMainWindow):
       self.cfgname += "," + self.lFlags[index]
 
     # Set camera type
-    print "Setting camtype for %s ..." % ( sType )
+    print("Setting camtype for %s ..." % ( sType ))
     if sType == "GE" or sType == "XTC" or sType == "DREC":
       self.camtype = [sType]
     else:
@@ -2000,7 +1938,7 @@ class GraphicUserInterface(QMainWindow):
     if self.count is None or self.count == 0:
       self.count = self.maxcount
     self.camera = self.connectPv(sCameraPv, count=self.count)
-    print "Connected!"
+    print("Connected!")
     if self.camera == None:
       self.ui.label_connected.setText("NO")
       return
@@ -2143,10 +2081,10 @@ class GraphicUserInterface(QMainWindow):
     else:
       self.camera.processor  = pycaqtimage.pyCreateImagePvCallbackFunc(self.imageBuffer)
       self.ui.grayScale.setVisible(False)
-    self.notify.monitor_cb = self.haveImageCallback
+    self.notify.add_monitor_callback(self.haveImageCallback)
     self.camera.getevt_cb = self.imagePvUpdateCallback
-    self.rowPv.monitor_cb = self.sizeCallback
-    self.colPv.monitor_cb = self.sizeCallback
+    self.rowPv.add_monitor_callback(self.sizeCallback)
+    self.colPv.add_monitor_callback(self.sizeCallback)
     # Now, before we monitor, update the camera size!
     self.setImageSize(self.colPv.value / self.scale, self.rowPv.value / self.scale, True)
     self.updateMarkerText(True, True, 0, 15)
@@ -2154,29 +2092,22 @@ class GraphicUserInterface(QMainWindow):
     self.rowPv.monitor(pyca.DBE_VALUE)
     self.colPv.monitor(pyca.DBE_VALUE)
     if self.shiftPv != None:
-      self.shiftPv.monitor_cb   = self.iocroiCallback
-      self.shiftPv.monitor(pyca.DBE_VALUE)
+      self.shiftPv.add_monitor_callback(self.iocroiCallback)
     if self.iocRoiXPv != None:
-      self.iocRoiXPv.monitor_cb = self.iocroiCallback
-      self.iocRoiXPv.monitor(pyca.DBE_VALUE)
+      self.iocRoiXPv.add_monitor_callback(self.iocroiCallback)
     if self.iocRoiYPv != None:
-      self.iocRoiYPv.monitor_cb = self.iocroiCallback
-      self.iocRoiYPv.monitor(pyca.DBE_VALUE)
+      self.iocRoiYPv.add_monitor_callback(self.iocroiCallback)
     if self.iocRoiWPv != None:
-      self.iocRoiWPv.monitor_cb = self.iocroiCallback
-      self.iocRoiWPv.monitor(pyca.DBE_VALUE)
+      self.iocRoiWPv.add_monitor_callback(self.iocroiCallback)
     if self.iocRoiHPv != None:
-      self.iocRoiHPv.monitor_cb = self.iocroiCallback
-      self.iocRoiHPv.monitor(pyca.DBE_VALUE)
+      self.iocRoiHPv.add_monitor_callback(self.iocroiCallback)
     if self.params1Pv != None:
-      self.params1Pv.monitor_cb = self.param1Callback
-      self.params1Pv.monitor(pyca.DBE_VALUE)
+      self.params1Pv.add_monitor_callback(self.param1Callback)
     if self.params2Pv != None:
-      self.params2Pv.monitor_cb = self.param2Callback
-      self.params2Pv.monitor(pyca.DBE_VALUE)
+      self.params2Pv.add_monitor_callback(self.param2Callback)
     pyca.flush_io()
     self.sWindowTitle = "Camera: " + self.lCameraDesc[index]
-    self.setWindowTitle(QApplication.translate("MainWindow", self.sWindowTitle, None, QApplication.UnicodeUTF8))
+    self.setWindowTitle("MainWindow")
     self.advdialog.setWindowTitle(self.sWindowTitle + " Advanced Mode")
     self.markerdialog.setWindowTitle(self.sWindowTitle + " Marker Settings")
     self.specificdialog.setWindowTitle(self.sWindowTitle + " Camera Settings")
@@ -2201,7 +2132,7 @@ class GraphicUserInterface(QMainWindow):
     if index < 0:
       return      
     if index >= len(self.lCameraList):
-      print "index %d out of range (max: %d)" % (index, len(self.lCameraList) - 1)
+      print("index %d out of range (max: %d)" % (index, len(self.lCameraList) - 1))
       return        
     sCameraPv = str(self.lCameraList[index])
     if sCameraPv == "":
@@ -2246,11 +2177,10 @@ class GraphicUserInterface(QMainWindow):
       self.ui.remote_average.setVisible(True)
       # Connect and monitor :AVERAGER.A (# of frames).
       try:
-        self.avgPv = Pv(sCameraPv + ":AVERAGER.A")
+        self.avgPv = Pv(sCameraPv + ":AVERAGER.A", initialize=True)
         timeout = 1.0
-        self.avgPv.connect(timeout)
-        self.avgPv.monitor_cb = self.avgPvUpdateCallback
-        self.avgPv.monitor(pyca.DBE_VALUE)
+        self.avgPv.wait_ready(timeout)
+        self.avgPv.add_monitor_callback(self.avgPvUpdateCallback)
         pyca.flush_io()
       except:
         QMessageBox.critical(None,
@@ -2265,7 +2195,7 @@ class GraphicUserInterface(QMainWindow):
     self.average = 1
     
     sLensPvDesc = sLensPv if sLensPv != "" else "None"
-    print "Using Camera [%d] Pv %s Evr %s LensPv %s" % (index, sCameraPv, sEvrPv, sLensPvDesc )
+    print("Using Camera [%d] Pv %s Evr %s LensPv %s" % (index, sCameraPv, sEvrPv, sLensPvDesc ))
     if sLensPv == "": 
       self.lensPv = None
       self.ui.labelLens.setVisible(False)
@@ -2299,11 +2229,11 @@ class GraphicUserInterface(QMainWindow):
         else:
           self.putlensPv = None
           self.lensPv = Pv(lensName[0])
-        self.lensPv.connect(timeout)
-        self.lensPv.monitor_cb = self.lensPvUpdateCallback
-        self.lensPv.monitor(pyca.DBE_VALUE)
+        self.lensPv.connect(timeout, initialize=True)
+        self.lensPv.wait_ready(1.0)
+        self.lensPv.add_monitor_callback(self.lensPvUpdateCallback)
         if self.putlensPv != None:
-          self.putlensPv.connect(timeout)
+          self.putlensPv.connect(timeout, initialize=True)
         pyca.flush_io()
       except:
         QMessageBox.critical(None,
@@ -2356,11 +2286,9 @@ class GraphicUserInterface(QMainWindow):
       else:
         gui.writepvname = self.ctrlBase + writepvname
       gui.readpvname = self.ctrlBase + pvname
-      pv = Pv(gui.readpvname)
-      pv.connect(1.0)
-      pv.monitor_cb = lambda e=None: callback(e, pv, gui)
-      pv.monitor(pyca.DBE_VALUE)
-      pyca.flush_io()
+      pv = Pv(gui.readpvname, initialize=True)
+      pv.wait_ready(1.0)
+      pv.add_monitor_callback(lambda e=None: callback(e, pv, gui))
       self.otherpvs.append(pv)
     except:
       pass
@@ -2513,7 +2441,7 @@ class GraphicUserInterface(QMainWindow):
         self.advdialog.ui.viewHeight.setText(str(self.viewheight))
         self.advdialog.ui.projSize.setText(str(self.projsize))
       except:
-        print "onAdvanced threw an exception"
+        print("onAdvanced threw an exception")
     if role == QDialogButtonBox.RejectRole or role == QDialogButtonBox.AcceptRole:
       self.ui.showexpert.setChecked(False)
 
@@ -2529,23 +2457,23 @@ class GraphicUserInterface(QMainWindow):
         l[0] = nf1
         self.params1Pv.put(tuple(l))
       except:
-        print "onDroplet threw an exception"
+        print("onDroplet threw an exception")
       try:
         nf2 = float(self.dropletdialog.ui.noisefloor2.text())
         l = list(self.params2Pv.value)
         l[0] = nf2
         self.params2Pv.put(tuple(l))
       except:
-        print "onDroplet threw an exception"
+        print("onDroplet threw an exception")
       try:
         pyca.flush_io()
       except:
-        print "onDroplet threw an exception"
+        print("onDroplet threw an exception")
         
   def onOpenEvr(self):
     iCamera = self.ui.comboBoxCamera.currentIndex()
     if self.lEvrList[iCamera] != "None":
-      print "Open Evr %s for camera [%d] %s..." % (self.lEvrList[iCamera], iCamera, self.lCameraList[iCamera])
+      print("Open Evr %s for camera [%d] %s..." % (self.lEvrList[iCamera], iCamera, self.lCameraList[iCamera]))
       os.system(self.cwd + "/openEvr.sh " + self.lEvrList[iCamera] + " &")
                            
   def onSliderRangeMinChanged(self, newSliderValue):
@@ -2578,10 +2506,10 @@ class GraphicUserInterface(QMainWindow):
         else:
           self.lensPv.put(newSliderValue)
         pyca.flush_io()
-      except pyca.pyexc, e:
-        print 'pyca exception: %s' %(e)
-      except pyca.caexc, e:
-        print 'channel access exception: %s' %(e)
+      except pyca.pyexc as e:
+        print('pyca exception: %s' %(e))
+      except pyca.caexc as e:
+        print('channel access exception: %s' %(e))
 
   def onRangeMinTextEnter(self):
     try:
@@ -2621,10 +2549,10 @@ class GraphicUserInterface(QMainWindow):
         else:
           self.lensPv.put(value)
         pyca.flush_io()
-      except pyca.pyexc, e:
-        print 'pyca exception: %s' %(e)
-      except pyca.caexc, e:
-        print 'channel access exception: %s' %(e)
+      except pyca.pyexc as e:
+        print('pyca exception: %s' %(e))
+      except pyca.caexc as e:
+        print('channel access exception: %s' %(e))
 
   def onRemAvgEnter(self):
     try:
@@ -2637,10 +2565,10 @@ class GraphicUserInterface(QMainWindow):
       try:
         self.avgPv.put(value)
         pyca.flush_io()
-      except pyca.pyexc, e:
-        print 'pyca exception: %s' %(e)
-      except pyca.caexc, e:
-        print 'channel access exception: %s' %(e)
+      except pyca.pyexc as e:
+        print('pyca exception: %s' %(e))
+      except pyca.caexc as e:
+        print('channel access exception: %s' %(e))
 
   def onShiftText(self):
     try:
@@ -2651,10 +2579,10 @@ class GraphicUserInterface(QMainWindow):
       self.ui.shiftSlider.setValue(value)
       self.shiftPv.put(value)
       pyca.flush_io()
-    except pyca.pyexc, e:
-      print 'pyca exception: %s' %(e)
-    except pyca.caexc, e:
-      print 'channel access exception: %s' %(e)
+    except pyca.pyexc as e:
+      print('pyca exception: %s' %(e))
+    except pyca.caexc as e:
+      print('channel access exception: %s' %(e))
     except:
       pass
 
@@ -2666,10 +2594,10 @@ class GraphicUserInterface(QMainWindow):
     try:
       self.shiftPv.put(newSliderValue)
       pyca.flush_io()
-    except pyca.pyexc, e:
-      print 'pyca exception: %s' %(e)
-    except pyca.caexc, e:
-      print 'channel access exception: %s' %(e)
+    except pyca.pyexc as e:
+      print('pyca exception: %s' %(e))
+    except pyca.caexc as e:
+      print('channel access exception: %s' %(e))
 
   def onIOCROI(self, gui, name):
     try:
@@ -2693,9 +2621,9 @@ class GraphicUserInterface(QMainWindow):
   # Note: this function is called by the CA library, from another thread
   def iocroiCallback(self, exception=None):           
     if exception is None:
-      self.event.emit(QtCore.SIGNAL("onIOCUpdate"))
+      self.IOCUpdate.emit()
     else:
-      print "iocroiCallback(): %-30s " % (self.name), exception
+      print("iocroiCallback(): %-30s " % (self.name), exception)
 
   def onIOCUpdate(self):
     if (self.shiftPv != None):
@@ -2940,9 +2868,9 @@ class GraphicUserInterface(QMainWindow):
     # Set the window size
     settings = QtCore.QSettings("SLAC", "CamViewer");
     pos = self.pos()
-    self.restoreGeometry(settings.value("geometry/%s" % self.cfgname).toByteArray());
+    self.restoreGeometry(settings.value("geometry/%s" % self.cfgname))
     self.move(pos)   # Just restore the size, keep the position!
-    self.restoreState(settings.value("windowState/%s" % self.cfgname).toByteArray());
+    self.restoreState(settings.value("windowState/%s" % self.cfgname))
 
     # I think we're going to assume that since we've written this file, it's correct.
     # Do, or do not.  There is no try.

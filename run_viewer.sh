@@ -3,9 +3,8 @@ export h=$(dirname $0)
 if [ -d $h ]; then
 	cd $h
 fi
-export PSPKG_ROOT=/reg/common/package
-export PSPKG_RELEASE=controls-0.0.6
-source $PSPKG_ROOT/etc/set_env.sh
+export PCDS_CONDA_VER=5.1.1
+source /cds/group/pcds/pyps/conda/pcds_conda
 export EPICS_CA_MAX_ARRAY_BYTES=10000000
 ulimit -c unlimited
 

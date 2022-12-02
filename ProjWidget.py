@@ -1,6 +1,7 @@
-from PyQt4 import QtCore
-from PyQt4.QtGui import *
-from PyQt4.QtCore import QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject
+from PyQt5 import QtCore
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject
 import param
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -79,22 +80,24 @@ class ProjWidget(QWidget):
     #
     fig = Figure(figsize=(view_width/100.0,view_height/100.0),dpi=100)
     canvas = FigureCanvas(fig)
-    xmin = 0
-    xmax = len(proj) - 1
-    # What fits on the screen?
-    if xmax < screen_start or xmin > screen_end: # Nothing!!
+    fig.patch.set_facecolor('0.75')   # Qt5 defaults to white!!
+    # We want to display beteen 0 and len(proj) - 1.  What fits though?
+    if len(proj) - 1 < screen_start or screen_end < 0: # Nothing!!
       canvas.draw()
       width, height = canvas.get_width_height()
       if self.is_x:
-        self.image = QImage(canvas.buffer_rgba(0, 0), width, height, QImage.Format_ARGB32)
+        self.image = QImage(canvas.buffer_rgba(), width, height, QImage.Format_ARGB32)
       else:
-        self.image = QImage(canvas.buffer_rgba(0, 0), height, width, QImage.Format_ARGB32)
+        self.image = QImage(canvas.buffer_rgba(), height, width, QImage.Format_ARGB32)
       self.update()
       return
-    if xmin < screen_start:
-      xmin = screen_start
-    if xmax > screen_end:
-      xmax = screen_end
+    # Cut a little off the ends if needed!
+    if xidx[0] < xidx[-1]:
+      xmin = screen_start if screen_start > 0 else 0
+      xmax = screen_end if screen_end < len(proj) - 1 else (len(proj) - 1)
+    else:
+      xmin = (len(proj) - 1) - (screen_end if screen_end < len(proj) - 1 else (len(proj) - 1))
+      xmax = (len(proj) - 1) - (screen_start if screen_start > 0 else 0)
     # Add our axis.
     # In both x and y cases, we need to scale to be the correct size.
     # The padding comes at opposite sides though... it's on the top for y!
@@ -112,8 +115,18 @@ class ProjWidget(QWidget):
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
 
-    # MCB - Add plotting, fitting etc. here!
+    # MCB - The past, as they say, is prologue.  So what do we have here?
+    #     ax   - A matplotlib Axes.
+    #     xidx - A np array of pixel coordinates, in the oriented frame.
+    #     proj - A np array of projection sums, in the oriented frame.
+    #     self.gui.image - A np array containing the most recent full image, oriented.
+    #     xmin, xmax, ymin, ymax - The limits of the plot.
+    #
+    # At this point, we should plot whatever we want to plot and fit whatever
+    # we want to fit.
+
     ax.plot(xidx, proj, 'g-')
+
     # MCB - End of plotting.
 
     # Crop the plot appropriately, and send it off to be displayed.
@@ -121,16 +134,19 @@ class ProjWidget(QWidget):
     ax.set_ylim([ymin, ymax])
     canvas.draw()
     width, height = canvas.get_width_height()
-    img = QImage(canvas.buffer_rgba(0, 0), width, height, QImage.Format_ARGB32)
+    img = QImage(canvas.buffer_rgba(), width, height, QImage.Format_ARGB32)
+    img.save("/cds/home/m/mcbrowne/controls/camviewer/img.jpg", format=None, quality=-1)
     if self.is_x:
       self.image = img
     else:
-      self.image = img.transformed(QMatrix().rotate(-90.0))
+      self.image = img.transformed(QTransform().rotate(-90))
     self.update()
 
   def paintEvent(self, event):
     if self.image is None:
       return
-    painter = QPainter(self)        
-    rectImage = QRectF( 0, 0, self.width(), self.height())                # screen
+    painter = QPainter(self)
+    w = self.width()
+    h = self.height()
+    rectImage = QRectF(0, 0, w, h)            # screen
     painter.drawImage(rectImage, self.image)

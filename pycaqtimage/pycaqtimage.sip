@@ -1,4 +1,4 @@
-%Module pycaqtimage 0
+%Module(name=pycaqtimage)
 
 %Import QtGui/QtGuimod.sip
 
@@ -6,11 +6,16 @@
 
 #include <Qt/qimage.h>
 #include <fcntl.h>
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include "arrayobject.h"
 
 static const unsigned int   MAX_INDEX_PLUS1 = 65536;
 static const uint32_t       ALPHA_VALUE     = 0xff000000;
 static uint32_t             gColorMap[MAX_INDEX_PLUS1];
+
+#define PYC_IB  "pycaqtimage.IB"
+#define PYC_CB  "pycaqtimage.CB"
+#define UNUSED(s) (void)(s)
 //#define DEBUG
 
 /*
@@ -182,9 +187,9 @@ struct ImageBuffer
 #define ORIENT180F 6
 #define ORIENT270F 7
 
-static void _pyFreeImageBuffer(void* buffer)
+static void _pyFreeImageBuffer(PyObject* pyImageBuffer)
 {
-    ImageBuffer* imageBuffer = (ImageBuffer*) buffer;
+    ImageBuffer* imageBuffer = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
     
     free(imageBuffer->imageDataF);
     if (imageBuffer->freeX)
@@ -193,6 +198,7 @@ static void _pyFreeImageBuffer(void* buffer)
         free(imageBuffer->projSumY);
     if (imageBuffer->freeImage)
         free(imageBuffer->imageData);
+    free(imageBuffer);
 }  
 
 /*
@@ -300,13 +306,13 @@ PyObject* pyCreateImageBuffer(QImage* imageDisp, PyObject *px_, PyObject *py_, P
     memset(imageBuffer->imageData, 0, imageBuffer->size * sizeof(uint32_t) );
     memset(imageBuffer->imageDataF, 0, imageBuffer->size * sizeof(float) );
 
-    PyObject* pyImageBuffer = PyCObject_FromVoidPtr(imageBuffer, _pyFreeImageBuffer);    
+    PyObject* pyImageBuffer = PyCapsule_New(imageBuffer, PYC_IB, _pyFreeImageBuffer);
     return pyImageBuffer;
 }
 
 PyObject* pySetImageBufferGray(PyObject* pyImageBuffer, int gray)
 {
-    ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
+    ImageBuffer* imageBuffer = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
     imageBuffer->useGray = gray;
     Py_RETURN_NONE;
 }
@@ -316,7 +322,7 @@ PyObject* pySetFrameAverage(int iAverage, PyObject* pyImageBuffer)
     if ( iAverage == 0 )
 	iAverage = 1;
     
-    ImageBuffer* imageBuffer  = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
+    ImageBuffer* imageBuffer  = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
   
     if ( iAverage != imageBuffer->iAverage )
 	imageBuffer->iAverage = iAverage;
@@ -356,7 +362,7 @@ static void _pyCopyToQImage(ImageBuffer* imageBuffer, int doFC)
  */
 PyObject* pyRecolorImageBuffer(PyObject* pyImageBuffer)
 {
-    ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
+    ImageBuffer* imageBuffer = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
     /* If the image is supposed to be color or if we're averaging, skip it! */
     if ((imageBuffer->isColor && !imageBuffer->useGray) || imageBuffer->iAverage != 1)
 	_pyCopyToQImage(imageBuffer, 1);
@@ -438,6 +444,9 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
                        colIncK[orientation];
     int iNewAverage  = imageBuffer->iNumAveraged + 1;
 
+    UNUSED(count);
+    UNUSED(size);
+
     /* If we're using the color image, don't average, just copy and we're done! */
     if (!imageBuffer->useGray) {
         src += 3 * init_offset;
@@ -480,6 +489,7 @@ static void _pyImagePvCallback(void* cadata, long count, size_t size, void* usr)
 {
   ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
 
+  UNUSED(count);
   if (size != 1 && size != 2 && size != 4) {
     printf("Image pixel size is %d bytes?\n", (int) size);
     return;
@@ -501,11 +511,12 @@ PyObject* pyCreateImagePvCallbackFunc(PyObject* pyImageBuffer)
 {
   // reinterpret_cast not allowed between func ptr and void* by ISO C++
   void* func        = (void*)_pyImagePvCallback;
-  ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
+  ImageBuffer* imageBuffer = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
 
   imageBuffer->isColor      = 0;
   
-  PyObject* pyfunc = PyCObject_FromVoidPtrAndDesc(func, (void *)imageBuffer, NULL);
+  PyObject* pyfunc = PyCapsule_New(func, PYC_CB, NULL);
+  PyCapsule_SetContext(pyfunc, (void *)imageBuffer);
   return pyfunc;
 }        
 
@@ -513,11 +524,12 @@ PyObject* pyCreateColorImagePvCallbackFunc(PyObject* pyImageBuffer)
 {
   // reinterpret_cast not allowed between func ptr and void* by ISO C++
   void* func        = (void*)_pyColorImagePvCallback;
-  ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
+  ImageBuffer* imageBuffer = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
 
   imageBuffer->isColor      = 1;
-  
-  PyObject* pyfunc = PyCObject_FromVoidPtrAndDesc(func, (void *)imageBuffer, NULL);
+   
+  PyObject* pyfunc = PyCapsule_New(func, PYC_CB, NULL);
+  PyCapsule_SetContext(pyfunc, (void *)imageBuffer);
   return pyfunc;
 }        
 
@@ -647,7 +659,7 @@ static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi)
 PyObject* pyUpdateProj(PyObject* pyImageBuffer, bool bProjAutoRange,
 		       int uMin, int uMax, QRectF* rectRoi)
 {  
-    ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
+    ImageBuffer* imageBuffer = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
   
     /*
      * Compute the ROI projection values, and also update the mean/variance
@@ -681,7 +693,7 @@ PyObject* pyUpdateProj(PyObject* pyImageBuffer, bool bProjAutoRange,
 PyObject* pyGetPixelValue(PyObject* pyImageBuffer, QPointF* cursor, QPointF* marker1, QPointF* marker2, 
 			  QPointF* marker3, QPointF* marker4)
 {
-    ImageBuffer* imageBuffer = (ImageBuffer*) PyCObject_AsVoidPtr( pyImageBuffer );
+    ImageBuffer* imageBuffer = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
     uint32_t*    pImgValue   = (uint32_t*) imageBuffer->imageData;     
   
     uint32_t     u32ValueCursor, u32Value1, u32Value2, u32Value3, u32Value4;

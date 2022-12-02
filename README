@@ -1,5 +1,3 @@
-After cloning this repository, run
-    ./COMPILE.sh
+After cloning this repository, just run "make"!
 
-This sets up the compilation environment, runs make, and builds the various
-GUIs and resources needed.
+This builds a sip plugin and other necessary resources.

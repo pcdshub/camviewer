@@ -1,6 +1,6 @@
-from PyQt4 import QtCore
-from PyQt4.QtGui import *
-from PyQt4.QtCore import QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject
+from PyQt5 import QtCore
+from PyQt5.QtGui import *
+from PyQt5.QtCore import QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject
 import numpy as np
 
 ORIENT0    = 0
@@ -33,8 +33,8 @@ zoom = 1.0
 
 def setImageSize(newx, newy):
     global x, y, xpad, ypad, maxd, x_fwd, x_rev, y_fwd, y_rev
-    x = newx
-    y = newy
+    x = int(newx)
+    y = int(newy)
     x_fwd = np.arange(x)
     x_rev = np.arange(x-1, -1, -1)
     y_fwd = np.arange(y)
@@ -170,7 +170,7 @@ class Point(object):
 
     def pr(self, text=""):
         pt = self.oriented()
-        print "%sabs(%g,%g) rel(%g,%g)" % (text, self.x, self.y, pt.x(), pt.y())
+        print("%sabs(%g,%g) rel(%g,%g)" % (text, self.x, self.y, pt.x(), pt.y()))
 
 class Rect(object):
     # Create with absolute image coordinates by default
@@ -287,5 +287,5 @@ class Rect(object):
 
     def pr(self, text=""):
         pt = self.oriented()
-        print "%sabs(%g,%g,%g,%g) rel(%g,%g,%g,%g)" % (text, self.x, self.y, self.w, self.h,
-                                                        pt.x(), pt.y(), pt.width(), pt.height())
+        print("%sabs(%g,%g,%g,%g) rel(%g,%g,%g,%g)" % (text, self.x, self.y, self.w, self.h,
+                                                       pt.x(), pt.y(), pt.width(), pt.height()))

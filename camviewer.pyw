@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from camviewer_ui_impl import GraphicUserInterface
-from PyQt4.QtGui import QApplication
+from PyQt5.QtWidgets import QApplication
 
 import pyca
 
@@ -22,8 +22,8 @@ if __name__ == '__main__':
                     [])
   try:
     options.parse()
-  except Exception, msg:
-    options.usage(str(msg))
+  except Exception as e:
+    options.usage(str(e.args))
     sys.exit()
     
   rate               = 5.0 if ( options.rate   == None ) else float(options.rate)
@@ -55,7 +55,7 @@ if __name__ == '__main__':
   except:
     pass
 
-  QApplication.setGraphicsSystem("raster")
+  #MCB??? QApplication.setGraphicsSystem("raster")
   app = QApplication([''])
   gui = GraphicUserInterface(app, cwd, options.instrument, options.camera, options.camerapv,
                              cameraListFilename, cfgdir, activedir,
