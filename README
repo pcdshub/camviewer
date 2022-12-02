@@ -1,3 +1,5 @@
 After cloning this repository, just run "make"!
 
+This does assume access to the WEKA (/cds) file system.
+
 This builds a sip plugin and other necessary resources.
