@@ -49,6 +49,7 @@ void pydspl_setup_color_map(const char* colormap, int iLimitLow, int iLimitHigh,
     } else {
         fprintf(stderr, "*** couldn't open %s for reading: %s\n", 
                 colormap, strerror(errno));
+        return;
     }
   
     const uint32_t u32LowValue = gTempColorMap[0];
@@ -246,14 +247,14 @@ PyObject* pyCreateImageBuffer(QImage* imageDisp, PyObject *px_, PyObject *py_, P
     if (px != NULL && PyArray_NDIM(px) == 1 && 
         PyArray_DIM(px, 0) == lenx && PyArray_TYPE(px) == NPY_DOUBLE) {
 #ifdef DEBUG
-        printf("Using numpy array for projX\n");
+        fprintf(stderr, "Using numpy array for projX\n");
 #endif
         imageBuffer->projSumX    = (double *)PyArray_DATA(px);
         imageBuffer->freeX       = 0;
     } else {
 #ifdef DEBUG
-        printf("Allocating memory for projX\n");
-        printf("DIM(0) = %ld, expected %d, type = %d, expected %d\n",
+        fprintf(stderr, "Allocating memory for projX\n");
+        fprintf(stderr, "DIM(0) = %ld, expected %d, type = %d, expected %d\n",
 	       PyArray_DIM(px, 0), lenx, PyArray_TYPE(px), NPY_DOUBLE);
 #endif
         imageBuffer->projSumX    = (double *) malloc( lenx * sizeof(double) );
@@ -262,14 +263,14 @@ PyObject* pyCreateImageBuffer(QImage* imageDisp, PyObject *px_, PyObject *py_, P
     if (py != NULL && PyArray_NDIM(py) == 1 && 
         PyArray_DIM(py, 0) == leny && PyArray_TYPE(py) == NPY_DOUBLE) {
 #ifdef DEBUG
-        printf("Using numpy array for projY\n");
+        fprintf(stderr, "Using numpy array for projY\n");
 #endif
         imageBuffer->projSumY    = (double *)PyArray_DATA(py);
         imageBuffer->freeY       = 0;
     } else {
 #ifdef DEBUG
-        printf("Allocating memory for projY\n");
-        printf("DIM(0) = %ld, expected %d, type = %d, expected %d\n",
+        fprintf(stderr, "Allocating memory for projY\n");
+        fprintf(stderr, "DIM(0) = %ld, expected %d, type = %d, expected %d\n",
 	       PyArray_DIM(py, 0), leny, PyArray_TYPE(py), NPY_DOUBLE);
 #endif
         imageBuffer->projSumY    = (double *) malloc( leny * sizeof(double) );
@@ -279,17 +280,17 @@ PyObject* pyCreateImageBuffer(QImage* imageDisp, PyObject *px_, PyObject *py_, P
         PyArray_DIM(image, 0) == lenx && PyArray_DIM(image, 1) == leny && 
         PyArray_TYPE(image) == NPY_UINT) {
 #ifdef DEBUG
-        printf("Using numpy array for image\n");
+        fprintf(stderr, "Using numpy array for image\n");
 #endif
         imageBuffer->imageData   = (uint32_t *)PyArray_DATA(image);
         imageBuffer->freeImage   = 0;
     } else {
 #ifdef DEBUG
-        printf("Allocating memory for image\n");
+        fprintf(stderr, "Allocating memory for image\n");
 	if (PyArray_NDIM(image) != 2)
-	    printf("NDIM = %d!\n", PyArray_NDIM(image));
+	    fprintf(stderr, "NDIM = %d!\n", PyArray_NDIM(image));
 	else
-            printf("DIM(0) = %ld, expected %d, DIM(1) = %ld, expected %d, type = %d, expected %d\n",
+            fprintf(stderr, "DIM(0) = %ld, expected %d, DIM(1) = %ld, expected %d, type = %d, expected %d\n",
 	           PyArray_DIM(image, 0), lenx, PyArray_DIM(image, 1), leny, PyArray_TYPE(image), NPY_UINT);
 #endif
         imageBuffer->imageData   = (uint32_t*) malloc( imageBuffer->size * sizeof(uint32_t) );
@@ -341,7 +342,7 @@ static void _pyCopyToQImage(ImageBuffer* imageBuffer, int doFC)
 
     if (imageBuffer->imageDisp->height() != imageBuffer->imgheight ||
 	imageBuffer->imageDisp->width() != imageBuffer->imgwidth) {
-	printf("Bad dimensions for imageDisp?!?\n");
+	fprintf(stderr, "Bad dimensions for imageDisp?!?\n");
 	return;
     }
 
@@ -490,10 +491,6 @@ static void _pyImagePvCallback(void* cadata, long count, size_t size, void* usr)
   ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
 
   UNUSED(count);
-  if (size != 1 && size != 2 && size != 4) {
-    printf("Image pixel size is %d bytes?\n", (int) size);
-    return;
-  }
   switch (size) {
     case 4:
 	_pyDoAvg(imageBuffer, reinterpret_cast<uint32_t*>(cadata));
@@ -504,6 +501,9 @@ static void _pyImagePvCallback(void* cadata, long count, size_t size, void* usr)
     case 1:
 	_pyDoAvg(imageBuffer, reinterpret_cast<uint32_t*>(cadata));
         break;
+    default:
+        fprintf(stderr, "Image pixel size is %d bytes?\n", (int) size);
+	break;
   }    
 }
 
@@ -622,7 +622,7 @@ static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi)
 	for (int iX = x1; iX <= x2; ++iX, ++pPixel) {
 	    int iValue = *pPixel;
 	    if ( iValue >= 0x10000) {
-		printf("Pixel value (%d,%d) too large: value 0x%x\n", iX, iY, iValue);
+		fprintf(stderr, "Pixel value (%d,%d) too large: value 0x%x\n", iX, iY, iValue);
 		continue;
 	    }
 	    projSumX[iX]  += iValue;
