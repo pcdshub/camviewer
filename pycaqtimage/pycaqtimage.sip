@@ -16,7 +16,6 @@ static uint32_t             gColorMap[MAX_INDEX_PLUS1];
 #define PYC_IB  "pycaqtimage.IB"
 #define PYC_CB  "pycaqtimage.CB"
 #define UNUSED(s) (void)(s)
-//#define DEBUG
 
 /*
  * Read in a colormap file and scale it so it fits the specified range using the specified function
@@ -160,7 +159,6 @@ struct ImageBuffer
     int       imgwidth, imgheight;
     int       size;
     int       iRoiW, iRoiH;
-    int       freeX, freeY, freeImage;
   
     int32_t  iProjXmin, iProjXmax;
     int32_t  iProjYmin, iProjYmax;
@@ -193,12 +191,6 @@ static void _pyFreeImageBuffer(PyObject* pyImageBuffer)
     ImageBuffer* imageBuffer = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
     
     free(imageBuffer->imageDataF);
-    if (imageBuffer->freeX)
-        free(imageBuffer->projSumX);
-    if (imageBuffer->freeY)
-        free(imageBuffer->projSumY);
-    if (imageBuffer->freeImage)
-        free(imageBuffer->imageData);
     free(imageBuffer);
 }  
 
@@ -246,55 +238,28 @@ PyObject* pyCreateImageBuffer(QImage* imageDisp, PyObject *px_, PyObject *py_, P
     imageBuffer->imageDisp   = imageDisp;
     if (px != NULL && PyArray_NDIM(px) == 1 && 
         PyArray_DIM(px, 0) == lenx && PyArray_TYPE(px) == NPY_DOUBLE) {
-#ifdef DEBUG
-        fprintf(stderr, "Using numpy array for projX\n");
-#endif
         imageBuffer->projSumX    = (double *)PyArray_DATA(px);
-        imageBuffer->freeX       = 0;
     } else {
-#ifdef DEBUG
-        fprintf(stderr, "Allocating memory for projX\n");
-        fprintf(stderr, "DIM(0) = %ld, expected %d, type = %d, expected %d\n",
-	       PyArray_DIM(px, 0), lenx, PyArray_TYPE(px), NPY_DOUBLE);
-#endif
-        imageBuffer->projSumX    = (double *) malloc( lenx * sizeof(double) );
-        imageBuffer->freeX       = 1;
+        fprintf(stderr, "pyCreateImageBuffer: px is not a double numpy array of length %d!\n", lenx);
+        free(imageBuffer);
+        Py_RETURN_NONE;
     }
     if (py != NULL && PyArray_NDIM(py) == 1 && 
         PyArray_DIM(py, 0) == leny && PyArray_TYPE(py) == NPY_DOUBLE) {
-#ifdef DEBUG
-        fprintf(stderr, "Using numpy array for projY\n");
-#endif
         imageBuffer->projSumY    = (double *)PyArray_DATA(py);
-        imageBuffer->freeY       = 0;
     } else {
-#ifdef DEBUG
-        fprintf(stderr, "Allocating memory for projY\n");
-        fprintf(stderr, "DIM(0) = %ld, expected %d, type = %d, expected %d\n",
-	       PyArray_DIM(py, 0), leny, PyArray_TYPE(py), NPY_DOUBLE);
-#endif
-        imageBuffer->projSumY    = (double *) malloc( leny * sizeof(double) );
-        imageBuffer->freeY       = 1;
+        fprintf(stderr, "pyCreateImageBuffer: py is not a double numpy array of length %d!\n", leny);
+        free(imageBuffer);
+        Py_RETURN_NONE;
     }
     if (image != NULL && PyArray_NDIM(image) == 2 && 
         PyArray_DIM(image, 0) == lenx && PyArray_DIM(image, 1) == leny && 
         PyArray_TYPE(image) == NPY_UINT) {
-#ifdef DEBUG
-        fprintf(stderr, "Using numpy array for image\n");
-#endif
         imageBuffer->imageData   = (uint32_t *)PyArray_DATA(image);
-        imageBuffer->freeImage   = 0;
     } else {
-#ifdef DEBUG
-        fprintf(stderr, "Allocating memory for image\n");
-	if (PyArray_NDIM(image) != 2)
-	    fprintf(stderr, "NDIM = %d!\n", PyArray_NDIM(image));
-	else
-            fprintf(stderr, "DIM(0) = %ld, expected %d, DIM(1) = %ld, expected %d, type = %d, expected %d\n",
-	           PyArray_DIM(image, 0), lenx, PyArray_DIM(image, 1), leny, PyArray_TYPE(image), NPY_UINT);
-#endif
-        imageBuffer->imageData   = (uint32_t*) malloc( imageBuffer->size * sizeof(uint32_t) );
-        imageBuffer->freeImage   = 1;
+        fprintf(stderr, "pyCreateImageBuffer: image is not properly sized numpy uint array!\n");
+        free(imageBuffer);
+        Py_RETURN_NONE;
     }
     imageBuffer->imageDataF  = (float*)    malloc( imageBuffer->size * sizeof(float) );
     imageBuffer->iAverage     = 1;
