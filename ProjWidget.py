@@ -40,6 +40,8 @@ class ProjWidget(QWidget):
 
   # Make the image to display.  This should match the view size.
   def makeImage(self, xminR, xmaxR, yminR, ymaxR):
+    if not self.isVisible():
+      return
     rectZoom  = self.gui.ui.display_image.arectZoom.oriented()            # image
     if self.is_x:
       if param.orientation & 2:

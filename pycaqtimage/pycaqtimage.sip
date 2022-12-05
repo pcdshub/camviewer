@@ -395,8 +395,7 @@ void _pyDoAvg(ImageBuffer *imageBuffer, T *cadata)
 static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void* usr)
 {
     ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
-    uint8_t* cadata8 = reinterpret_cast<uint8_t*>(cadata); /* R, G, B! */
-    uint8_t*  src    = cadata8;
+    uint8_t*  src    = reinterpret_cast<uint8_t*>(cadata); /* R, G, B! */
     uint32_t *dst    = imageBuffer->imageData;
     float    *dstF   = imageBuffer->imageDataF;
     int orientation  = imageBuffer->orientation;
@@ -426,6 +425,7 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
 	_pyCopyToQImage(imageBuffer, 0);
     } else {
 	if (iNewAverage == 1) {
+            src += 3 * init_offset;
 	    for (int iRow = 0; iRow < imageBuffer->imgheight; ++iRow) {
 		for (int iCol = 0; iCol < imageBuffer->imgwidth; ++iCol) {
 		    *dstF = GRAY(src);
@@ -435,6 +435,7 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
 		src += 3 * row_inc;
 	    }
 	} else {
+            src += 3 * init_offset;
 	    for (int iRow = 0; iRow < imageBuffer->imgheight; ++iRow) {
 		for (int iCol = 0; iCol < imageBuffer->imgwidth; ++iCol) {
 		    *dstF += (GRAY(src) - *dstF) / iNewAverage;
