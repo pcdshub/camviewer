@@ -56,6 +56,7 @@ if __name__ == '__main__':
     pass
 
   app = QApplication([''])
+  app.setStyle('Windows')
   gui = GraphicUserInterface(app, cwd, options.instrument, options.camera, options.camerapv,
                              cameraListFilename, cfgdir, activedir,
                              rate, options.idle, options)
