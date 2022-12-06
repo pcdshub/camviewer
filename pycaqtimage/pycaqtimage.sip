@@ -499,49 +499,7 @@ PyObject* pyCreateColorImagePvCallbackFunc(PyObject* pyImageBuffer)
   return pyfunc;
 }        
 
-static void _findMinMax(ImageBuffer* imageBuffer)
-{
-    imageBuffer->iProjXmin = 1<<15;
-    imageBuffer->iProjXmax = -1;
-    imageBuffer->iProjYmin = 1<<15;
-    imageBuffer->iProjYmax = -1;
-    
-    for (int iX=0; iX < imageBuffer->imgwidth; ++iX) {
-	int iValue = imageBuffer->projSumX[iX];
-	if (iValue < imageBuffer->iProjXmin)
-	    imageBuffer->iProjXmin = iValue;
-	if (iValue > imageBuffer->iProjXmax)
-	    imageBuffer->iProjXmax = iValue;      
-    }
-    
-    for (int iY=0; iY < imageBuffer->imgheight; ++iY) {
-	int iValue = imageBuffer->projSumY[iY];
-	if (iValue < imageBuffer->iProjYmin)
-	    imageBuffer->iProjYmin = iValue;
-	if (iValue > imageBuffer->iProjYmax)
-	    imageBuffer->iProjYmax = iValue;
-    }        
-    
-    if ( imageBuffer->iProjXmax == -1 ) {
-	imageBuffer->iProjXmin = 0;
-	imageBuffer->iProjXmax = 1;
-    } else {
-	if ( imageBuffer->iProjXmin > 0 )
-	    --imageBuffer->iProjXmin;
-	++imageBuffer->iProjXmax;
-    }
-    
-    if ( imageBuffer->iProjYmax == -1 ) {
-	imageBuffer->iProjYmin = 0;
-	imageBuffer->iProjYmax = 1;
-    } else {
-	if ( imageBuffer->iProjYmin > 0 )
-	    --imageBuffer->iProjYmin;
-	++imageBuffer->iProjYmax;
-    }  
-}
-
-static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi)
+static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi, bool bProjAutoRange)
 {
     double*   projSumX  = imageBuffer->projSumX;
     double*   projSumY  = imageBuffer->projSumY;
@@ -620,6 +578,47 @@ static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi)
 	imageBuffer->fRoiPixelMean  = 0;
 	imageBuffer->fRoiPixelVar   = 0;             
     }
+
+    if (bProjAutoRange) {
+	imageBuffer->iProjXmin = 1<<15;
+	imageBuffer->iProjXmax = -1;
+	imageBuffer->iProjYmin = 1<<15;
+	imageBuffer->iProjYmax = -1;
+    
+	for (int iX=x1; iX < x2; ++iX) {
+	    int iValue = imageBuffer->projSumX[iX];
+	    if (iValue < imageBuffer->iProjXmin)
+		imageBuffer->iProjXmin = iValue;
+	    if (iValue > imageBuffer->iProjXmax)
+		imageBuffer->iProjXmax = iValue;      
+	}
+    
+	for (int iY=y1; iY < y2; ++iY) {
+	    int iValue = imageBuffer->projSumY[iY];
+	    if (iValue < imageBuffer->iProjYmin)
+		imageBuffer->iProjYmin = iValue;
+	    if (iValue > imageBuffer->iProjYmax)
+		imageBuffer->iProjYmax = iValue;
+	}        
+    
+	if ( imageBuffer->iProjXmax == -1 ) {
+	    imageBuffer->iProjXmin = 0;
+	    imageBuffer->iProjXmax = 1;
+        } else {
+            if ( imageBuffer->iProjXmin > 0 )
+	        --imageBuffer->iProjXmin;
+            ++imageBuffer->iProjXmax;
+        }
+    
+        if ( imageBuffer->iProjYmax == -1 ) {
+	    imageBuffer->iProjYmin = 0;
+	    imageBuffer->iProjYmax = 1;
+        } else {
+            if ( imageBuffer->iProjYmin > 0 )
+	        --imageBuffer->iProjYmin;
+	    ++imageBuffer->iProjYmax;
+        }  
+    }
 }
 
 PyObject* pyUpdateProj(PyObject* pyImageBuffer, bool bProjAutoRange,
@@ -630,11 +629,9 @@ PyObject* pyUpdateProj(PyObject* pyImageBuffer, bool bProjAutoRange,
     /*
      * Compute the ROI projection values, and also update the mean/variance
      */
-    _computeRoiProj(imageBuffer, rectRoi);
+    _computeRoiProj(imageBuffer, rectRoi, bProjAutoRange);
 
-    if (bProjAutoRange) {
-        _findMinMax(imageBuffer);
-    } else {
+    if (!bProjAutoRange) {
         imageBuffer->iProjXmin = uMin;
         imageBuffer->iProjXmax = uMax;
         imageBuffer->iProjYmin = uMin;

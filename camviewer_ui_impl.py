@@ -2282,8 +2282,8 @@ class GraphicUserInterface(QMainWindow):
     except:
       pass
     try:
-      self.ui.display_image.roiSet(float(self.cfg.roi[0]), float(self.cfg.roi[1]),
-                                   float(self.cfg.roi[2]), float(self.cfg.roi[3]), rel=(use_abs==0))
+      self.ui.display_image.roiSet(float(self.cfg.ROI[0]), float(self.cfg.ROI[1]),
+                                   float(self.cfg.ROI[2]), float(self.cfg.ROI[3]), rel=(use_abs==0))
     except:
       pass
     self.updateall()
