@@ -310,11 +310,11 @@ class GraphicUserInterface(QMainWindow):
     if param.orientation & 2:
       self.px = np.zeros((param.y), dtype=np.float64)
       self.py = np.zeros((param.x),  dtype=np.float64)
-      self.image = np.zeros((param.y, param.x), dtype=np.uint32)
+      self.image = np.zeros((param.x, param.y), dtype=np.uint32)
     else:
       self.px = np.zeros((param.x), dtype=np.float64)
       self.py = np.zeros((param.y),  dtype=np.float64)
-      self.image = np.zeros((param.x, param.y), dtype=np.uint32)
+      self.image = np.zeros((param.y, param.x), dtype=np.uint32)
     self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image, self.px, self.py, 
                                                        self.image, param.x, param.y, param.orientation)
 
@@ -602,11 +602,11 @@ class GraphicUserInterface(QMainWindow):
     if param.orientation & 2:
       self.px = np.zeros((param.y), dtype=np.float64)
       self.py = np.zeros((param.x),  dtype=np.float64)
-      self.image = np.zeros((param.y, param.x), dtype=np.uint32)
+      self.image = np.zeros((param.x, param.y), dtype=np.uint32)
     else:
       self.px = np.zeros((param.x), dtype=np.float64)
       self.py = np.zeros((param.y),  dtype=np.float64)
-      self.image = np.zeros((param.x, param.y), dtype=np.uint32)
+      self.image = np.zeros((param.y, param.x), dtype=np.uint32)
     self.imageBuffer = pycaqtimage.pyCreateImageBuffer(self.ui.display_image.image, self.px, self.py, 
                                                        self.image, param.x, param.y, param.orientation)
     if self.camera != None:

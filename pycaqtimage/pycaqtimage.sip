@@ -253,7 +253,7 @@ PyObject* pyCreateImageBuffer(QImage* imageDisp, PyObject *px_, PyObject *py_, P
         Py_RETURN_NONE;
     }
     if (image != NULL && PyArray_NDIM(image) == 2 && 
-        PyArray_DIM(image, 0) == lenx && PyArray_DIM(image, 1) == leny && 
+        PyArray_DIM(image, 0) == leny && PyArray_DIM(image, 1) == lenx && 
         PyArray_TYPE(image) == NPY_UINT) {
         imageBuffer->imageData   = (uint32_t *)PyArray_DATA(image);
     } else {
