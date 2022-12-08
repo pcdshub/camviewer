@@ -249,7 +249,7 @@ class DisplayImage(QWidget):
     return self.moveImage(event)
     
   def wheelEvent(self, event):    
-    if event.delta() < 0:
+    if event.angleDelta().y() < 0:
       fFactor = 1.5
     else:
       fFactor = 1/1.5
