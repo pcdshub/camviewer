@@ -99,9 +99,9 @@ class ProjWidget(QWidget):
       canvas.draw()
       width, height = canvas.get_width_height()
       if self.is_x:
-        self.image = QImage(canvas.buffer_rgba(), width, height, QImage.Format_ARGB32)
+        self.image = QImage(canvas.buffer_rgba(), width, height, QImage.Format_RGBA8888)
       else:
-        self.image = QImage(canvas.buffer_rgba(), height, width, QImage.Format_ARGB32)
+        self.image = QImage(canvas.buffer_rgba(), height, width, QImage.Format_RGBA8888)
       self.update()
       return
     # Cut a little off the ends if needed, scale and pad appropriately.
@@ -145,7 +145,7 @@ class ProjWidget(QWidget):
     ax.set_ylim([ymin, ymax])
     canvas.draw()
     width, height = canvas.get_width_height()
-    img = QImage(canvas.buffer_rgba(), width, height, QImage.Format_ARGB32)
+    img = QImage(canvas.buffer_rgba(), width, height, QImage.Format_RGBA8888)
     if self.is_x:
       self.image = img
     else:
