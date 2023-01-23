@@ -2238,9 +2238,13 @@ class GraphicUserInterface(QMainWindow):
     # Set the window size
     settings = QtCore.QSettings("SLAC", "CamViewer");
     pos = self.pos()
-    self.restoreGeometry(settings.value("geometry/%s" % self.cfgname))
+    v = settings.value("geometry/%s" % self.cfgname)
+    if v is not None:
+      self.restoreGeometry(v)
     self.move(pos)   # Just restore the size, keep the position!
-    self.restoreState(settings.value("windowState/%s" % self.cfgname))
+    v = settings.value("windowState/%s" % self.cfgname)
+    if v is not None:
+      self.restoreState(v)
 
     # I think we're going to assume that since we've written this file, it's correct.
     # Do, or do not.  There is no try.
