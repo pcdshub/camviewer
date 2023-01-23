@@ -465,7 +465,7 @@ static void _pyImagePvCallback(void* cadata, long count, size_t size, void* usr)
 	_pyDoAvg(imageBuffer, reinterpret_cast<uint16_t*>(cadata));
         break;
     case 1:
-	_pyDoAvg(imageBuffer, reinterpret_cast<uint32_t*>(cadata));
+	_pyDoAvg(imageBuffer, reinterpret_cast<uint8_t*>(cadata));
         break;
     default:
         fprintf(stderr, "Image pixel size is %d bytes?\n", (int) size);
