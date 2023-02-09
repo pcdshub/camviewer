@@ -3,13 +3,13 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject
 import numpy as np
 
-ORIENT0    = 0
-ORIENT0F   = 1
-ORIENT90   = 2
-ORIENT90F  = 3
-ORIENT180  = 4
+ORIENT0 = 0
+ORIENT0F = 1
+ORIENT90 = 2
+ORIENT90F = 3
+ORIENT180 = 4
 ORIENT180F = 5
-ORIENT270  = 6
+ORIENT270 = 6
 ORIENT270F = 7
 
 orientation = 0
@@ -23,30 +23,32 @@ maxd = x
 
 # Convience indexes for plotting.
 x_fwd = np.arange(x)
-x_rev = np.arange(x-1, -1, -1)
+x_rev = np.arange(x - 1, -1, -1)
 y_fwd = np.arange(y)
-y_rev = np.arange(y-1, -1, -1)
+y_rev = np.arange(y - 1, -1, -1)
 
 # These aren't.
 projsize = 300
 zoom = 1.0
+
 
 def setImageSize(newx, newy):
     global x, y, xpad, ypad, maxd, x_fwd, x_rev, y_fwd, y_rev
     x = int(newx)
     y = int(newy)
     x_fwd = np.arange(x)
-    x_rev = np.arange(x-1, -1, -1)
+    x_rev = np.arange(x - 1, -1, -1)
     y_fwd = np.arange(y)
-    y_rev = np.arange(y-1, -1, -1)
-    if (newx >= newy):
-      ypad = (newx - newy) / 2
-      xpad = 0
-      maxd = newx
+    y_rev = np.arange(y - 1, -1, -1)
+    if newx >= newy:
+        ypad = (newx - newy) / 2
+        xpad = 0
+        maxd = newx
     else:
-      ypad = 0
-      xpad = (newy - newx) / 2
-      maxd = newy
+        ypad = 0
+        xpad = (newy - newx) / 2
+        maxd = newy
+
 
 # Get the desired QImage size (oriented!)
 def getSize():
@@ -56,6 +58,7 @@ def getSize():
     else:
         return QSize(x, y)
 
+
 def getSizeTuple():
     global x, y, orientation
     if orientation & 2 == 2:
@@ -63,9 +66,11 @@ def getSizeTuple():
     else:
         return (x, y)
 
+
 def isRotated():
     global orientation
     return orientation & 2 == 2
+
 
 def width():
     global x, y, orientation
@@ -74,12 +79,14 @@ def width():
     else:
         return x
 
+
 def height():
     global x, y, orientation
     if orientation & 2 == 2:
         return x
     else:
         return y
+
 
 def xpad_oriented():
     global xpad, ypad, orientation
@@ -88,12 +95,14 @@ def xpad_oriented():
     else:
         return xpad
 
+
 def ypad_oriented():
     global x, y, orientation
     if orientation & 2 == 2:
         return xpad
     else:
         return ypad
+
 
 class Point(object):
     # Create with absolute image coordinates by default.
@@ -172,6 +181,7 @@ class Point(object):
         pt = self.oriented()
         print("%sabs(%g,%g) rel(%g,%g)" % (text, self.x, self.y, pt.x(), pt.y()))
 
+
 class Rect(object):
     # Create with absolute image coordinates by default
     def __init__(self, xx, yy, ww, hh, rel=False):
@@ -186,10 +196,10 @@ class Rect(object):
     def setRel(self, xx, yy, ww, hh):
         global orientation
         if ww < 0:
-            xx = xx+ww+1
+            xx = xx + ww + 1
             ww = -ww
         if hh < 0:
-            yy = yy+hh+1
+            yy = yy + hh + 1
             hh = hh
         self._rel = QRectF(xx, yy, ww, hh)
         self.orientation = orientation
@@ -200,13 +210,13 @@ class Rect(object):
             self.x = xx
             self.w = ww
         else:
-            self.x = xx+ww+1
+            self.x = xx + ww + 1
             self.w = -ww
         if hh >= 0:
             self.y = yy
             self.h = hh
         else:
-            self.y = yy+hh+1
+            self.y = yy + hh + 1
             self.h = hh
         self._abs = QRectF(self.x, self.y, self.w, self.h)
         self._rel = None
@@ -287,5 +297,17 @@ class Rect(object):
 
     def pr(self, text=""):
         pt = self.oriented()
-        print("%sabs(%g,%g,%g,%g) rel(%g,%g,%g,%g)" % (text, self.x, self.y, self.w, self.h,
-                                                       pt.x(), pt.y(), pt.width(), pt.height()))
+        print(
+            "%sabs(%g,%g,%g,%g) rel(%g,%g,%g,%g)"
+            % (
+                text,
+                self.x,
+                self.y,
+                self.w,
+                self.h,
+                pt.x(),
+                pt.y(),
+                pt.width(),
+                pt.height(),
+            )
+        )
