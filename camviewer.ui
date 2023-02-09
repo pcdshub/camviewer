@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1218</width>
-    <height>1232</height>
+    <height>866</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -30,7 +30,16 @@
     <property name="sizeConstraint">
      <enum>QLayout::SetDefaultConstraint</enum>
     </property>
-    <property name="margin">
+    <property name="leftMargin">
+     <number>0</number>
+    </property>
+    <property name="topMargin">
+     <number>0</number>
+    </property>
+    <property name="rightMargin">
+     <number>0</number>
+    </property>
+    <property name="bottomMargin">
      <number>0</number>
     </property>
     <property name="spacing">
@@ -60,7 +69,16 @@
        <property name="spacing">
         <number>0</number>
        </property>
-       <property name="margin">
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
         <number>0</number>
        </property>
        <item>
@@ -312,7 +330,7 @@ ProjVmin\</string>
      </widget>
     </item>
     <item row="0" column="1">
-     <widget class="ProjH" name="projH" native="true">
+     <widget class="ProjWidget" name="projH" native="true">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
         <horstretch>0</horstretch>
@@ -817,298 +835,6 @@ ProjVmin\</string>
            <property name="text">
             <string>1</string>
            </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-      <item>
-       <widget class="QGroupBox" name="groupBoxIOC">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>300</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>300</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="title">
-         <string>IOC Image Control</string>
-        </property>
-        <layout class="QVBoxLayout" name="verticalLayout_2">
-         <item>
-          <layout class="QHBoxLayout" name="horizontalLayout_4">
-           <property name="rightMargin">
-            <number>1</number>
-           </property>
-           <item>
-            <widget class="QLabel" name="label_2">
-             <property name="minimumSize">
-              <size>
-               <width>24</width>
-               <height>0</height>
-              </size>
-             </property>
-             <property name="text">
-              <string>ROI </string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="label_IOC1">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="minimumSize">
-              <size>
-               <width>12</width>
-               <height>0</height>
-              </size>
-             </property>
-             <property name="styleSheet">
-              <string notr="true">color: green</string>
-             </property>
-             <property name="text">
-              <string>X</string>
-             </property>
-             <property name="buddy">
-              <cstring>IOC_RoiX</cstring>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLineEdit" name="IOC_RoiX">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="minimumSize">
-              <size>
-               <width>35</width>
-               <height>0</height>
-              </size>
-             </property>
-             <property name="accessibleName">
-              <string/>
-             </property>
-             <property name="text">
-              <string>512</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="label_IOC2">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="minimumSize">
-              <size>
-               <width>12</width>
-               <height>0</height>
-              </size>
-             </property>
-             <property name="styleSheet">
-              <string notr="true">color: green</string>
-             </property>
-             <property name="text">
-              <string>Y</string>
-             </property>
-             <property name="buddy">
-              <cstring>IOC_RoiY</cstring>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLineEdit" name="IOC_RoiY">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="minimumSize">
-              <size>
-               <width>35</width>
-               <height>0</height>
-              </size>
-             </property>
-             <property name="accessibleName">
-              <string/>
-             </property>
-             <property name="text">
-              <string>512</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="label_IOC11">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="minimumSize">
-              <size>
-               <width>12</width>
-               <height>0</height>
-              </size>
-             </property>
-             <property name="styleSheet">
-              <string notr="true">color: green</string>
-             </property>
-             <property name="text">
-              <string>W</string>
-             </property>
-             <property name="buddy">
-              <cstring>IOC_RoiW</cstring>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLineEdit" name="IOC_RoiW">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="minimumSize">
-              <size>
-               <width>35</width>
-               <height>0</height>
-              </size>
-             </property>
-             <property name="accessibleName">
-              <string/>
-             </property>
-             <property name="text">
-              <string>512</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="label_IOC12">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="minimumSize">
-              <size>
-               <width>12</width>
-               <height>0</height>
-              </size>
-             </property>
-             <property name="styleSheet">
-              <string notr="true">color: green</string>
-             </property>
-             <property name="text">
-              <string>H</string>
-             </property>
-             <property name="buddy">
-              <cstring>IOC_RoiH</cstring>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLineEdit" name="IOC_RoiH">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="minimumSize">
-              <size>
-               <width>35</width>
-               <height>0</height>
-              </size>
-             </property>
-             <property name="accessibleName">
-              <string/>
-             </property>
-             <property name="text">
-              <string>512</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <widget class="QWidget" name="shiftWidget" native="true">
-           <layout class="QHBoxLayout" name="horizontalLayout_2">
-            <property name="margin">
-             <number>0</number>
-            </property>
-            <item>
-             <widget class="QLabel" name="label">
-              <property name="text">
-               <string>Bit Shift</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QSlider" name="shiftSlider">
-              <property name="maximum">
-               <number>9</number>
-              </property>
-              <property name="pageStep">
-               <number>9</number>
-              </property>
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-              <property name="tickPosition">
-               <enum>QSlider::TicksBothSides</enum>
-              </property>
-              <property name="tickInterval">
-               <number>1</number>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLineEdit" name="shiftText">
-              <property name="maximumSize">
-               <size>
-                <width>66</width>
-                <height>16777215</height>
-               </size>
-              </property>
-             </widget>
-            </item>
-           </layout>
           </widget>
          </item>
         </layout>
@@ -1856,202 +1582,6 @@ ProjVmin\</string>
        </widget>
       </item>
       <item>
-       <widget class="QGroupBox" name="groupBoxDrop">
-        <property name="minimumSize">
-         <size>
-          <width>300</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>300</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="title">
-         <string>Droplet Finder</string>
-        </property>
-        <layout class="QGridLayout" name="gridLayout_7">
-         <item row="0" column="0">
-          <widget class="QRadioButton" name="ROI1">
-           <property name="text">
-            <string>ROI 1</string>
-           </property>
-           <property name="checked">
-            <bool>true</bool>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="1">
-          <spacer name="horizontalSpacer_2">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>81</width>
-             <height>20</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-         <item row="0" column="2">
-          <widget class="QRadioButton" name="ROI2">
-           <property name="text">
-            <string>ROI 2</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="3">
-          <spacer name="horizontalSpacer">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>80</width>
-             <height>20</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-         <item row="1" column="0" colspan="2">
-          <widget class="QPushButton" name="fetchROI">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="minimumSize">
-            <size>
-             <width>130</width>
-             <height>26</height>
-            </size>
-           </property>
-           <property name="maximumSize">
-            <size>
-             <width>140</width>
-             <height>16777215</height>
-            </size>
-           </property>
-           <property name="text">
-            <string>Fetch Drop ROI</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="2" colspan="2">
-          <widget class="QPushButton" name="setROI">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="minimumSize">
-            <size>
-             <width>130</width>
-             <height>26</height>
-            </size>
-           </property>
-           <property name="maximumSize">
-            <size>
-             <width>140</width>
-             <height>26</height>
-            </size>
-           </property>
-           <property name="text">
-            <string>Set Drop ROI</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="0" colspan="2">
-          <widget class="QCheckBox" name="showdrops">
-           <property name="text">
-            <string>Show Droplets</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="0" colspan="2">
-          <widget class="QLabel" name="label_3">
-           <property name="text">
-            <string>Gradient Threshold 1</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="2" colspan="2">
-          <widget class="QLineEdit" name="param1_0">
-           <property name="minimumSize">
-            <size>
-             <width>0</width>
-             <height>25</height>
-            </size>
-           </property>
-          </widget>
-         </item>
-         <item row="4" column="0" colspan="2">
-          <widget class="QLabel" name="label_5">
-           <property name="text">
-            <string>Projection Fraction 1</string>
-           </property>
-          </widget>
-         </item>
-         <item row="4" column="2" colspan="2">
-          <widget class="QLineEdit" name="param1_1">
-           <property name="minimumSize">
-            <size>
-             <width>0</width>
-             <height>25</height>
-            </size>
-           </property>
-          </widget>
-         </item>
-         <item row="5" column="0" colspan="2">
-          <widget class="QLabel" name="label_4">
-           <property name="text">
-            <string>Gradient Threshold 2</string>
-           </property>
-          </widget>
-         </item>
-         <item row="5" column="2" colspan="2">
-          <widget class="QLineEdit" name="param2_0">
-           <property name="minimumSize">
-            <size>
-             <width>0</width>
-             <height>25</height>
-            </size>
-           </property>
-          </widget>
-         </item>
-         <item row="6" column="0" colspan="2">
-          <widget class="QLabel" name="label_6">
-           <property name="text">
-            <string>Projection Fraction 2</string>
-           </property>
-          </widget>
-         </item>
-         <item row="6" column="2" colspan="2">
-          <widget class="QLineEdit" name="param2_1">
-           <property name="minimumSize">
-            <size>
-             <width>0</width>
-             <height>25</height>
-            </size>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="2" colspan="2">
-          <widget class="QCheckBox" name="dropDebug">
-           <property name="text">
-            <string>Debug ROI</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-      <item>
        <widget class="QGroupBox" name="groupBoxZoom">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
@@ -2133,7 +1663,7 @@ ProjVmin\</string>
      </layout>
     </item>
     <item row="1" column="0">
-     <widget class="ProjV" name="projV" native="true">
+     <widget class="ProjWidget" name="projV" native="true">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
         <horstretch>0</horstretch>
@@ -2356,7 +1886,6 @@ ProjVmin\</string>
      <string>Data Processing</string>
     </property>
     <addaction name="FileSave"/>
-    <addaction name="PostElog"/>
    </widget>
    <widget class="QMenu" name="menuOrientation">
     <property name="title">
@@ -2409,17 +1938,6 @@ ProjVmin\</string>
     <addaction name="actionShow_Projection"/>
     <addaction name="actionSave_to_File"/>
    </widget>
-   <widget class="QMenu" name="menuDroplet">
-    <property name="title">
-     <string>Droplet</string>
-    </property>
-    <addaction name="actionFetchROI1"/>
-    <addaction name="actionFetchROI2"/>
-    <addaction name="actionSetROI1"/>
-    <addaction name="actionSetROI2"/>
-    <addaction name="actionAdjustDrop"/>
-    <addaction name="actionShowDrop"/>
-   </widget>
    <widget class="QMenu" name="menuAdministration">
     <property name="title">
      <string>Administration</string>
@@ -2434,7 +1952,6 @@ ProjVmin\</string>
    <addaction name="menuZoom"/>
    <addaction name="menuMarkers_ROI"/>
    <addaction name="menuPopup"/>
-   <addaction name="menuDroplet"/>
    <addaction name="menuAdministration"/>
   </widget>
   <action name="confhide">
@@ -2497,11 +2014,6 @@ ProjVmin\</string>
   <action name="FileSave">
    <property name="text">
     <string>Save to File</string>
-   </property>
-  </action>
-  <action name="PostElog">
-   <property name="text">
-    <string>Post to E-Log</string>
    </property>
   </action>
   <action name="ZoomIn">
@@ -2799,15 +2311,9 @@ ProjVmin\</string>
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>ProjV</class>
+   <class>ProjWidget</class>
    <extends>QWidget</extends>
-   <header>ProjV</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>ProjH</class>
-   <extends>QWidget</extends>
-   <header>ProjH</header>
+   <header>ProjWidget</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

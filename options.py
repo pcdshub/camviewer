@@ -25,7 +25,7 @@ class Options(object):
     if notes != '':
       msg += '\nnotes: '
       msg += notes
-    print msg
+    print(msg)
 
 
   def parse(self):
@@ -38,10 +38,10 @@ class Options(object):
       opts.append(option)
     results = getopt.getopt(sys.argv[1:], '', opts)
     if len(results[1]) > 0:
-      raise RuntimeError, 'unknown argument(s) \'%s\'' %(results[1])
+      raise RuntimeError('unknown argument(s) \'%s\'' %(results[1]))
     for opt in results[0]:
       self.opts[opt[0][2:]] = opt[1]
     for option in self.__mand:
       if option not in self.opts:
-        raise RuntimeError, 'mandatory option \'--%s\' not found' %(option)
+        raise RuntimeError('mandatory option \'--%s\' not found' %(option))
 

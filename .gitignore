@@ -1,0 +1,10 @@
+*.pyc
+*~
+*_ui.py
+*_rc.py
+*.o
+*.so
+sip*
+pycaqtimage/Makefile
+pycaqtimage/pycaqtimage.sbf
+pycaqtimage/pycaqtimage.exp

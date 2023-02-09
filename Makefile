@@ -1,22 +1,36 @@
-all: pycaqtimage.so
-SIPTAG    = Qt_4_6_2
-SIPINC    = $(PSPKG_RELDIR)/share/sip
-PYTHONINC = $(PSPKG_RELDIR)/include/python2.7
-SIPHDIR   = $(PSPKG_RELDIR)/include/python2.7
-QTINC     = $(PSPKG_RELDIR)/include
-QTLIB     = $(PSPKG_RELDIR)/lib
+SHELL = /bin/bash
+ENV = export PCDS_CONDA_VER=5.1.1; source /cds/group/pcds/pyps/conda/pcds_conda;
+ALL = pycaqtimage/pycaqtimage.so camviewer_ui.py advanced_ui.py markers_ui.py \
+      specific_ui.py timeout_ui.py icon_rc.py 
 
-pycaqtimage.so: pycaqtimage_sip_wrap.sip
-	sip -t $(SIPTAG) -t WS_X11 -I$(SIPINC) \
-	    -e -j 1 -c . pycaqtimage_sip_wrap.sip
-	g++ -g -I$(PYTHONINC) -I$(SIPHDIR) -I$(QTINC) -I$(QTINC)/QtCore -I$(QTINC)/QtGui \
-	    -fno-strict-aliasing -fPIC -D_REENTRANT -D__pentium__ -Wall -O4 -m64 \
-	    -c sippycaqtimagepart0.cpp
-	g++ -g -m64 -shared -L$(QTLIB) -lQtGui \
-	    sippycaqtimagepart0.o -o pycaqtimage.so
+all: $(ALL)
+
+pycaqtimage/pycaqtimage.so: pycaqtimage/configure.py pycaqtimage/pycaqtimage.sip
+	$(ENV) python pycaqtimage/configure.py pycaqtimage
+	$(ENV) make -C pycaqtimage
+
+camviewer_ui.py: camviewer.ui
+	$(ENV) pyuic5 -o camviewer_ui.py camviewer.ui
+
+advanced_ui.py: advanced.ui
+	$(ENV) pyuic5 -o advanced_ui.py advanced.ui
+
+markers_ui.py: markers.ui
+	$(ENV) pyuic5 -o markers_ui.py markers.ui
+
+specific_ui.py: specific.ui
+	$(ENV) pyuic5 -o specific_ui.py specific.ui
+
+timeout_ui.py: timeout.ui
+	$(ENV) pyuic5 -o timeout_ui.py timeout.ui
+
+icon_rc.py: icon.qrc
+	$(ENV) pyrcc5 -o icon_rc.py icon.qrc
 
 clean:
 	-rm camviewer_ui.py advanced_ui.py markers_ui.py specific_ui.py droplet_ui.py xtcrdr_ui.py timeout_ui.py 
 	-rm icon_rc.py 
 	-rm *.pyc *~
-	-rm sip* *.so
+	-rm pycaqtimage/sip*
+	-rm pycaqtimage/*.{exp,sbf,so}
+	-rm -rf __pycache__

@@ -1,2 +1,5 @@
-We need to do:
-	pyuic4 -o pulnix6740_ui.py pulnix6740.ui
+After cloning this repository, just run "make"!
+
+This does assume access to the WEKA (/cds) file system.
+
+This builds a sip plugin and other necessary resources.

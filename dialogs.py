@@ -2,12 +2,11 @@ import os
 import advanced_ui
 import markers_ui
 import specific_ui
-import droplet_ui
-import xtcrdr_ui
 import timeout_ui
-from PyQt4 import QtCore, QtNetwork, uic
-from PyQt4.QtGui import *
-from PyQt4.QtCore import QTime, QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject
+from PyQt5 import QtCore, QtNetwork, uic
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import QTime, QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject
 
 class advdialog(QDialog):
     def __init__(self, gui, parent=None):
@@ -49,20 +48,6 @@ class specificdialog(QDialog):
     def closeEvent(self, event):
       QDialog.closeEvent(self, event)
 
-class dropletdialog(QDialog):
-    def __init__(self, gui, parent=None):
-      QWidget.__init__(self, parent)
-      self.gui = gui
-      self.ui = droplet_ui.Ui_Dialog()
-      self.ui.setupUi(self)
-
-class xtcrdrdialog(QDialog):
-    def __init__(self, gui, parent=None):
-      QWidget.__init__(self, parent)
-      self.gui = gui
-      self.ui = xtcrdr_ui.Ui_Dialog()
-      self.ui.setupUi(self)
-
 class timeoutdialog(QDialog):
     def __init__(self, gui, idle, parent=None):
       QWidget.__init__(self, parent)
@@ -92,9 +77,9 @@ class timeoutdialog(QDialog):
       self.timer = QTimer()
       self.timeValue = QTime(0, 0, 0)
       self.ui.TimeDisplay.display(self.timeValue.toString("hh:mm:ss"))
-      self.connect(self.timer, QtCore.SIGNAL("timeout()"), self.decrement)
-      self.connect(self.ui.hour1, QtCore.SIGNAL("clicked()"), self.hour1)
-      self.connect(self.ui.hour9, QtCore.SIGNAL("clicked()"), self.hour9)
+      self.timer.timeout.connect(self.decrement)
+      self.ui.hour1.clicked.connect(self.hour1)
+      self.ui.hour9.clicked.connect(self.hour9)
       self.hide()
 
     def closeEvent(self, event):
@@ -156,7 +141,7 @@ class timeoutdialog(QDialog):
       if (self.timeValue == self.zerotime):
         self.timer.stop()
         self.setText("CAMERA DISCONNECTED!", "CLICK TO RECONNECT.")
-        self.gui.event.emit(QtCore.SIGNAL("onTimeoutExpiry"))
+        self.gui.timeoutExpiry.emit()
 
     def force(self, line):
       self.gui.stop_disco()
@@ -167,7 +152,7 @@ class timeoutdialog(QDialog):
       self.ui.hour9.setVisible(self.show9)
       self.show()
       self.move(self.gui.pos())
-      self.gui.event.emit(QtCore.SIGNAL("onTimeoutExpiry"))
+      self.gui.timeoutExpiry.emit()
 
 class forcedialog(QDialog):
     def __init__(self, dir, gui, parent=None):
@@ -252,7 +237,7 @@ class forcedialog(QDialog):
                                         QDialogButtonBox.YesToAll)
       self.gridLayout.addWidget(self.buttonBox,   i, 0, 1, 3)
 
-      self.connect(self.buttonBox, QtCore.SIGNAL("clicked(QAbstractButton *)"), self.onClick)
+      self.buttonBox.clicked.connect(self.onClick)
       self.show()
 
     def onClick(self, button):
