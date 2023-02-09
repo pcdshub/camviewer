@@ -36,6 +36,7 @@ if __name__ == "__main__":
             "lportrait",
             "orientation",
             "cmap",
+            "scale",
         ],
         [],
     )
@@ -73,6 +74,9 @@ if __name__ == "__main__":
         os.mkdir(activedir)
     except:
         pass
+
+    if options.scale != None:
+        os.environ["QT_SCALE_FACTOR"] = options.scale
 
     app = QApplication([""])
     app.setStyle("Windows")

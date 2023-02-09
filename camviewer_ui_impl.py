@@ -195,7 +195,6 @@ class GraphicUserInterface(QMainWindow):
         self.cfgdir = cfgdir
         self.cfg = None
         self.activedir = activedir
-        self.fixname = False
         self.instrument = instrument
         self.description = "%s:%d" % (os.uname()[1], os.getpid())
         self.options = options
@@ -257,11 +256,6 @@ class GraphicUserInterface(QMainWindow):
         self.useglobmarks2 = False
         self.globmarkpvs = []
         self.globmarkpvs2 = []
-        self.pulnixmodes = [
-            ":SetAsyncShutter",
-            ":SetManualShutter",
-            ":SetDirectShutter",
-        ]
         self.lastimagetime = [0, 0]
         self.dispspec = 0
         self.otherpvs = []
@@ -360,6 +354,7 @@ class GraphicUserInterface(QMainWindow):
         self.ui.lineEditLens.setVisible(False)
         self.ui.rem_avg.setVisible(False)
         self.ui.remote_average.setVisible(False)
+        self.ui.groupBoxFits.setVisible(False)
 
         # Resize the main window!
         self.ui.display_image.setImageSize(False)
@@ -530,6 +525,18 @@ class GraphicUserInterface(QMainWindow):
         self.ui.actionGlobalMarkers.triggered.connect(self.onGlobMarks)
         self.advdialog.ui.showevr.clicked.connect(self.onOpenEvr)
         self.onExpertMode()
+
+        self.ui.checkBoxProjRoi.stateChanged.connect(self.onGenericConfigChange)
+        self.ui.checkBoxM1Lineout.stateChanged.connect(self.onGenericConfigChange)
+        self.ui.checkBoxM2Lineout.stateChanged.connect(self.onGenericConfigChange)
+        self.ui.checkBoxM3Lineout.stateChanged.connect(self.onGenericConfigChange)
+        self.ui.checkBoxM4Lineout.stateChanged.connect(self.onGenericConfigChange)
+        self.ui.radioGaussian.toggled.connect(self.onGenericConfigChange)
+        self.ui.radioSG4.toggled.connect(self.onGenericConfigChange)
+        self.ui.radioSG6.toggled.connect(self.onGenericConfigChange)
+        self.ui.checkBoxFits.stateChanged.connect(self.onCheckFitsUpdate)
+        self.ui.lineEditCalib.returnPressed.connect(self.onCalibTextEnter)
+        self.calib = 1.0
 
         self.advdialog.ui.buttonBox.clicked.connect(self.onAdvanced)
         self.specificdialog.ui.buttonBox.clicked.connect(self.onSpecific)
@@ -747,6 +754,7 @@ class GraphicUserInterface(QMainWindow):
         self.ui.projH.setVisible(v)
         self.ui.projV.setVisible(v)
         self.ui.projectionFrame.setVisible(v)
+        self.ui.groupBoxFits.setVisible(v and self.ui.checkBoxFits.isChecked())
         self.finishResize()
         if self.cfg == None:
             # print("done doShowProj")
@@ -1013,6 +1021,15 @@ class GraphicUserInterface(QMainWindow):
                 self.avgState = LOCAL_AVERAGE
         self.onAverageSet()
 
+    def onCheckFitsUpdate(self):
+        self.ui.groupBoxFits.setVisible(self.ui.checkBoxFits.isChecked())
+        if self.cfg == None:
+            self.dumpConfig()
+
+    def onGenericConfigChange(self):
+        if self.cfg == None:
+            self.dumpConfig()
+
     def clearSpecialMouseMode(self, keepMode, bNewCheckedState):
         for i in range(1, 6):
             if keepMode != i:
@@ -1259,6 +1276,14 @@ class GraphicUserInterface(QMainWindow):
         else:
             pycaqtimage.pySetFrameAverage(1, self.imageBuffer)
 
+    def onCalibTextEnter(self):
+        try:
+            self.calib = float(self.ui.lineEditCalib.text())
+            if self.cfg == None:
+                self.dumpConfig()
+        except:
+            self.ui.lineEditCalib.setText(str(self.calib))
+
     # Note: this function is called by the CA library, from another thread
     def sizeCallback(self, exception=None):
         if exception is None:
@@ -1382,8 +1407,12 @@ class GraphicUserInterface(QMainWindow):
                 self.iRangeMax,
                 self.ui.display_image.rectRoi.oriented(),
             )
-            self.ui.projH.makeImage(projXmin, projXmax, projYmin, projYmax)
-            self.ui.projV.makeImage(projXmin, projXmax, projYmin, projYmax)
+            (projXmin, projXmax) = self.ui.projH.makeImage(
+                projXmin, projXmax, projYmin, projYmax
+            )
+            (projYmin, projYmax) = self.ui.projV.makeImage(
+                projXmin, projXmax, projYmin, projYmax
+            )
 
             if roiMean == 0:
                 roiVarByMean = 0
@@ -2420,7 +2449,7 @@ class GraphicUserInterface(QMainWindow):
 
     def dumpConfig(self):
         if self.camera != None and self.options == None:
-            f = open(self.cfgdir + self.cfgname, "w")
+            f = open(self.cfgdir + self.cameraBase, "w")
             g = open(self.cfgdir + "GLOBAL", "w")
 
             f.write("projsize    " + str(self.projsize) + "\n")
@@ -2470,6 +2499,31 @@ class GraphicUserInterface(QMainWindow):
                     % (i + 1, lMarker[i].abs().x(), lMarker[i].abs().y())
                 )
             g.write("dispspec    " + str(self.dispspec) + "\n")
+            f.write(
+                "projroi     " + str(int(self.ui.checkBoxProjRoi.isChecked())) + "\n"
+            )
+            f.write(
+                "projlineout "
+                + str(int(self.ui.checkBoxM1Lineout.isChecked()))
+                + " "
+                + str(int(self.ui.checkBoxM2Lineout.isChecked()))
+                + " "
+                + str(int(self.ui.checkBoxM3Lineout.isChecked()))
+                + " "
+                + str(int(self.ui.checkBoxM4Lineout.isChecked()))
+                + "\n"
+            )
+            f.write("projfit     " + str(int(self.ui.checkBoxFits.isChecked())) + "\n")
+            f.write(
+                "projfittype "
+                + str(int(self.ui.radioGaussian.isChecked()))
+                + " "
+                + str(int(self.ui.radioSG4.isChecked()))
+                + " "
+                + str(int(self.ui.radioSG6.isChecked()))
+                + "\n"
+            )
+            f.write("projcalib   %g\n" % self.calib)
 
             f.close()
             g.close()
@@ -2477,6 +2531,12 @@ class GraphicUserInterface(QMainWindow):
             settings = QtCore.QSettings("SLAC", "CamViewer")
             settings.setValue("geometry/%s" % self.cfgname, self.saveGeometry())
             settings.setValue("windowState/%s" % self.cfgname, self.saveState())
+            if self.oldcfg:
+                try:
+                    self.oldcfg = False
+                    os.unlink(self.cfgdir + self.cfgname)
+                except:
+                    pass
 
     def getConfig(self):
         if self.camera == None:
@@ -2498,22 +2558,18 @@ class GraphicUserInterface(QMainWindow):
                 self.cfg.add("markers", self.options.marker)
             if self.options.camcfg != None:
                 self.cfg.add("dispspec", self.options.camcfg)
-        if not self.fixname:
-            # OK, old school!  Get rid of all of the final ":.*" from each camera!
-            self.fixname = True
-            for file in os.listdir(self.cfgdir):
-                match = re.search(
-                    "^(.*):(AVG_IMAGE|IMAGE_CMPX|LIVE_IMAGE_FULL|ArrayData)$", file
-                )
-                if match:
-                    try:
-                        os.rename(self.cfgdir + file, self.cfgdir + match.group(1))
-                    except:
-                        pass
 
         # Read the config file
-        if not self.cfg.read(self.cfgdir + self.cfgname):
-            # OK, didn't work, look for an old one.
+        #
+        # New Regime: We're going back to the Ancien Regime!  Config files
+        # are just the camera base name.  But... we'll try to read the old
+        # names first.  When we first save a new one, we will delete the old
+        # one.
+        if self.cfg.read(self.cfgdir + self.cfgname):
+            self.oldcfg = True
+        else:
+            # OK, didn't work, look for a new one!
+            self.oldcfg = False
             if not self.cfg.read(self.cfgdir + self.cameraBase):
                 # Bail if we can't find it
                 # But first, let's immediately process the command line options, if any.
@@ -2712,4 +2768,25 @@ class GraphicUserInterface(QMainWindow):
             self.setOrientation(int(orientation))
         except:
             pass
+        # Process projection settings, if any.
+        try:
+            self.ui.checkBoxProjRoi.setChecked(self.cfg.projroi == "1")
+            l = [ll == "1" for ll in self.cfg.projlineout]
+            self.ui.checkBoxM1Lineout.setChecked(l[0])
+            self.ui.checkBoxM2Lineout.setChecked(l[1])
+            self.ui.checkBoxM3Lineout.setChecked(l[2])
+            self.ui.checkBoxM4Lineout.setChecked(l[3])
+            self.ui.checkBoxFits.setChecked(self.cfg.projfit == "1")
+            l = [ll == "1" for ll in self.cfg.projfittype]
+            if l[0]:
+                self.ui.radioGaussian.setChecked(True)
+            if l[1]:
+                self.ui.radioSG4.setChecked(True)
+            if l[2]:
+                self.ui.radioSG6.setChecked(True)
+            self.calib = float(self.cfg.projcalib)
+            self.ui.lineEditCalib.setText(str(self.calib))
+        except:
+            pass
+
         self.cfg = None

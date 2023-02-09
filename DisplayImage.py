@@ -39,6 +39,12 @@ class DisplayImage(QWidget):
             param.Point(param.x + 100, param.y + 100),
             param.Point(-100, param.y + 100),
         ]
+        self.lPenColor = [
+            (0 / 255.0, 128 / 255.0, 255 / 255.0),  # matplotlib colors!!
+            (255 / 255.0, 0 / 255.0, 0 / 255.0),
+            (0 / 255.0, 204 / 255.0, 204 / 255.0),
+            (204 / 255.0, 0 / 255.0, 204 / 255.0),
+        ]
         self.lPenMarker = [
             QPen(QColor(0, 128, 255), 1, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin),
             QPen(QColor(255, 0, 0), 1, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin),
@@ -119,6 +125,18 @@ class DisplayImage(QWidget):
                 param.Point(-100, param.y + 100),
             ]
 
+    def pWidth(self):
+        if param.orientation & 2:
+            return self.height()
+        else:
+            return self.width()
+
+    def pHeight(self):
+        if param.orientation & 2:
+            return self.width()
+        else:
+            return self.height()
+
     def paintEvent(self, event):
         if self.gui.dispUpdates == 0:
             return
@@ -143,6 +161,13 @@ class DisplayImage(QWidget):
 
         painter.setOpacity(1)
 
+        lbProjChecked = [
+            self.gui.ui.checkBoxM1Lineout.isChecked(),
+            self.gui.ui.checkBoxM2Lineout.isChecked(),
+            self.gui.ui.checkBoxM3Lineout.isChecked(),
+            self.gui.ui.checkBoxM4Lineout.isChecked(),
+        ]
+
         for (iMarker, ptMarker) in enumerate(self.lMarker):
             markerImage = (
                 ptMarker.oriented() - self.arectZoom.oriented().topLeft()
@@ -161,6 +186,20 @@ class DisplayImage(QWidget):
             painter.setPen(self.lPenMarker[iMarker])
             painter.drawLine(markerImage - self.xoff, markerImage + self.xoff)
             painter.drawLine(markerImage - self.yoff, markerImage + self.yoff)
+
+            if lbProjChecked[iMarker]:
+                painter.setPen(self.penProjBack)
+                painter.drawLine(
+                    markerImage.x() + 1, 1, markerImage.x() + 1, self.pHeight()
+                )
+                painter.drawLine(
+                    1, markerImage.y() + 1, self.pWidth(), markerImage.y() + 1
+                )
+                painter.setPen(self.lPenProj[iMarker])
+                painter.drawLine(
+                    markerImage.x(), 0, markerImage.x(), self.pHeight() - 1
+                )
+                painter.drawLine(0, markerImage.y(), self.pWidth() - 1, markerImage.y())
 
         roiTopLeft = (
             self.rectRoi.oriented().topLeft() - self.arectZoom.oriented().topLeft()

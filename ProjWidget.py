@@ -5,6 +5,111 @@ from PyQt5.QtCore import QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject
 import param
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
+from lmfit.models import GaussianModel, Model, update_param_vals
+import numpy as np
+
+# From lmfit.lineshapes, because it's not worth importing...
+#
+# tiny had been numpy.finfo(numpy.float64).eps ~=2.2e16.
+# here, we explicitly set it to 1.e-15 == numpy.finfo(numpy.float64).resolution
+tiny = 1.0e-15
+
+
+def sg4(x, amplitude=1.0, center=0.0, width=1.0):
+    return amplitude * np.exp(-2.0 * ((x - center) ** 4 / max(tiny, width**4)))
+
+
+def sg6(x, amplitude=1.0, center=0.0, width=1.0):
+    return amplitude * np.exp(-2.0 * ((x - center) ** 6 / max(tiny, width**6)))
+
+
+class SG4Model(Model):
+    r"""A model based on a SuperGaussian model with p == 4.
+
+    The model has three Parameters: `amplitude`, `center`, and `width`.
+    In addition, parameters `fwhm` and `e2w` are also reported as
+    constraints to report full width at half maximum and 1/e^2 width,
+    respectively.
+
+    .. math::
+
+        f(x; A, c, w, p) = A*e^{-2((x-c)/w)^p}
+
+    where `amplitude` is :math:`A`, `center` is :math:`c`, and `width`
+    is :math:`w`. p is a constant 4.
+    """
+
+    def __init__(self, independent_vars=["x"], prefix="", nan_policy="raise", **kwargs):
+        kwargs.update(
+            {
+                "prefix": prefix,
+                "nan_policy": nan_policy,
+                "independent_vars": independent_vars,
+            }
+        )
+        super().__init__(sg4, **kwargs)
+        self._set_paramhints_prefix()
+
+    def _set_paramhints_prefix(self):
+        self.set_param_hint("width", min=0)
+        self.set_param_hint("fwhm", expr="1.5345*width")
+        self.set_param_hint("e2w", expr="2*width")
+
+    def guess(self, data, x, negative=False, **kwargs):
+        """Estimate initial model parameter values from data."""
+        maxy, miny = max(data), min(data)
+        maxx, minx = max(x), min(x)
+        cen = x[np.argmax(data)]
+        height = (maxy - miny) * 3.0
+        sig = (maxx - minx) / 6.0
+        pars = self.make_params(amplitude=height, center=cen, width=sig)
+        pars[f"{self.prefix}width"].set(min=0.0)
+        return update_param_vals(pars, self.prefix, **kwargs)
+
+
+class SG6Model(Model):
+    r"""A model based on a SuperGaussian model with p == 6.
+
+    The model has three Parameters: `amplitude`, `center`, and `width`.
+    In addition, parameters `fwhm` and `e2w` are also reported as
+    constraints to report full width at half maximum and 1/e^2 width,
+    respectively.
+
+    .. math::
+
+        f(x; A, c, w, p) = A*e^{-2((x-c)/w)^p}
+
+    where `amplitude` is :math:`A`, `center` is :math:`c`, and `width`
+    is :math:`w`. p is a constant 6.
+    """
+
+    def __init__(self, independent_vars=["x"], prefix="", nan_policy="raise", **kwargs):
+        kwargs.update(
+            {
+                "prefix": prefix,
+                "nan_policy": nan_policy,
+                "independent_vars": independent_vars,
+            }
+        )
+        super().__init__(sg6, **kwargs)
+        self._set_paramhints_prefix()
+
+    def _set_paramhints_prefix(self):
+        self.set_param_hint("width", min=0)
+        self.set_param_hint("fwhm", expr="1.6762*width")
+        self.set_param_hint("e2w", expr="2*width")
+
+    def guess(self, data, x, negative=False, **kwargs):
+        """Estimate initial model parameter values from data."""
+        maxy, miny = max(data), min(data)
+        maxx, minx = max(x), min(x)
+        cen = x[np.argmax(data)]
+        height = (maxy - miny) * 3.0
+        sig = (maxx - minx) / 6.0
+        pars = self.make_params(amplitude=height, center=cen, width=sig)
+        pars[f"{self.prefix}width"].set(min=0.0)
+        return update_param_vals(pars, self.prefix, **kwargs)
+
 
 #
 # If is_x, this is viewwidth by projsize, otherwise it is projsize by viewheight!
@@ -38,10 +143,71 @@ class ProjWidget(QWidget):
     def sizeHint(self):
         return self.hint
 
+    def plotFit(self, ax, is_x, x, y, xmin, xmax, ymin, ymax):
+        if self.gui.ui.radioGaussian.isChecked():
+            mod = GaussianModel()
+            mod.set_param_hint("e2w", expr="1.699*fwhm")
+        elif self.gui.ui.radioSG4.isChecked():
+            mod = SG4Model()
+        elif self.gui.ui.radioSG6.isChecked():
+            mod = SG6Model()
+        else:
+            return  # Not sure how we manage to check nothing here?!?
+        pars = mod.guess(y, x=x)
+        out = mod.fit(y, pars, x=x)
+        ax.plot(x, out.best_fit, "k-")
+        t = min(out.best_fit)
+        if t < ymin:
+            ymin = t
+        t = max(out.best_fit)
+        if t > ymax:
+            ymax = t
+        # What do we have here?
+        #     out.params['amplitude'].value is the amplitude.
+        #     out.params['center'].value is the mean if is_x, and
+        #         self.gui.image.shape[1] - 1 - out.params['center'].value otherwise.
+        #     out.params['sigma'].value is the std deviation if Gaussian.
+        #     out.params['width'].value is the width if Super Gaussian.
+        #     out.params['fwhm'].value is the FWHM.
+        #     out.params['e2w'].value is the 1/e^2 width.
+        # All need to be scaled by self.gui.calib!
+        fwhm = self.gui.calib * out.params["fwhm"].value
+        e2w = self.gui.calib * out.params["e2w"].value
+        if self.is_x:
+            self.gui.ui.lineEditFWHMx.setText("%12.8g" % (fwhm))
+            self.gui.ui.lineEdite2x.setText("%12.8g" % (e2w))
+        else:
+            self.gui.ui.lineEditFWHMy.setText("%12.8g" % (fwhm))
+            self.gui.ui.lineEdite2y.setText("%12.8g" % (e2w))
+        return (ymin, ymax)
+
+    def plotLineout(
+        self, ax, is_x, size, x, idx, xmin, xmax, ymin, ymax, marker, color
+    ):
+        if is_x:
+            i = int(marker.y())
+            if i < 0 or i >= size:
+                return (ymin, ymax)
+            y = self.gui.image[i, idx]
+        else:
+            i = int(marker.x())
+            if i < 0 or i >= size:
+                return (ymin, ymax)
+            y = self.gui.image[idx, i]
+        t = min(y)
+        if t < ymin:
+            ymin = t
+        t = max(y)
+        if t > ymax:
+            ymax = t
+        ax.plot(x, y, "-", color=color)
+        self.yplot = y
+        return (ymin, ymax)
+
     # Make the image to display.  This should match the view size.
     def makeImage(self, xminR, xmaxR, yminR, ymaxR):
         if not self.isVisible():
-            return
+            return (0, 100)
         rectZoom = self.gui.ui.display_image.arectZoom.oriented()  # image
         rectRoi = self.gui.ui.display_image.rectRoi.oriented()  # image
         if self.is_x:
@@ -55,6 +221,7 @@ class ProjWidget(QWidget):
             roi_width = rectRoi.width()
             view_width = self.width()
             view_height = self.height()
+            linelim = self.gui.image.shape[1]
             proj = self.gui.px
             ymin = xminR
             ymax = xmaxR
@@ -69,14 +236,20 @@ class ProjWidget(QWidget):
             roi_width = rectRoi.height()
             view_width = self.height()
             view_height = self.width()
+            linelim = self.gui.image.shape[0]
             proj = self.gui.py
             ymin = yminR
             ymax = ymaxR
         screen_end = screen_start + screen_width - 1
         roi_end = roi_start + roi_width - 1
-        if abs(screen_width - view_width / param.zoom) > 1:
+        # Why 10?  Well... it's still small, and expecially when blown up, things
+        # seem to be larger than this.  I'd like to believe that 1 would be OK though.
+        if abs(screen_width - view_width / param.zoom) > 10:
             self.image = None
-            return  # This happens when things are adjusting.  Just skip for now.
+            return (
+                ymin,
+                ymax,
+            )  # This happens when things are adjusting.  Just skip for now.
         # Figure out where the plot should be.
         if roi_start < 0:
             roi_start = 0
@@ -109,9 +282,9 @@ class ProjWidget(QWidget):
                     canvas.buffer_rgba(), height, width, QImage.Format_RGBA8888
                 )
             self.update()
-            return
+            return (ymin, ymax)
         # Cut a little off the ends if needed, scale and pad appropriately.
-        if xidx[0] < xidx[-1]:
+        if xidx[0] < xidx[1]:
             xmin = screen_start if screen_start > roi_start else roi_start
             xmax = screen_end if screen_end < roi_end else roi_end
             scale = (xmax - xmin) / float(screen_width)
@@ -141,8 +314,9 @@ class ProjWidget(QWidget):
         ax.spines["left"].set_visible(False)
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
-        x = xidx[proj != 0]
-        y = proj[proj != 0]
+        idx = np.logical_and(xidx >= xmin, xidx <= xmax)
+        x = xidx[idx]
+        y = proj[idx]
 
         # MCB - The past, as they say, is prologue.  So what do we have here?
         #     ax   - A matplotlib Axes.
@@ -154,7 +328,69 @@ class ProjWidget(QWidget):
         # At this point, we should plot whatever we want to plot and fit whatever
         # we want to fit.
 
-        ax.plot(x, y, "g-")
+        self.yplot = None
+        if self.gui.ui.checkBoxM1Lineout.isChecked():
+            (ymin, ymax) = self.plotLineout(
+                ax,
+                self.is_x,
+                linelim,
+                x,
+                idx,
+                xmin,
+                xmax,
+                ymin,
+                ymax,
+                self.gui.ui.display_image.lMarker[0].oriented(),
+                self.gui.ui.display_image.lPenColor[0],
+            )
+        if self.gui.ui.checkBoxM2Lineout.isChecked():
+            (ymin, ymax) = self.plotLineout(
+                ax,
+                self.is_x,
+                linelim,
+                x,
+                idx,
+                xmin,
+                xmax,
+                ymin,
+                ymax,
+                self.gui.ui.display_image.lMarker[1].oriented(),
+                self.gui.ui.display_image.lPenColor[1],
+            )
+        if self.gui.ui.checkBoxM3Lineout.isChecked():
+            (ymin, ymax) = self.plotLineout(
+                ax,
+                self.is_x,
+                linelim,
+                x,
+                idx,
+                xmin,
+                xmax,
+                ymin,
+                ymax,
+                self.gui.ui.display_image.lMarker[2].oriented(),
+                self.gui.ui.display_image.lPenColor[2],
+            )
+        if self.gui.ui.checkBoxM4Lineout.isChecked():
+            (ymin, ymax) = self.plotLineout(
+                ax,
+                self.is_x,
+                linelim,
+                x,
+                xmin,
+                xmax,
+                ymin,
+                ymax,
+                self.gui.ui.display_image.lMarker[3].oriented(),
+                self.gui.ui.display_image.lPenColor[3],
+            )
+        if self.gui.ui.checkBoxProjRoi.isChecked():
+            ax.plot(x, y, "g-")
+            self.yplot = y
+        if self.gui.ui.checkBoxFits.isChecked() and self.yplot is not None:
+            (ymin, ymax) = self.plotFit(
+                ax, self.is_x, x, self.yplot, xmin, xmax, ymin, ymax
+            )
 
         # MCB - End of plotting.
 
@@ -169,6 +405,7 @@ class ProjWidget(QWidget):
         else:
             self.image = img.transformed(QTransform().rotate(-90))
         self.update()
+        return (ymin, ymax)
 
     def paintEvent(self, event):
         if self.image is None:
