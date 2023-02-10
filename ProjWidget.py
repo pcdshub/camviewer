@@ -125,7 +125,7 @@ class ProjWidget(QWidget):
         self.gui = gui
         self.lineout_cbs = [
             self.gui.ui.checkBoxM1Lineout,
-            self.gui.ui.checkBoxM1Lineout,
+            self.gui.ui.checkBoxM2Lineout,
             self.gui.ui.checkBoxM3Lineout,
             self.gui.ui.checkBoxM4Lineout,
         ]
@@ -227,7 +227,7 @@ class ProjWidget(QWidget):
             roi_width = rectRoi.width()
             view_width = self.width()
             view_height = self.height()
-            linelim = self.gui.image.shape[1]
+            linelim = self.gui.image.shape[0]
             proj = self.gui.px
             ymin = xminR
             ymax = xmaxR
@@ -242,7 +242,7 @@ class ProjWidget(QWidget):
             roi_width = rectRoi.height()
             view_width = self.height()
             view_height = self.width()
-            linelim = self.gui.image.shape[0]
+            linelim = self.gui.image.shape[1]
             proj = self.gui.py
             ymin = yminR
             ymax = ymaxR
@@ -335,7 +335,7 @@ class ProjWidget(QWidget):
         # we want to fit.
 
         self.yplot = None
-        for (i, cb) in enumerate(self.lineout_cbs):
+        for (ii, cb) in enumerate(self.lineout_cbs):
             if cb.isChecked():
                 (ymin, ymax) = self.plotLineout(
                     ax,
@@ -347,8 +347,8 @@ class ProjWidget(QWidget):
                     xmax,
                     ymin,
                     ymax,
-                    self.gui.ui.display_image.lMarker[i].oriented(),
-                    self.gui.ui.display_image.lPenColor[i],
+                    self.gui.ui.display_image.lMarker[ii].oriented(),
+                    self.gui.ui.display_image.lPenColor[ii],
                 )
         if self.gui.ui.checkBoxProjRoi.isChecked():
             ax.plot(x, y, "g-")
