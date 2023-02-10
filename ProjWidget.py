@@ -123,6 +123,12 @@ class ProjWidget(QWidget):
             gui = x
             x = gui.parentWidget()
         self.gui = gui
+        self.lineout_cbs = [
+            self.gui.ui.checkBoxM1Lineout,
+            self.gui.ui.checkBoxM1Lineout,
+            self.gui.ui.checkBoxM3Lineout,
+            self.gui.ui.checkBoxM4Lineout,
+        ]
         self.hint = self.size()
         self.is_x = True
         self.image = None
@@ -329,61 +335,21 @@ class ProjWidget(QWidget):
         # we want to fit.
 
         self.yplot = None
-        if self.gui.ui.checkBoxM1Lineout.isChecked():
-            (ymin, ymax) = self.plotLineout(
-                ax,
-                self.is_x,
-                linelim,
-                x,
-                idx,
-                xmin,
-                xmax,
-                ymin,
-                ymax,
-                self.gui.ui.display_image.lMarker[0].oriented(),
-                self.gui.ui.display_image.lPenColor[0],
-            )
-        if self.gui.ui.checkBoxM2Lineout.isChecked():
-            (ymin, ymax) = self.plotLineout(
-                ax,
-                self.is_x,
-                linelim,
-                x,
-                idx,
-                xmin,
-                xmax,
-                ymin,
-                ymax,
-                self.gui.ui.display_image.lMarker[1].oriented(),
-                self.gui.ui.display_image.lPenColor[1],
-            )
-        if self.gui.ui.checkBoxM3Lineout.isChecked():
-            (ymin, ymax) = self.plotLineout(
-                ax,
-                self.is_x,
-                linelim,
-                x,
-                idx,
-                xmin,
-                xmax,
-                ymin,
-                ymax,
-                self.gui.ui.display_image.lMarker[2].oriented(),
-                self.gui.ui.display_image.lPenColor[2],
-            )
-        if self.gui.ui.checkBoxM4Lineout.isChecked():
-            (ymin, ymax) = self.plotLineout(
-                ax,
-                self.is_x,
-                linelim,
-                x,
-                xmin,
-                xmax,
-                ymin,
-                ymax,
-                self.gui.ui.display_image.lMarker[3].oriented(),
-                self.gui.ui.display_image.lPenColor[3],
-            )
+        for (i, cb) in enumerate(self.lineout_cbs):
+            if cb.isChecked():
+                (ymin, ymax) = self.plotLineout(
+                    ax,
+                    self.is_x,
+                    linelim,
+                    x,
+                    idx,
+                    xmin,
+                    xmax,
+                    ymin,
+                    ymax,
+                    self.gui.ui.display_image.lMarker[i].oriented(),
+                    self.gui.ui.display_image.lPenColor[i],
+                )
         if self.gui.ui.checkBoxProjRoi.isChecked():
             ax.plot(x, y, "g-")
             self.yplot = y
