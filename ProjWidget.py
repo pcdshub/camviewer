@@ -1,7 +1,6 @@
-from PyQt5 import QtCore
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject
+from PyQt5.QtGui import QImage, QTransform, QPainter
+from PyQt5.QtCore import QRectF
+from PyQt5.QtWidgets import QWidget
 import param
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -119,7 +118,7 @@ class ProjWidget(QWidget):
         QWidget.__init__(self, parent)
         gui = parent
         x = gui.parentWidget()
-        while x != None:
+        while x is not None:
             gui = x
             x = gui.parentWidget()
         self.gui = gui
@@ -140,7 +139,7 @@ class ProjWidget(QWidget):
         self.is_x = False
 
     def doResize(self, s=None):
-        if s == None:
+        if s is None:
             s = self.size()
         self.hint = s
         self.updateGeometry()

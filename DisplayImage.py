@@ -1,8 +1,8 @@
-from PyQt5 import QtCore
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject, pyqtSignal
+from PyQt5.QtWidgets import QWidget
+from PyQt5.QtGui import QImage, QPen, QColor, QPainter
+from PyQt5.QtCore import Qt, QPointF, QSize, QRectF
 import param
+
 
 # Comments are whether we are in image or screen coordinates.
 class DisplayImage(QWidget):
@@ -10,7 +10,7 @@ class DisplayImage(QWidget):
         QWidget.__init__(self, parent)
         gui = parent
         x = gui.parentWidget()
-        while x != None:
+        while x is not None:
             gui = x
             x = gui.parentWidget()
         self.gui = gui
@@ -95,7 +95,7 @@ class DisplayImage(QWidget):
         self.setZoom()
 
     def doResize(self, s=None):
-        if s == None:
+        if s is None:
             s = self.size()
         self.hint = s
         self.updateGeometry()
@@ -238,7 +238,7 @@ class DisplayImage(QWidget):
             self.rectRoi.setRel(imgx, imgy, 2, 2)
             self.gui.updateRoiText()
             self.gui.updateProj()
-            if self.gui.cfg == None:
+            if self.gui.cfg is None:
                 self.gui.dumpConfig()
         elif self.gui.iSpecialMouseMode >= 1 and self.gui.iSpecialMouseMode <= 4:
             self.lMarker[self.gui.iSpecialMouseMode - 1].setRel(imgx, imgy)
@@ -252,7 +252,7 @@ class DisplayImage(QWidget):
                 1 << (self.gui.iSpecialMouseMode - 1),
             )
             self.gui.updateProj()
-            if self.gui.cfg == None:
+            if self.gui.cfg is None:
                 self.gui.dumpConfig()
         self.update()
 
@@ -304,7 +304,7 @@ class DisplayImage(QWidget):
 
             self.gui.updateRoiText()
             self.gui.updateProj()
-            if self.gui.cfg == None:
+            if self.gui.cfg is None:
                 self.gui.dumpConfig()
         elif self.gui.iSpecialMouseMode >= 1 and self.gui.iSpecialMouseMode <= 4:
             self.lMarker[self.gui.iSpecialMouseMode - 1].setRel(imgx, imgy)
@@ -315,7 +315,7 @@ class DisplayImage(QWidget):
                 1 << (self.gui.iSpecialMouseMode - 1),
             )
             self.gui.updateProj()
-            if self.gui.cfg == None:
+            if self.gui.cfg is None:
                 self.gui.dumpConfig()
 
         self.update()
@@ -360,7 +360,7 @@ class DisplayImage(QWidget):
         )
         self.setZoom()
         self.gui.updateall()
-        if self.gui.cfg == None:
+        if self.gui.cfg is None:
             self.gui.dumpConfig()
 
     def moveImage(self, event):
@@ -380,7 +380,7 @@ class DisplayImage(QWidget):
         )
         self.setZoom()
         self.gui.updateall()
-        if self.gui.cfg == None:
+        if self.gui.cfg is None:
             self.gui.dumpConfig()
 
     def zoomByFactor(self, fFactor):
@@ -392,7 +392,7 @@ class DisplayImage(QWidget):
         )
         self.setZoom()
         self.gui.updateall()
-        if self.gui.cfg == None:
+        if self.gui.cfg is None:
             self.gui.dumpConfig()
 
     def zoomToRoi(self):
@@ -401,7 +401,7 @@ class DisplayImage(QWidget):
         )
         self.setZoom()
         self.gui.updateall()
-        if self.gui.cfg == None:
+        if self.gui.cfg is None:
             self.gui.dumpConfig()
 
     # This must be called after setting rectZoom so that arectZoom is correctly set!
@@ -457,12 +457,12 @@ class DisplayImage(QWidget):
         self.rectRoi = param.Rect(0, 0, param.width(), param.height())
         self.gui.updateRoiText()
         self.update()
-        if self.gui.cfg == None:
+        if self.gui.cfg is None:
             self.gui.dumpConfig()
 
     def roiSet(self, x, y, w, h, rel=False):
         self.rectRoi = param.Rect(x, y, w, h, rel=rel)
         self.gui.updateRoiText()
         self.update()
-        if self.gui.cfg == None:
+        if self.gui.cfg is None:
             self.gui.dumpConfig()

@@ -42,21 +42,21 @@ void pydspl_setup_color_map(const char* colormap, int iLimitLow, int iLimitHigh,
         } while (nitems == 3 && row < MAX_INDEX_PLUS1);
         fclose(fp);
         if (row != MAX_INDEX_PLUS1) {
-            fprintf(stderr, "*** couldn't read %d entries from %s\n", 
+            fprintf(stderr, "*** couldn't read %d entries from %s\n",
                     MAX_INDEX_PLUS1, colormap);
         }
     } else {
-        fprintf(stderr, "*** couldn't open %s for reading: %s\n", 
+        fprintf(stderr, "*** couldn't open %s for reading: %s\n",
                 colormap, strerror(errno));
         return;
     }
-  
+
     const uint32_t u32LowValue = gTempColorMap[0];
     int i = 0;
-    for (; i<= iLimitLow; ++i) 
+    for (; i<= iLimitLow; ++i)
         gColorMap[i]   = u32LowValue;
-  
-    const int     iLimitRange = iLimitHigh - iLimitLow;      
+
+    const int     iLimitRange = iLimitHigh - iLimitLow;
     const float  fLimitRange = (float) iLimitRange;
     for (; i<iLimitHigh; ++i) {
         int iIndex;
@@ -90,10 +90,10 @@ void pydspl_setup_color_map(const char* colormap, int iLimitLow, int iLimitHigh,
         uint32_t colorVal  = gTempColorMap[iIndex];
         gColorMap[i] = colorVal;
     }
-  
+
     const uint32_t u32HighValue = gTempColorMap[MAX_INDEX_PLUS1-1];
-    for (; i < (int) MAX_INDEX_PLUS1; ++i) 
-        gColorMap[i]   = u32HighValue;        
+    for (; i < (int) MAX_INDEX_PLUS1; ++i)
+        gColorMap[i]   = u32HighValue;
 }
 
 /*
@@ -103,13 +103,13 @@ void pydspl_setup_gray(int iLimitLow, int iLimitHigh, int iScaleIndex)
 {
     const uint32_t u32LowValue = ALPHA_VALUE;
     int i = 0;
-    for (; i<= iLimitLow; ++i) 
+    for (; i<= iLimitLow; ++i)
         gColorMap[i]   = u32LowValue;
-  
-    const int iLimitRange = iLimitHigh - iLimitLow;        
+
+    const int iLimitRange = iLimitHigh - iLimitLow;
     const float  fLimitRange = (float) iLimitRange;
     for (; i<iLimitHigh; ++i) {
-    
+
         uint8_t  u8Gray;
         switch (iScaleIndex) {
         case 1: /* Log2 */
@@ -135,14 +135,14 @@ void pydspl_setup_gray(int iLimitLow, int iLimitHigh, int iScaleIndex)
             u8Gray = (i - iLimitLow) * 255 / iLimitRange;
             break;
         }
-          
+
         uint32_t grayval  = ALPHA_VALUE | (u8Gray << 16) | (u8Gray << 8) | u8Gray;
         gColorMap[i] = grayval;
     }
-  
+
     const uint32_t u32HighValue = ALPHA_VALUE | 0xFFFFFF;
-    for (; i < (int) MAX_INDEX_PLUS1; ++i) 
-        gColorMap[i]   = u32HighValue;    
+    for (; i < (int) MAX_INDEX_PLUS1; ++i)
+        gColorMap[i]   = u32HighValue;
 }
 
 /*
@@ -159,13 +159,13 @@ struct ImageBuffer
     int       imgwidth, imgheight;
     int       size;
     int       iRoiW, iRoiH;
-  
+
     int32_t  iProjXmin, iProjXmax;
     int32_t  iProjYmin, iProjYmax;
-  
+
     float fRoiPixelMean;
     float fRoiPixelVar;
-  
+
     // Frame averaging function
     float*    imageDataF;
     int       iAverage;
@@ -189,10 +189,10 @@ struct ImageBuffer
 static void _pyFreeImageBuffer(PyObject* pyImageBuffer)
 {
     ImageBuffer* imageBuffer = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
-    
+
     free(imageBuffer->imageDataF);
     free(imageBuffer);
-}  
+}
 
 /*
  * Parameters:
@@ -223,7 +223,7 @@ PyObject* pyCreateImageBuffer(QImage* imageDisp, PyObject *px_, PyObject *py_, P
         py = (PyArrayObject *)py_;
     if (image_ != NULL && PyArray_Check(image_))
         image = (PyArrayObject *)image_;
-  
+
     ImageBuffer* imageBuffer = (ImageBuffer*) malloc(sizeof(ImageBuffer));
     imageBuffer->srcwidth    = srcwidth;
     imageBuffer->srcheight   = srcheight;
@@ -236,7 +236,7 @@ PyObject* pyCreateImageBuffer(QImage* imageDisp, PyObject *px_, PyObject *py_, P
     }
     imageBuffer->size        = lenx * leny;
     imageBuffer->imageDisp   = imageDisp;
-    if (px != NULL && PyArray_NDIM(px) == 1 && 
+    if (px != NULL && PyArray_NDIM(px) == 1 &&
         PyArray_DIM(px, 0) == lenx && PyArray_TYPE(px) == NPY_DOUBLE) {
         imageBuffer->projSumX    = (double *)PyArray_DATA(px);
     } else {
@@ -244,7 +244,7 @@ PyObject* pyCreateImageBuffer(QImage* imageDisp, PyObject *px_, PyObject *py_, P
         free(imageBuffer);
         Py_RETURN_NONE;
     }
-    if (py != NULL && PyArray_NDIM(py) == 1 && 
+    if (py != NULL && PyArray_NDIM(py) == 1 &&
         PyArray_DIM(py, 0) == leny && PyArray_TYPE(py) == NPY_DOUBLE) {
         imageBuffer->projSumY    = (double *)PyArray_DATA(py);
     } else {
@@ -252,8 +252,8 @@ PyObject* pyCreateImageBuffer(QImage* imageDisp, PyObject *px_, PyObject *py_, P
         free(imageBuffer);
         Py_RETURN_NONE;
     }
-    if (image != NULL && PyArray_NDIM(image) == 2 && 
-        PyArray_DIM(image, 0) == leny && PyArray_DIM(image, 1) == lenx && 
+    if (image != NULL && PyArray_NDIM(image) == 2 &&
+        PyArray_DIM(image, 0) == leny && PyArray_DIM(image, 1) == lenx &&
         PyArray_TYPE(image) == NPY_UINT) {
         imageBuffer->imageData   = (uint32_t *)PyArray_DATA(image);
     } else {
@@ -287,13 +287,13 @@ PyObject* pySetFrameAverage(int iAverage, PyObject* pyImageBuffer)
 {
     if ( iAverage == 0 )
 	iAverage = 1;
-    
+
     ImageBuffer* imageBuffer  = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
-  
+
     if ( iAverage != imageBuffer->iAverage )
 	imageBuffer->iAverage = iAverage;
     imageBuffer->iNumAveraged = 0;
-  
+
     Py_RETURN_NONE;
 }
 
@@ -356,7 +356,7 @@ void _pyDoAvg(ImageBuffer *imageBuffer, T *cadata)
     uint32_t *dst    = imageBuffer->imageData;
     float *dstF      = imageBuffer->imageDataF;
     int orientation  = imageBuffer->orientation;
-    int init_offset  = imageBuffer->size * initMult1[orientation] + 
+    int init_offset  = imageBuffer->size * initMult1[orientation] +
 	               imageBuffer->srcwidth * initMult2[orientation] +
 	               initK[orientation];
     int row_inc      = imageBuffer->size * rowIncMult1[orientation] +
@@ -399,7 +399,7 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
     uint32_t *dst    = imageBuffer->imageData;
     float    *dstF   = imageBuffer->imageDataF;
     int orientation  = imageBuffer->orientation;
-    int init_offset  = imageBuffer->size * initMult1[orientation] + 
+    int init_offset  = imageBuffer->size * initMult1[orientation] +
 	               imageBuffer->srcwidth * initMult2[orientation] +
                        initK[orientation];
     int row_inc      = imageBuffer->size * rowIncMult1[orientation] +
@@ -451,7 +451,7 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
 	    _pyCopyToQImage(imageBuffer, 1);
     }
 }
- 
+
 static void _pyImagePvCallback(void* cadata, long count, size_t size, void* usr)
 {
   ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
@@ -470,7 +470,7 @@ static void _pyImagePvCallback(void* cadata, long count, size_t size, void* usr)
     default:
         fprintf(stderr, "Image pixel size is %d bytes?\n", (int) size);
 	break;
-  }    
+  }
 }
 
 PyObject* pyCreateImagePvCallbackFunc(PyObject* pyImageBuffer)
@@ -480,11 +480,11 @@ PyObject* pyCreateImagePvCallbackFunc(PyObject* pyImageBuffer)
   ImageBuffer* imageBuffer = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
 
   imageBuffer->isColor      = 0;
-  
+
   PyObject* pyfunc = PyCapsule_New(func, PYC_CB, NULL);
   PyCapsule_SetContext(pyfunc, (void *)imageBuffer);
   return pyfunc;
-}        
+}
 
 PyObject* pyCreateColorImagePvCallbackFunc(PyObject* pyImageBuffer)
 {
@@ -493,11 +493,11 @@ PyObject* pyCreateColorImagePvCallbackFunc(PyObject* pyImageBuffer)
   ImageBuffer* imageBuffer = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
 
   imageBuffer->isColor      = 1;
-   
+
   PyObject* pyfunc = PyCapsule_New(func, PYC_CB, NULL);
   PyCapsule_SetContext(pyfunc, (void *)imageBuffer);
   return pyfunc;
-}        
+}
 
 static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi, bool bProjAutoRange)
 {
@@ -517,25 +517,25 @@ static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi, bool bPro
     if ( x1 > x2 ) { int xtmp = x1; x1 = x2; x2 = xtmp; }
     if ( x1 < 0 )
         x1 = 0;
-    else if ( x1 >= width ) 
+    else if ( x1 >= width )
 	x1 = width-1;
-    if ( x2 < 0 ) 
+    if ( x2 < 0 )
 	x2 = 0;
     else if ( x2 >= width )
-	x2 = width-1;    
+	x2 = width-1;
 
     int y1  = (int) rectRoi->y();
     int y2  = y1 + (int) rectRoi->height() - 1;
     if ( y1 > y2 ) { int ytmp = y1; y1 = y2; y2 = ytmp; }
     if ( y1 < 0 )
 	y1 = 0;
-    else if ( y1 >= height ) 
+    else if ( y1 >= height )
 	y1 = height-1;
-    if ( y2 < 0 ) 
+    if ( y2 < 0 )
 	y2 = 0;
-    else if ( y2 >= height ) 
+    else if ( y2 >= height )
 	y2 = height-1;
-  
+
     uint32_t* const pImgValue       = imageBuffer->imageData;
     uint64_t  u64PixelSum           = 0;
     uint64_t  u64PixelSqSum         = 0;
@@ -556,13 +556,13 @@ static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi, bool bPro
 	    u64PixelSqSum += iValue*(uint64_t) iValue;
 	}
     }
-      
+
     imageBuffer->iRoiW = x2 - x1 + 1;
     imageBuffer->iRoiH = y2 - y1 + 1;
     const float w = imageBuffer->iRoiW;
     const float h = imageBuffer->iRoiH;
     const float fNumRoiPixels = w * h;
-  
+
     /* Scale it down! */
     for (int iX = x1; iX <= x2; iX++)
 	if (projSumX[iX] > 0)
@@ -576,7 +576,7 @@ static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi, bool bPro
 	imageBuffer->fRoiPixelVar  = u64PixelSqSum / fNumRoiPixels - imageBuffer->fRoiPixelMean * imageBuffer->fRoiPixelMean;
     } else {
 	imageBuffer->fRoiPixelMean  = 0;
-	imageBuffer->fRoiPixelVar   = 0;             
+	imageBuffer->fRoiPixelVar   = 0;
     }
 
     if (bProjAutoRange) {
@@ -584,23 +584,23 @@ static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi, bool bPro
 	imageBuffer->iProjXmax = -1;
 	imageBuffer->iProjYmin = 1<<15;
 	imageBuffer->iProjYmax = -1;
-    
+
 	for (int iX=x1; iX < x2; ++iX) {
 	    int iValue = imageBuffer->projSumX[iX];
 	    if (iValue < imageBuffer->iProjXmin)
 		imageBuffer->iProjXmin = iValue;
 	    if (iValue > imageBuffer->iProjXmax)
-		imageBuffer->iProjXmax = iValue;      
+		imageBuffer->iProjXmax = iValue;
 	}
-    
+
 	for (int iY=y1; iY < y2; ++iY) {
 	    int iValue = imageBuffer->projSumY[iY];
 	    if (iValue < imageBuffer->iProjYmin)
 		imageBuffer->iProjYmin = iValue;
 	    if (iValue > imageBuffer->iProjYmax)
 		imageBuffer->iProjYmax = iValue;
-	}        
-    
+	}
+
 	if ( imageBuffer->iProjXmax == -1 ) {
 	    imageBuffer->iProjXmin = 0;
 	    imageBuffer->iProjXmax = 1;
@@ -609,7 +609,7 @@ static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi, bool bPro
 	        --imageBuffer->iProjXmin;
             ++imageBuffer->iProjXmax;
         }
-    
+
         if ( imageBuffer->iProjYmax == -1 ) {
 	    imageBuffer->iProjYmin = 0;
 	    imageBuffer->iProjYmax = 1;
@@ -617,15 +617,15 @@ static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi, bool bPro
             if ( imageBuffer->iProjYmin > 0 )
 	        --imageBuffer->iProjYmin;
 	    ++imageBuffer->iProjYmax;
-        }  
+        }
     }
 }
 
 PyObject* pyUpdateProj(PyObject* pyImageBuffer, bool bProjAutoRange,
 		       int uMin, int uMax, QRectF* rectRoi)
-{  
+{
     ImageBuffer* imageBuffer = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
-  
+
     /*
      * Compute the ROI projection values, and also update the mean/variance
      */
@@ -638,7 +638,7 @@ PyObject* pyUpdateProj(PyObject* pyImageBuffer, bool bProjAutoRange,
         imageBuffer->iProjYmax = uMax;
     }
 
-    return Py_BuildValue("ffiiii", imageBuffer->fRoiPixelMean, imageBuffer->fRoiPixelVar, 
+    return Py_BuildValue("ffiiii", imageBuffer->fRoiPixelMean, imageBuffer->fRoiPixelVar,
                          imageBuffer->iProjXmin, imageBuffer->iProjXmax, imageBuffer->iProjYmin, imageBuffer->iProjYmax);
 }
 
@@ -652,21 +652,21 @@ PyObject* pyUpdateProj(PyObject* pyImageBuffer, bool bProjAutoRange,
     else                                                             \
 	d = (s)[(int)((p)->y() * imageBuffer->imgwidth + (p)->x())]
 
-  
-PyObject* pyGetPixelValue(PyObject* pyImageBuffer, QPointF* cursor, QPointF* marker1, QPointF* marker2, 
+
+PyObject* pyGetPixelValue(PyObject* pyImageBuffer, QPointF* cursor, QPointF* marker1, QPointF* marker2,
 			  QPointF* marker3, QPointF* marker4)
 {
     ImageBuffer* imageBuffer = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
-    uint32_t*    pImgValue   = (uint32_t*) imageBuffer->imageData;     
-  
+    uint32_t*    pImgValue   = (uint32_t*) imageBuffer->imageData;
+
     uint32_t     u32ValueCursor, u32Value1, u32Value2, u32Value3, u32Value4;
     GPX(cursor,  u32ValueCursor, pImgValue);
     GPX(marker1, u32Value1,      pImgValue);
     GPX(marker2, u32Value2,      pImgValue);
     GPX(marker3, u32Value3,      pImgValue);
     GPX(marker4, u32Value4,      pImgValue);
-    
-    return Py_BuildValue("iiiiii", u32ValueCursor, u32Value1, u32Value2, u32Value3, u32Value4, 
+
+    return Py_BuildValue("iiiiii", u32ValueCursor, u32Value1, u32Value2, u32Value3, u32Value4,
 			 (imageBuffer->iNumAveraged == 0 ? 1 : imageBuffer->iNumAveraged));
 }
 
@@ -685,6 +685,6 @@ SIP_PYOBJECT pyCreateColorImagePvCallbackFunc(SIP_PYOBJECT pyImageBuffer);
 
 SIP_PYOBJECT pyUpdateProj       (SIP_PYOBJECT pyImageBuffer, bool bProjAutoRange,
 				 int uMin, int uMax, QRectF* rectRoi);
-SIP_PYOBJECT pyGetPixelValue    (SIP_PYOBJECT pyImageBuffer, QPointF* cursor, 
-                                  QPointF* marker1, QPointF* marker2, 
+SIP_PYOBJECT pyGetPixelValue    (SIP_PYOBJECT pyImageBuffer, QPointF* cursor,
+                                  QPointF* marker1, QPointF* marker2,
                                   QPointF* marker3, QPointF* marker4);

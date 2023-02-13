@@ -1,7 +1,7 @@
 SHELL = /bin/bash
 ENV = export PCDS_CONDA_VER=5.1.1; source /cds/group/pcds/pyps/conda/pcds_conda;
 ALL = pycaqtimage/pycaqtimage.so camviewer_ui.py advanced_ui.py markers_ui.py \
-      specific_ui.py timeout_ui.py icon_rc.py 
+      specific_ui.py timeout_ui.py icon_rc.py
 
 all: $(ALL)
 
@@ -28,8 +28,8 @@ icon_rc.py: icon.qrc
 	$(ENV) pyrcc5 -o icon_rc.py icon.qrc
 
 clean:
-	-rm camviewer_ui.py advanced_ui.py markers_ui.py specific_ui.py droplet_ui.py xtcrdr_ui.py timeout_ui.py 
-	-rm icon_rc.py 
+	-rm camviewer_ui.py advanced_ui.py markers_ui.py specific_ui.py droplet_ui.py xtcrdr_ui.py timeout_ui.py
+	-rm icon_rc.py
 	-rm *.pyc *~
 	-rm pycaqtimage/sip*
 	-rm pycaqtimage/*.{exp,sbf,so}

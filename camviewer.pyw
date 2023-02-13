@@ -3,8 +3,6 @@
 from camviewer_ui_impl import GraphicUserInterface
 from PyQt5.QtWidgets import QApplication
 
-import pyca
-
 import sys
 import os
 
@@ -46,12 +44,12 @@ if __name__ == "__main__":
         options.usage(str(e.args))
         sys.exit()
 
-    rate = 5.0 if (options.rate == None) else float(options.rate)
-    cameraListFilename = "camera.lst" if (options.pvlist == None) else options.pvlist
+    rate = 5.0 if (options.rate is None) else float(options.rate)
+    cameraListFilename = "camera.lst" if (options.pvlist is None) else options.pvlist
 
-    if options.cfgdir == None:
+    if options.cfgdir is None:
         cfgdir = os.getenv("HOME")
-        if cfgdir == None:
+        if cfgdir is None:
             cfgdir = ".yagviewer/"
         else:
             cfgdir = cfgdir + "/.yagviewer/"
@@ -62,9 +60,9 @@ if __name__ == "__main__":
     except Exception:
         pass
 
-    if options.activedir == None:
+    if options.activedir is None:
         activedir = os.getenv("HOME")
-        if activedir == None:
+        if activedir is None:
             activedir = ".yagactive/"
         else:
             activedir = activedir + "/.yagactive/"
@@ -75,7 +73,7 @@ if __name__ == "__main__":
     except Exception:
         pass
 
-    if options.scale != None:
+    if options.scale is not None:
         os.environ["QT_SCALE_FACTOR"] = options.scale
 
     app = QApplication([""])
