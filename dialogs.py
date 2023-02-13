@@ -61,7 +61,7 @@ class timeoutdialog(QDialog):
 
         try:
             self.idle = int(idle)
-        except:
+        except Exception:
             self.idle = None
         if self.idle != None:
             self.SMALLTIMESECS = 3600
@@ -214,7 +214,6 @@ class forcedialog(QDialog):
         i = 2
         for file in dirlist:
             try:
-
                 l = file.split(":")
                 if file == self.gui.description:
                     plt = QPalette()
@@ -248,7 +247,7 @@ class forcedialog(QDialog):
 
                 i = i + 1
                 self.checks.append(check)
-            except:
+            except Exception:
                 pass
 
         self.buttonBox = QDialogButtonBox(self)
@@ -279,7 +278,7 @@ class forcedialog(QDialog):
                         f = open(self.dir + c.forcefile, "a")
                         f.write(id)
                         f.close()
-                    except:
+                    except Exception:
                         pass
         self.close()
 

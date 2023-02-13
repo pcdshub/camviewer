@@ -59,7 +59,7 @@ if __name__ == "__main__":
         cfgdir = options.cfgdir
     try:
         os.mkdir(cfgdir)
-    except:
+    except Exception:
         pass
 
     if options.activedir == None:
@@ -72,7 +72,7 @@ if __name__ == "__main__":
         activedir = options.activedir
     try:
         os.mkdir(activedir)
-    except:
+    except Exception:
         pass
 
     if options.scale != None:
