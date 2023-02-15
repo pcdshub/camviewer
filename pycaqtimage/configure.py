@@ -1,4 +1,5 @@
-import os, sys
+import os
+import sys
 import sipconfig
 from PyQt5 import QtCore
 
@@ -8,7 +9,9 @@ os.chdir(sys.argv[1])
 sip_inc_dir = os.getenv("CONDA_PREFIX") + "/share/sip/PyQt5"
 qt_inc_dir = os.getenv("CONDA_PREFIX") + "/include/qt"
 qt_lib_dir = os.getenv("CONDA_PREFIX") + "/lib"
-np_inc_dir = os.getenv("CONDA_PREFIX") + "/lib/python3.9/site-packages/numpy/core/include/numpy"
+np_inc_dir = (
+    os.getenv("CONDA_PREFIX") + "/lib/python3.9/site-packages/numpy/core/include/numpy"
+)
 
 target_dir = os.getcwd()
 
@@ -21,9 +24,20 @@ config = sipconfig.Configuration()
 
 # Run SIP to generate the code.  Note that we tell SIP where to find the qt
 # module's specification files using the -I flag.
-os.system(" ".join([config.sip_bin, "-c", ".", "-b", build_file,
-                    "-I" + sip_inc_dir, QtCore.PYQT_CONFIGURATION["sip_flags"],
-                    "pycaqtimage.sip"]))
+os.system(
+    " ".join(
+        [
+            config.sip_bin,
+            "-c",
+            ".",
+            "-b",
+            build_file,
+            "-I" + sip_inc_dir,
+            QtCore.PYQT_CONFIGURATION["sip_flags"],
+            "pycaqtimage.sip",
+        ]
+    )
+)
 
 # Create the Makefile.
 makefile = sipconfig.SIPModuleMakefile(config, build_file)
@@ -31,7 +45,12 @@ makefile = sipconfig.SIPModuleMakefile(config, build_file)
 # Add the library we are wrapping.  The name doesn't include any platform
 # specific prefixes or extensions (e.g. the "lib" prefix on UNIX, or the
 # ".dll" extension on Windows).
-extraFlags = "-std=c++11 -I%s -I%s/QtCore -I%s/QtGui -I%s -DQT_NO_VERSION_TAGGING" % (qt_inc_dir, qt_inc_dir, qt_inc_dir, np_inc_dir)
+extraFlags = "-std=c++11 -I%s -I%s/QtCore -I%s/QtGui -I%s -DQT_NO_VERSION_TAGGING" % (
+    qt_inc_dir,
+    qt_inc_dir,
+    qt_inc_dir,
+    np_inc_dir,
+)
 makefile.extra_cflags = [extraFlags]
 makefile.extra_cxxflags = [extraFlags]
 makefile.extra_lflags = ["-Wl,-R" + target_dir + " -Wl,-R" + qt_lib_dir]

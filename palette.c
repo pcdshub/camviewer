@@ -53,11 +53,11 @@ void do_interp(struct interp *interp, char *file, int len)
         if (i >= interp[p].pos * len)
             p++;
         f = ((double) i) / len;
-        out[i].r = (interp[p-1].r + (interp[p].r - interp[p-1].r) * (f - interp[p-1].pos) / 
+        out[i].r = (interp[p-1].r + (interp[p].r - interp[p-1].r) * (f - interp[p-1].pos) /
                     (interp[p].pos - interp[p-1].pos));
-        out[i].g = (interp[p-1].g + (interp[p].g - interp[p-1].g) * (f - interp[p-1].pos) / 
+        out[i].g = (interp[p-1].g + (interp[p].g - interp[p-1].g) * (f - interp[p-1].pos) /
                     (interp[p].pos - interp[p-1].pos));
-        out[i].b = (interp[p-1].b + (interp[p].b - interp[p-1].b) * (f - interp[p-1].pos) / 
+        out[i].b = (interp[p-1].b + (interp[p].b - interp[p-1].b) * (f - interp[p-1].pos) /
                     (interp[p].pos - interp[p-1].pos));
     }
     for (i = 0; i <= len; i++) {

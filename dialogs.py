@@ -3,10 +3,20 @@ import advanced_ui
 import markers_ui
 import specific_ui
 import timeout_ui
-from PyQt5 import QtCore, QtNetwork, uic
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import QTime, QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject
+from PyQt5 import QtCore
+from PyQt5.QtWidgets import (
+    QWidget,
+    QDialog,
+    QApplication,
+    QGridLayout,
+    QLabel,
+    QLineEdit,
+    QDialogButtonBox,
+    QMessageBox,
+    QCheckBox,
+)
+from PyQt5.QtGui import QPalette
+from PyQt5.QtCore import QTime, QTimer, Qt
 
 
 class advdialog(QDialog):
@@ -61,9 +71,9 @@ class timeoutdialog(QDialog):
 
         try:
             self.idle = int(idle)
-        except:
+        except Exception:
             self.idle = None
-        if self.idle != None:
+        if self.idle is not None:
             self.SMALLTIMESECS = 3600
             self.BIGTIMESECS = self.idle * 3600
             self.show9 = False
@@ -132,7 +142,7 @@ class timeoutdialog(QDialog):
 
     # Called when we have just connected to a new camera.
     def newconn(self):
-        if self.idle == None:
+        if self.idle is None:
             self.hour1(True)
         else:
             self.hour9()
@@ -214,8 +224,7 @@ class forcedialog(QDialog):
         i = 2
         for file in dirlist:
             try:
-
-                l = file.split(":")
+                ll = file.split(":")
                 if file == self.gui.description:
                     plt = QPalette()
                     plt.setColor(QPalette.WindowText, Qt.red)
@@ -223,7 +232,7 @@ class forcedialog(QDialog):
                     check.setPalette(plt)
                 else:
                     check = QCheckBox(self)
-                check.setText(l[0])
+                check.setText(ll[0])
                 check.forcefile = file
                 self.gridLayout.addWidget(check, i, 0, 1, 1)
 
@@ -237,18 +246,18 @@ class forcedialog(QDialog):
 
                 pidlabel = QLabel(self)
                 pidlabel.setTextFormat(QtCore.Qt.RichText)
-                pidlabel.setText(pre + l[1] + post)
+                pidlabel.setText(pre + ll[1] + post)
                 self.gridLayout.addWidget(pidlabel, i, 1, 1, 1)
 
-                l = open(dir + file).readlines()
+                lines = open(dir + file).readlines()
                 ttylabel = QLabel(self)
                 ttylabel.setTextFormat(QtCore.Qt.RichText)
-                ttylabel.setText(pre + l[0].strip() + post)
+                ttylabel.setText(pre + lines[0].strip() + post)
                 self.gridLayout.addWidget(ttylabel, i, 2, 1, 1)
 
                 i = i + 1
                 self.checks.append(check)
-            except:
+            except Exception:
                 pass
 
         self.buttonBox = QDialogButtonBox(self)
@@ -279,7 +288,7 @@ class forcedialog(QDialog):
                         f = open(self.dir + c.forcefile, "a")
                         f.write(id)
                         f.close()
-                    except:
+                    except Exception:
                         pass
         self.close()
 

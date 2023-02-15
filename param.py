@@ -1,6 +1,4 @@
-from PyQt5 import QtCore
-from PyQt5.QtGui import *
-from PyQt5.QtCore import QTimer, Qt, QPoint, QPointF, QSize, QRectF, QObject
+from PyQt5.QtCore import QPointF, QSize, QRectF
 import numpy as np
 
 ORIENT0 = 0

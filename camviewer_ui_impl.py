@@ -15,32 +15,46 @@ from dialogs import specificdialog
 from dialogs import timeoutdialog
 from dialogs import forcedialog
 
-import sys, os
+import sys
+import os
 from pycaqtimage import pycaqtimage
 import pyca
 import math
 import re
 import time
-import tempfile
 import functools
 import numpy as np
 
-from PyQt5 import QtCore, uic
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import (
+    QSizePolicy,
+    QLabel,
+    QMainWindow,
+    QSpacerItem,
+    QLayout,
+    QFileDialog,
+    QMessageBox,
+    QAction,
+    QDialogButtonBox,
+)
+from PyQt5.QtGui import (
+    QClipboard,
+    QPixmap,
+    QDrag,
+)
 from PyQt5.QtCore import (
-    QTime,
     QTimer,
-    Qt,
     QPoint,
-    QPointF,
     QSize,
-    QRectF,
     QObject,
+    QEvent,
+    Qt,
+    QMimeData,
+    QSettings,
     pyqtSignal,
 )
 
 import param
+
 
 #
 # Utility functions to put/get Pv values.
@@ -90,7 +104,7 @@ class cfginfo:
                 else:
                     self.dict[token[0]] = token[1:]
             return True
-        except:
+        except Exception:
             return False
 
     def add(self, attr, val):
@@ -115,32 +129,29 @@ class FilterObject(QObject):
         sizePolicy.setVerticalStretch(0)
         self.renderlabel = QLabel()
         self.renderlabel.setSizePolicy(sizePolicy)
-        self.renderlabel.setMinimumSize(QtCore.QSize(0, 20))
-        self.renderlabel.setMaximumSize(QtCore.QSize(16777215, 100))
-        self.last = QtCore.QPoint(0, 0)
+        self.renderlabel.setMinimumSize(QSize(0, 20))
+        self.renderlabel.setMaximumSize(QSize(16777215, 100))
+        self.last = QPoint(0, 0)
 
     def eventFilter(self, obj, event):
-        if (
-            event.type() == QtCore.QEvent.MouseButtonPress
-            and event.button() == QtCore.Qt.MidButton
-        ):
+        if event.type() == QEvent.MouseButtonPress and event.button() == Qt.MidButton:
             p = event.globalPos()
             w = self.app.widgetAt(p)
             if w == obj and self.last != p:
                 self.last = p
                 try:
                     t = w.writepvname
-                except:
+                except Exception:
                     t = None
-                if t == None:
+                if t is None:
                     try:
                         t = w.readpvname
-                    except:
+                    except Exception:
                         t = None
-                if t == None:
+                if t is None:
                     return False
                 self.clip.setText(t, QClipboard.Selection)
-                mimeData = QtCore.QMimeData()
+                mimeData = QMimeData()
                 mimeData.setText(t)
                 self.renderlabel.setText(t)
                 self.renderlabel.adjustSize()
@@ -149,7 +160,7 @@ class FilterObject(QObject):
                 drag = QDrag(self.main)
                 drag.setMimeData(mimeData)
                 drag.setPixmap(pixmap)
-                drag.exec_(QtCore.Qt.CopyAction)
+                drag.exec_(Qt.CopyAction)
         return False
 
 
@@ -195,17 +206,16 @@ class GraphicUserInterface(QMainWindow):
         self.cfgdir = cfgdir
         self.cfg = None
         self.activedir = activedir
-        self.fixname = False
         self.instrument = instrument
         self.description = "%s:%d" % (os.uname()[1], os.getpid())
         self.options = options
 
-        if self.options.pos != None:
+        if self.options.pos is not None:
             try:
                 p = self.options.pos.split(",")
                 p = QPoint(int(p[0]), int(p[1]))
                 self.move(p)
-            except:
+            except Exception:
                 pass
 
         # View parameters
@@ -257,11 +267,6 @@ class GraphicUserInterface(QMainWindow):
         self.useglobmarks2 = False
         self.globmarkpvs = []
         self.globmarkpvs2 = []
-        self.pulnixmodes = [
-            ":SetAsyncShutter",
-            ":SetManualShutter",
-            ":SetDirectShutter",
-        ]
         self.lastimagetime = [0, 0]
         self.dispspec = 0
         self.otherpvs = []
@@ -360,6 +365,7 @@ class GraphicUserInterface(QMainWindow):
         self.ui.lineEditLens.setVisible(False)
         self.ui.rem_avg.setVisible(False)
         self.ui.remote_average.setVisible(False)
+        self.ui.groupBoxFits.setVisible(False)
 
         # Resize the main window!
         self.ui.display_image.setImageSize(False)
@@ -531,6 +537,18 @@ class GraphicUserInterface(QMainWindow):
         self.advdialog.ui.showevr.clicked.connect(self.onOpenEvr)
         self.onExpertMode()
 
+        self.ui.checkBoxProjRoi.stateChanged.connect(self.onGenericConfigChange)
+        self.ui.checkBoxM1Lineout.stateChanged.connect(self.onGenericConfigChange)
+        self.ui.checkBoxM2Lineout.stateChanged.connect(self.onGenericConfigChange)
+        self.ui.checkBoxM3Lineout.stateChanged.connect(self.onGenericConfigChange)
+        self.ui.checkBoxM4Lineout.stateChanged.connect(self.onGenericConfigChange)
+        self.ui.radioGaussian.toggled.connect(self.onGenericConfigChange)
+        self.ui.radioSG4.toggled.connect(self.onGenericConfigChange)
+        self.ui.radioSG6.toggled.connect(self.onGenericConfigChange)
+        self.ui.checkBoxFits.stateChanged.connect(self.onCheckFitsUpdate)
+        self.ui.lineEditCalib.returnPressed.connect(self.onCalibTextEnter)
+        self.calib = 1.0
+
         self.advdialog.ui.buttonBox.clicked.connect(self.onAdvanced)
         self.specificdialog.ui.buttonBox.clicked.connect(self.onSpecific)
 
@@ -556,10 +574,10 @@ class GraphicUserInterface(QMainWindow):
 
         # Sigh, we might change this if taking a one-liner!
         camera = options.camera
-        if camera != None:
+        if camera is not None:
             try:
                 cameraIndex = int(camera)
-            except:
+            except Exception:
                 # OK, I suppose it's a name!  Default to 0, then look for it!
                 cameraIndex = 0
                 for i in range(len(self.lCameraDesc)):
@@ -567,12 +585,12 @@ class GraphicUserInterface(QMainWindow):
                         cameraIndex = i
                         break
 
-        if cameraPv != None:
+        if cameraPv is not None:
             try:
                 idx = self.lCameraList.index(cameraPv)
                 print("Camera PV %s --> index %d" % (cameraPv, idx))
                 cameraIndex = idx
-            except:
+            except Exception:
                 # Can't find an exact match.  Is this a prefix?
                 p = re.compile(cameraPv + ".*$")
                 idx = -1
@@ -588,7 +606,7 @@ class GraphicUserInterface(QMainWindow):
                     # OK, not a prefix.  Try stripping off the end and look for
                     # the same base.
                     m = re.search("(.*):([^:]*)$", cameraPv)
-                    if m == None:
+                    if m is None:
                         print("Cannot find camera PV %s!" % cameraPv)
                     else:
                         try:
@@ -603,7 +621,7 @@ class GraphicUserInterface(QMainWindow):
                                 raise Exception("No match")
                             print("Camera PV %s --> index %d" % (cameraPv, idx))
                             cameraIndex = idx
-                        except:
+                        except Exception:
                             print("Cannot find camera PV %s!" % cameraPv)
         try:
             self.ui.comboBoxCamera.setCurrentIndex(-1)
@@ -611,7 +629,7 @@ class GraphicUserInterface(QMainWindow):
                 print("Invalid camera index %d" % cameraIndex)
                 cameraIndex = 0
             self.ui.comboBoxCamera.setCurrentIndex(int(cameraIndex))
-        except:
+        except Exception:
             pass
         self.finishResize()
         self.efilter = FilterObject(self.app, self)
@@ -619,13 +637,13 @@ class GraphicUserInterface(QMainWindow):
     def closeEvent(self, event):
         if self.cameraBase != "":
             self.activeClear()
-        if self.haveforce and self.forcedialog != None:
+        if self.haveforce and self.forcedialog is not None:
             self.forcedialog.close()
         self.timeoutdialog.close()
         self.advdialog.close()
         self.markerdialog.close()
         self.specificdialog.close()
-        if self.cfg == None:
+        if self.cfg is None:
             self.dumpConfig()
         QMainWindow.closeEvent(self, event)
 
@@ -656,11 +674,11 @@ class GraphicUserInterface(QMainWindow):
             self.adjustSize()
 
     def resizeEvent(self, ev):
-        QtCore.QTimer.singleShot(0, self.completeResize)
+        QTimer.singleShot(0, self.completeResize)
 
     def completeResize(self):
         self.layout().setSizeConstraint(QLayout.SetDefaultConstraint)
-        self.setMaximumSize(QtCore.QSize(16777215, 16777215))
+        self.setMaximumSize(QSize(16777215, 16777215))
         di = self.ui.display_image
         dis = di.size()
         if dis != di.hint:
@@ -689,10 +707,10 @@ class GraphicUserInterface(QMainWindow):
                     newsize = QSize(
                         self.width(), self.height() - (dis.height() - self.viewheight)
                     )
-                    QtCore.QTimer.singleShot(0, lambda: self.resize(newsize))
+                    QTimer.singleShot(0, lambda: self.resize(newsize))
                 else:
                     # We're just wrong.  Who knows why?  Just retry.
-                    QtCore.QTimer.singleShot(0, self.delayedRetry)
+                    QTimer.singleShot(0, self.delayedRetry)
         else:
             # We're good!
             self.resizing = False
@@ -726,7 +744,7 @@ class GraphicUserInterface(QMainWindow):
             param.y,
             param.orientation,
         )
-        if self.camera != None:
+        if self.camera is not None:
             if self.isColor:
                 self.camera.processor = pycaqtimage.pyCreateColorImagePvCallbackFunc(
                     self.imageBuffer
@@ -747,8 +765,9 @@ class GraphicUserInterface(QMainWindow):
         self.ui.projH.setVisible(v)
         self.ui.projV.setVisible(v)
         self.ui.projectionFrame.setVisible(v)
+        self.ui.groupBoxFits.setVisible(v and self.ui.checkBoxFits.isChecked())
         self.finishResize()
-        if self.cfg == None:
+        if self.cfg is None:
             # print("done doShowProj")
             self.dumpConfig()
 
@@ -758,7 +777,7 @@ class GraphicUserInterface(QMainWindow):
         self.ui.groupBoxMarker.setVisible(v)
         self.ui.RightPanel.invalidate()
         self.finishResize()
-        if self.cfg == None:
+        if self.cfg is None:
             # print("done doShowMarker")
             self.dumpConfig()
 
@@ -772,7 +791,7 @@ class GraphicUserInterface(QMainWindow):
         self.ui.groupBoxROI.setVisible(v)
         self.ui.RightPanel.invalidate()
         self.finishResize()
-        if self.cfg == None:
+        if self.cfg is None:
             # print("done doShowConf")
             self.dumpConfig()
 
@@ -882,7 +901,7 @@ class GraphicUserInterface(QMainWindow):
                     self.onCrossUpdate(1)
             else:
                 self.useglobmarks = self.disconnectMarkerPVs()
-            if self.cfg == None:
+            if self.cfg is None:
                 self.dumpConfig()
 
     def setUseGlobalMarkers2(self, ugm):
@@ -894,7 +913,7 @@ class GraphicUserInterface(QMainWindow):
                     self.onCrossUpdate(3)
             else:
                 self.useglobmarks2 = self.disconnectMarkerPVs2()
-            if self.cfg == None:
+            if self.cfg is None:
                 self.dumpConfig()
 
     def onMarkerTextEnter(self, n):
@@ -907,7 +926,7 @@ class GraphicUserInterface(QMainWindow):
             self.updateMarkerText(False, True, 0, 1 << n)
         self.updateMarkerValue()
         self.updateall()
-        if self.cfg == None:
+        if self.cfg is None:
             self.dumpConfig()
 
     def onMarkerDialogEnter(self, n):
@@ -921,7 +940,7 @@ class GraphicUserInterface(QMainWindow):
             self.updateMarkerText(False, True, 0, 1 << n)
         self.updateMarkerValue()
         self.updateall()
-        if self.cfg == None:
+        if self.cfg is None:
             self.dumpConfig()
 
     def updateMarkerText(self, do_main=True, do_dialog=True, pvmask=0, change=15):
@@ -982,12 +1001,12 @@ class GraphicUserInterface(QMainWindow):
 
     def onCheckProjUpdate(self):
         self.updateall()
-        if self.cfg == None:
+        if self.cfg is None:
             self.dumpConfig()
 
     def onCheckGrayUpdate(self, newval):
         pycaqtimage.pySetImageBufferGray(self.imageBuffer, newval)
-        if self.cfg == None:
+        if self.cfg is None:
             self.dumpConfig()
 
     def onCheckDisplayUpdate(self, newval):
@@ -1013,11 +1032,20 @@ class GraphicUserInterface(QMainWindow):
                 self.avgState = LOCAL_AVERAGE
         self.onAverageSet()
 
+    def onCheckFitsUpdate(self):
+        self.ui.groupBoxFits.setVisible(self.ui.checkBoxFits.isChecked())
+        if self.cfg is None:
+            self.dumpConfig()
+
+    def onGenericConfigChange(self):
+        if self.cfg is None:
+            self.dumpConfig()
+
     def clearSpecialMouseMode(self, keepMode, bNewCheckedState):
         for i in range(1, 6):
             if keepMode != i:
                 self.ui.pBM[i - 1].setChecked(False)
-                if self.markerdialog.pBM[i - 1] != None:
+                if self.markerdialog.pBM[i - 1] is not None:
                     self.markerdialog.pBM[i - 1].setChecked(False)
                 self.ui.actM[i - 1].setChecked(False)
         if bNewCheckedState:
@@ -1025,9 +1053,9 @@ class GraphicUserInterface(QMainWindow):
         else:
             self.iSpecialMouseMode = 0
         if self.iSpecialMouseMode == 0:
-            self.ui.display_image.setCursor(QtCore.Qt.ArrowCursor)
+            self.ui.display_image.setCursor(Qt.ArrowCursor)
         else:
-            self.ui.display_image.setCursor(QtCore.Qt.CrossCursor)
+            self.ui.display_image.setCursor(Qt.CrossCursor)
 
     def onMarkerSet(self, n, bChecked):
         self.clearSpecialMouseMode(n + 1, bChecked)
@@ -1065,7 +1093,7 @@ class GraphicUserInterface(QMainWindow):
         ]
         self.updateMarkerText(True, True, 3, 15)
         self.updateall()
-        if self.cfg == None:
+        if self.cfg is None:
             self.dumpConfig()
 
     def onRoiTrig(self):
@@ -1088,7 +1116,7 @@ class GraphicUserInterface(QMainWindow):
         )
         self.updateRoiText()
         self.updateall()
-        if self.cfg == None:
+        if self.cfg is None:
             self.dumpConfig()
 
     def updateRoiText(self):
@@ -1144,7 +1172,7 @@ class GraphicUserInterface(QMainWindow):
         # frozen!
         pycaqtimage.pyRecolorImageBuffer(self.imageBuffer)
         self.ui.display_image.update()
-        if self.cfg == None:
+        if self.cfg is None:
             self.dumpConfig()
 
     def onComboBoxScaleIndexChanged(self, iNewIndex):
@@ -1161,31 +1189,31 @@ class GraphicUserInterface(QMainWindow):
         if self.camera is not None:
             try:
                 self.camera.disconnect()
-            except:
+            except Exception:
                 pass
             self.camera = None
         if self.notify is not None:
             try:
                 self.notify.disconnect()
-            except:
+            except Exception:
                 pass
             self.notify = None
         if self.lensPv is not None:
             try:
                 self.lensPv.disconnect()
-            except:
+            except Exception:
                 pass
             self.lensPv = None
         if self.putlensPv is not None:
             try:
                 self.putlensPv.disconnect()
-            except:
+            except Exception:
                 pass
             self.putlensPv = None
         for pv in self.otherpvs:
             try:
                 pv.disconnect()
-            except:
+            except Exception:
                 pass
         self.otherpvs = []
 
@@ -1241,7 +1269,7 @@ class GraphicUserInterface(QMainWindow):
         self.updateMarkerText(True, True, 0, 15)
         self.updateRoiText()
         self.updateall()
-        if self.cfg == None:
+        if self.cfg is None:
             self.dumpConfig()
 
     def onAverageSet(self):
@@ -1252,12 +1280,20 @@ class GraphicUserInterface(QMainWindow):
                     self.average = 1
                     self.ui.average.setText("1")
                 self.updateMiscInfo()
-            except:
+            except Exception:
                 self.average = 1
                 self.ui.average.setText("1")
             pycaqtimage.pySetFrameAverage(self.average, self.imageBuffer)
         else:
             pycaqtimage.pySetFrameAverage(1, self.imageBuffer)
+
+    def onCalibTextEnter(self):
+        try:
+            self.calib = float(self.ui.lineEditCalib.text())
+            if self.cfg is None:
+                self.dumpConfig()
+        except Exception:
+            self.ui.lineEditCalib.setText(str(self.calib))
 
     # Note: this function is called by the CA library, from another thread
     def sizeCallback(self, exception=None):
@@ -1272,7 +1308,7 @@ class GraphicUserInterface(QMainWindow):
             newy = self.rowPv.value / self.scale
             if newx != param.x or newy != self.y:
                 self.setImageSize(newx, newy, False)
-        except:
+        except Exception:
             pass
 
     # This monitors LIVE_IMAGE_FULL... which updates at 5 Hz, whether we have an image or not!
@@ -1303,7 +1339,7 @@ class GraphicUserInterface(QMainWindow):
             self.wantNewImage
             and self.haveNewImage
             and self.lastGetDone
-            and self.camera != None
+            and self.camera is not None
         ):
             try:
                 if self.nordPv:
@@ -1316,7 +1352,7 @@ class GraphicUserInterface(QMainWindow):
                             self.count = self.maxcount
                 self.camera.get(timeout=None)
                 pyca.flush_io()
-            except:
+            except Exception:
                 pass
             self.haveNewImage = False
             self.lastGetDone = False
@@ -1325,7 +1361,6 @@ class GraphicUserInterface(QMainWindow):
     def imagePvUpdateCallback(self, exception=None):
         self.lastGetDone = True
         if exception is None:
-            currentTime = time.time()
             self.dataUpdates += 1
             self.imageUpdate.emit()  # Send out the signal to notify windows update (in the GUI thread)
             self.wantImage(False)
@@ -1363,7 +1398,7 @@ class GraphicUserInterface(QMainWindow):
         self.updateMiscInfo()
 
     def onAvgUpdate(self):
-        if self.avgPv != None:
+        if self.avgPv is not None:
             self.ui.remote_average.setText(str(int(self.avgPv.value)))
 
     def updateProj(self):
@@ -1382,8 +1417,12 @@ class GraphicUserInterface(QMainWindow):
                 self.iRangeMax,
                 self.ui.display_image.rectRoi.oriented(),
             )
-            self.ui.projH.makeImage(projXmin, projXmax, projYmin, projYmax)
-            self.ui.projV.makeImage(projXmin, projXmax, projYmin, projYmax)
+            (projXmin, projXmax) = self.ui.projH.makeImage(
+                projXmin, projXmax, projYmin, projYmax
+            )
+            (projYmin, projYmax) = self.ui.projV.makeImage(
+                projXmin, projXmax, projYmin, projYmax
+            )
 
             if roiMean == 0:
                 roiVarByMean = 0
@@ -1460,15 +1499,15 @@ class GraphicUserInterface(QMainWindow):
         dir = os.path.dirname(fn)  # Strip off filename!
         raw = open(fn, "r").readlines()
         lines = []
-        for l in raw:
-            s = l.split()
+        for line in raw:
+            s = line.split()
             if len(s) >= 1 and s[0] == "include":
                 if s[1][0] != "/":
                     lines.extend(self.readCameraFile(dir + "/" + s[1]))
                 else:
                     lines.extend(self.readCameraFile(s[1]))
             else:
-                lines.append(l)
+                lines.append(line)
         return lines
 
     def updateCameraCombo(self):
@@ -1483,7 +1522,7 @@ class GraphicUserInterface(QMainWindow):
         self.ui.menuCameras.clear()
         sEvr = ""
         try:
-            if self.options.oneline != None:
+            if self.options.oneline is not None:
                 lCameraListLine = [self.options.oneline]
                 self.options.camera = "0"
             else:
@@ -1502,7 +1541,7 @@ class GraphicUserInterface(QMainWindow):
 
                 lsCameraLine = sCamera.split(",")
                 if len(lsCameraLine) < 2:
-                    throw("")
+                    raise Exception("Short line in config: %s" % sCamera)
 
                 sTypeFlag = lsCameraLine[0].strip().split(":")
                 sType = sTypeFlag[0]
@@ -1556,7 +1595,7 @@ class GraphicUserInterface(QMainWindow):
                     action.setChecked(False)
                     self.ui.menuCameras.addAction(action)
                     self.camactions.append(action)
-                except:
+                except Exception:
                     print("Failed to create camera action for %s" % sCameraDesc)
 
                 if sLensPv == "":
@@ -1566,18 +1605,18 @@ class GraphicUserInterface(QMainWindow):
                     % (iCamera, sCameraDesc, sCameraPv, sEvr, sLensPv)
                 )
 
-        except:
+        except Exception:
             # import traceback
             # traceback.print_exc(file=sys.stdout)
             print('!! Failed to read camera pv list from "%s"' % (fnCameraList))
             sys.exit(0)
 
     def disconnectPv(self, pv):
-        if pv != None:
+        if pv is not None:
             try:
                 pv.disconnect()
                 pyca.flush_io()
-            except:
+            except Exception:
                 pass
         return None
 
@@ -1627,7 +1666,7 @@ class GraphicUserInterface(QMainWindow):
         self.updateMarkerText(True, True, 0, 1 << n)
         self.updateMarkerValue()
         self.updateall()
-        if self.cfg == None:
+        if self.cfg is None:
             self.dumpConfig()
 
     def updateCross3and4(self):
@@ -1745,7 +1784,7 @@ class GraphicUserInterface(QMainWindow):
         for i in self.globmarkpvs:
             try:
                 i.disconnect()
-            except:
+            except Exception:
                 pass
         self.globmarkpvs = []
         return False
@@ -1762,29 +1801,28 @@ class GraphicUserInterface(QMainWindow):
         for i in self.globmarkpvs2:
             try:
                 i.disconnect()
-            except:
+            except Exception:
                 pass
         self.globmarkpvs2 = []
         return False
 
     def setupDrags(self):
-        if self.camera != None:
+        if self.camera is not None:
             self.ui.display_image.readpvname = self.camera.name
         else:
             self.ui.display_image.readpvname = None
-        if self.lensPv != None:
+        if self.lensPv is not None:
             self.ui.horizontalSliderLens.readpvname = self.lensPv.name
             self.ui.lineEditLens.readpvname = self.lensPv.name
         else:
             self.ui.horizontalSliderLens.readpvname = None
             self.ui.lineEditLens.readpvname = None
-        if self.avgPv != None:
+        if self.avgPv is not None:
             self.ui.remote_average.readpvname = self.avgPv.name
         else:
             self.ui.remote_average.readpvname = None
 
     def connectCamera(self, sCameraPv, index, sNotifyPv=None):
-        timeout = 1.0
         self.camera = self.disconnectPv(self.camera)
         self.notify = self.disconnectPv(self.notify)
         self.nordPv = self.disconnectPv(self.nordPv)
@@ -1800,20 +1838,20 @@ class GraphicUserInterface(QMainWindow):
         try:
             self.nordPv = self.connectPv(sCameraPv + ".NORD")
             self.count = int(self.nordPv.value)
-        except:
+        except Exception:
             self.nordPv = None
             self.count = None
         try:
             self.nelmPv = self.connectPv(sCameraPv + ".NELM")
             self.maxcount = int(self.nelmPv.value)
-        except:
+        except Exception:
             self.nelmPv = None
             self.maxcount = None
         if self.count is None or self.count == 0:
             self.count = self.maxcount
         self.camera = self.connectPv(sCameraPv, count=self.count)
         print("Connected!")
-        if self.camera == None:
+        if self.camera is None:
             self.ui.label_connected.setText("NO")
             return
 
@@ -1825,7 +1863,7 @@ class GraphicUserInterface(QMainWindow):
             self.colPv = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
             self.isColor = True
             self.bits = caget(self.cameraBase + ":BIT_DEPTH")
-            if self.bits == None:
+            if self.bits is None:
                 self.bits = 10
         else:
             # Just B/W!
@@ -1836,9 +1874,9 @@ class GraphicUserInterface(QMainWindow):
                 self.bits = int(self.lFlags[index])
             else:
                 self.bits = caget(self.cameraBase + ":BitsPerPixel_RBV")
-                if self.bits == None:
+                if self.bits is None:
                     self.bits = caget(self.cameraBase + ":BIT_DEPTH")
-                    if self.bits == None:
+                    if self.bits is None:
                         self.bits = 8
 
         self.maxcolor = (1 << self.bits) - 1
@@ -1849,16 +1887,16 @@ class GraphicUserInterface(QMainWindow):
 
         # See if we've connected to a camera with valid height and width
         if (
-            self.camera == None
-            or self.rowPv == None
+            self.camera is None
+            or self.rowPv is None
             or self.rowPv.value == 0
-            or self.colPv == None
+            or self.colPv is None
             or self.colPv.value == 0
         ):
             self.ui.label_connected.setText("NO")
             return
 
-        if sNotifyPv == None:
+        if sNotifyPv is None:
             self.notify = self.connectPv(sCameraPv, count=1)
         else:
             self.notify = self.connectPv(sNotifyPv, count=1)
@@ -1965,7 +2003,7 @@ class GraphicUserInterface(QMainWindow):
                 self.avgPv.wait_ready(timeout)
                 self.avgPv.add_monitor_callback(self.avgPvUpdateCallback)
                 pyca.flush_io()
-            except:
+            except Exception:
                 QMessageBox.critical(
                     None,
                     "Error",
@@ -2006,7 +2044,7 @@ class GraphicUserInterface(QMainWindow):
                         else:
                             self.ui.horizontalSliderLens.setMinimum(int(sLensSplit[1]))
                         self.ui.horizontalSliderLens.setMaximum(int(sLensSplit[2]))
-                    except:
+                    except Exception:
                         self.ui.horizontalSliderLens.setMinimum(0)
                         self.ui.horizontalSliderLens.setMaximum(100)
                 else:
@@ -2022,10 +2060,10 @@ class GraphicUserInterface(QMainWindow):
                 self.lensPv.connect(timeout, initialize=True)
                 self.lensPv.wait_ready(1.0)
                 self.lensPv.add_monitor_callback(self.lensPvUpdateCallback)
-                if self.putlensPv != None:
+                if self.putlensPv is not None:
                     self.putlensPv.connect(timeout, initialize=True)
                 pyca.flush_io()
-            except:
+            except Exception:
                 QMessageBox.critical(
                     None,
                     "Error",
@@ -2049,7 +2087,7 @@ class GraphicUserInterface(QMainWindow):
 
     def doShowSpecific(self):
         try:
-            if self.camera == None:
+            if self.camera is None:
                 raise Exception
             if self.dispspec == 1:
                 QMessageBox.critical(
@@ -2062,7 +2100,7 @@ class GraphicUserInterface(QMainWindow):
                 return
             self.specificdialog.resize(400, 1)
             self.specificdialog.show()
-        except:
+        except Exception:
             pass
 
     #
@@ -2072,7 +2110,7 @@ class GraphicUserInterface(QMainWindow):
     #
     def setupGUIMonitor(self, pvname, gui, callback, writepvname):
         try:
-            if writepvname == None:
+            if writepvname is None:
                 gui.writepvname = None
             else:
                 gui.writepvname = self.ctrlBase + writepvname
@@ -2081,7 +2119,7 @@ class GraphicUserInterface(QMainWindow):
             pv.wait_ready(1.0)
             pv.add_monitor_callback(lambda e=None: callback(e, pv, gui))
             self.otherpvs.append(pv)
-        except:
+        except Exception:
             pass
 
     def lineEditMonitorCallback(self, exception, pv, lineedit):
@@ -2103,31 +2141,31 @@ class GraphicUserInterface(QMainWindow):
         self.setupGUIMonitor(pvname, combobox, self.comboMonitorCallback, writepvname)
 
     def comboWriteCallback(self, combobox, idx):
-        if combobox.writepvname == None:
+        if combobox.writepvname is None:
             return
         try:
             if idx != combobox.lastwrite:
                 combobox.lastwrite = idx
                 caput(combobox.writepvname, idx)
-        except:
+        except Exception:
             pass
 
     def lineIntWriteCallback(self, lineedit):
-        if lineedit.writepvname == None:
+        if lineedit.writepvname is None:
             return
         try:
             v = int(lineedit.text())
             caput(lineedit.writepvname, v)
-        except:
+        except Exception:
             pass
 
     def lineFloatWriteCallback(self, lineedit):
-        if lineedit.writepvname == None:
+        if lineedit.writepvname is None:
             return
         try:
             v = float(lineedit.text())
             caput(lineedit.writepvname, v)
-        except:
+        except Exception:
             pass
 
     def setupButtonMonitor(self, pvname, button, writepvname):
@@ -2169,9 +2207,9 @@ class GraphicUserInterface(QMainWindow):
 
     def changeSize(self, newwidth, newheight, newproj, settext, doresize=True):
         if (
-            self.colPv == None
+            self.colPv is None
             or self.colPv == 0
-            or self.rowPv == None
+            or self.rowPv is None
             or self.rowPv == 0
         ):
             return
@@ -2206,7 +2244,7 @@ class GraphicUserInterface(QMainWindow):
             self.setImageSize(
                 self.colPv.value / self.scale, self.rowPv.value / self.scale, False
             )
-            if self.cfg == None:
+            if self.cfg is None:
                 self.dumpConfig()
 
     def onAdvanced(self, button):
@@ -2221,7 +2259,7 @@ class GraphicUserInterface(QMainWindow):
                 self.advdialog.ui.viewWidth.setText(str(self.viewwidth))
                 self.advdialog.ui.viewHeight.setText(str(self.viewheight))
                 self.advdialog.ui.projSize.setText(str(self.projsize))
-            except:
+            except Exception:
                 print("onAdvanced threw an exception")
         if role == QDialogButtonBox.RejectRole or role == QDialogButtonBox.AcceptRole:
             self.ui.showexpert.setChecked(False)
@@ -2261,9 +2299,9 @@ class GraphicUserInterface(QMainWindow):
 
     def onSliderLensReleased(self):
         newSliderValue = self.ui.horizontalSliderLens.value()
-        if self.lensPv != None:
+        if self.lensPv is not None:
             try:
-                if self.putlensPv != None:
+                if self.putlensPv is not None:
                     self.putlensPv.put(newSliderValue)
                 else:
                     self.lensPv.put(newSliderValue)
@@ -2276,7 +2314,7 @@ class GraphicUserInterface(QMainWindow):
     def onRangeMinTextEnter(self):
         try:
             value = int(self.ui.lineEditRangeMin.text())
-        except:
+        except Exception:
             value = 0
 
         if value < 0:
@@ -2288,7 +2326,7 @@ class GraphicUserInterface(QMainWindow):
     def onRangeMaxTextEnter(self):
         try:
             value = int(self.ui.lineEditRangeMax.text())
-        except:
+        except Exception:
             value = 0
 
         if value < 0:
@@ -2300,7 +2338,7 @@ class GraphicUserInterface(QMainWindow):
     def onLensEnter(self):
         try:
             value = int(self.ui.lineEditLens.text())
-        except:
+        except Exception:
             value = 0
 
         mn = self.ui.horizontalSliderLens.minimum()
@@ -2310,9 +2348,9 @@ class GraphicUserInterface(QMainWindow):
         if value > mx:
             value = mx
         self.ui.horizontalSliderLens.setValue(value)
-        if self.lensPv != None:
+        if self.lensPv is not None:
             try:
-                if self.putlensPv != None:
+                if self.putlensPv is not None:
                     self.putlensPv.put(value)
                 else:
                     self.lensPv.put(value)
@@ -2325,12 +2363,12 @@ class GraphicUserInterface(QMainWindow):
     def onRemAvgEnter(self):
         try:
             value = int(self.ui.remote_average.text())
-        except:
+        except Exception:
             value = 0
 
         if value < 1:
             value = 1
-        if self.avgPv != None:
+        if self.avgPv is not None:
             try:
                 self.avgPv.put(value)
                 pyca.flush_io()
@@ -2357,7 +2395,7 @@ class GraphicUserInterface(QMainWindow):
 
     def setDisco(self, secs):
         self.discoTimer.start(1000 * secs)
-        if self.notify != None and not self.notify.ismonitored:
+        if self.notify is not None and not self.notify.ismonitored:
             self.notify.monitor(pyca.DBE_VALUE, False, 1)
             pyca.flush_io()
 
@@ -2371,18 +2409,18 @@ class GraphicUserInterface(QMainWindow):
         file = self.activedir + self.cameraBase + "/" + self.description
         try:
             f = open(file)
-            l = f.readlines()
-            if len(l) > 1:
-                self.timeoutdialog.force(l[1].strip())
+            lines = f.readlines()
+            if len(lines) > 1:
+                self.timeoutdialog.force(lines[1].strip())
                 self.activeSet()
-        except:
+        except Exception:
             pass
 
     def activeClear(self):
         try:
             file = self.activedir + self.cameraBase + "/" + self.description
             os.unlink(file)
-        except:
+        except Exception:
             pass
 
     def activeSet(self):
@@ -2390,12 +2428,12 @@ class GraphicUserInterface(QMainWindow):
             dir = self.activedir + self.cameraBase
             try:
                 os.mkdir(dir)
-            except:
+            except Exception:
                 pass  # It might already exist!
             f = open(dir + "/" + self.description, "w")
             f.write(os.ttyname(0) + "\n")
             f.close()
-        except:
+        except Exception:
             pass
 
     def setDispSpec(self, v):
@@ -2419,8 +2457,8 @@ class GraphicUserInterface(QMainWindow):
             self.dispspec = v
 
     def dumpConfig(self):
-        if self.camera != None and self.options == None:
-            f = open(self.cfgdir + self.cfgname, "w")
+        if self.camera is not None and self.options is None:
+            f = open(self.cfgdir + self.cameraBase, "w")
             g = open(self.cfgdir + "GLOBAL", "w")
 
             f.write("projsize    " + str(self.projsize) + "\n")
@@ -2470,16 +2508,47 @@ class GraphicUserInterface(QMainWindow):
                     % (i + 1, lMarker[i].abs().x(), lMarker[i].abs().y())
                 )
             g.write("dispspec    " + str(self.dispspec) + "\n")
+            f.write(
+                "projroi     " + str(int(self.ui.checkBoxProjRoi.isChecked())) + "\n"
+            )
+            f.write(
+                "projlineout "
+                + str(int(self.ui.checkBoxM1Lineout.isChecked()))
+                + " "
+                + str(int(self.ui.checkBoxM2Lineout.isChecked()))
+                + " "
+                + str(int(self.ui.checkBoxM3Lineout.isChecked()))
+                + " "
+                + str(int(self.ui.checkBoxM4Lineout.isChecked()))
+                + "\n"
+            )
+            f.write("projfit     " + str(int(self.ui.checkBoxFits.isChecked())) + "\n")
+            f.write(
+                "projfittype "
+                + str(int(self.ui.radioGaussian.isChecked()))
+                + " "
+                + str(int(self.ui.radioSG4.isChecked()))
+                + " "
+                + str(int(self.ui.radioSG6.isChecked()))
+                + "\n"
+            )
+            f.write("projcalib   %g\n" % self.calib)
 
             f.close()
             g.close()
 
-            settings = QtCore.QSettings("SLAC", "CamViewer")
+            settings = QSettings("SLAC", "CamViewer")
             settings.setValue("geometry/%s" % self.cfgname, self.saveGeometry())
             settings.setValue("windowState/%s" % self.cfgname, self.saveState())
+            if self.oldcfg:
+                try:
+                    self.oldcfg = False
+                    os.unlink(self.cfgdir + self.cfgname)
+                except Exception:
+                    pass
 
     def getConfig(self):
-        if self.camera == None:
+        if self.camera is None:
             return
         self.cfg = cfginfo()
         if not self.cfg.read(self.cfgdir + "GLOBAL"):
@@ -2488,32 +2557,28 @@ class GraphicUserInterface(QMainWindow):
             self.cfg.add("markers", "1")
             self.cfg.add("orientation", str(param.ORIENT0))
             self.cfg.add("dispspec", "0")
-        if self.options != None:
+        if self.options is not None:
             # Let the command line options override the config file!
-            if self.options.config != None:
+            if self.options.config is not None:
                 self.cfg.add("config", self.options.config)
-            if self.options.proj != None:
+            if self.options.proj is not None:
                 self.cfg.add("projection", self.options.proj)
-            if self.options.marker != None:
+            if self.options.marker is not None:
                 self.cfg.add("markers", self.options.marker)
-            if self.options.camcfg != None:
+            if self.options.camcfg is not None:
                 self.cfg.add("dispspec", self.options.camcfg)
-        if not self.fixname:
-            # OK, old school!  Get rid of all of the final ":.*" from each camera!
-            self.fixname = True
-            for file in os.listdir(self.cfgdir):
-                match = re.search(
-                    "^(.*):(AVG_IMAGE|IMAGE_CMPX|LIVE_IMAGE_FULL|ArrayData)$", file
-                )
-                if match:
-                    try:
-                        os.rename(self.cfgdir + file, self.cfgdir + match.group(1))
-                    except:
-                        pass
 
         # Read the config file
-        if not self.cfg.read(self.cfgdir + self.cfgname):
-            # OK, didn't work, look for an old one.
+        #
+        # New Regime: We're going back to the Ancien Regime!  Config files
+        # are just the camera base name.  But... we'll try to read the old
+        # names first.  When we first save a new one, we will delete the old
+        # one.
+        if self.cfg.read(self.cfgdir + self.cfgname):
+            self.oldcfg = True
+        else:
+            # OK, didn't work, look for a new one!
+            self.oldcfg = False
             if not self.cfg.read(self.cfgdir + self.cameraBase):
                 # Bail if we can't find it
                 # But first, let's immediately process the command line options, if any.
@@ -2526,15 +2591,15 @@ class GraphicUserInterface(QMainWindow):
                 self.doShowConf()
                 self.ui.showproj.setChecked(int(self.cfg.projection))
                 self.doShowProj()
-                if self.options != None:
-                    if self.options.orientation != None:
+                if self.options is not None:
+                    if self.options.orientation is not None:
                         self.setOrientation(int(self.options.orientation))
-                    elif self.options.lportrait != None:
+                    elif self.options.lportrait is not None:
                         if int(self.options.lportrait):
                             self.setOrientation(param.ORIENT90)
                         else:
                             self.setOrientation(param.ORIENT0)
-                    if self.options.cmap != None:
+                    if self.options.cmap is not None:
                         self.ui.comboBoxColor.setCurrentIndex(
                             self.ui.comboBoxColor.findText(self.options.cmap)
                         )
@@ -2549,25 +2614,25 @@ class GraphicUserInterface(QMainWindow):
                 return
 
         # Let command line options override local config file
-        if self.options != None:
-            if self.options.orientation != None:
+        if self.options is not None:
+            if self.options.orientation is not None:
                 self.cfg.add("cmd_orientation", int(self.options.orientation))
-            elif self.options.lportrait != None:
+            elif self.options.lportrait is not None:
                 if self.options.lportrait == "0":
                     self.cfg.add("cmd_orientation", param.ORIENT0)
                 else:
                     self.cfg.add("cmd_orientation", param.ORIENT90)
-            if self.options.cmap != None:
+            if self.options.cmap is not None:
                 self.cfg.add("colormap", self.options.cmap)
             self.options = None
 
         try:
             use_abs = int(self.cfg.use_abs)
-        except:
+        except Exception:
             use_abs = 0
 
         # Set the window size
-        settings = QtCore.QSettings("SLAC", "CamViewer")
+        settings = QSettings("SLAC", "CamViewer")
         pos = self.pos()
         v = settings.value("geometry/%s" % self.cfgname)
         if v is not None:
@@ -2596,18 +2661,18 @@ class GraphicUserInterface(QMainWindow):
         # These are new fields, so they might not be in old configs!
         try:
             mk = int(self.cfg.markers)
-        except:
+        except Exception:
             mk = 1
         self.ui.showmarker.setChecked(mk)
         self.doShowMarker()
         try:
             dc = int(self.cfg.dispspec)
-        except:
+        except Exception:
             dc = 0
         self.setDispSpec(dc)
         try:
             orientation = self.cfg.orientation
-        except:
+        except Exception:
             orientation = param.ORIENT0
         self.setOrientation(int(orientation))
         self.ui.checkBoxProjAutoRange.setChecked(int(self.cfg.autorange))
@@ -2618,7 +2683,7 @@ class GraphicUserInterface(QMainWindow):
                 float(self.cfg.rectzoom[2]),
                 float(self.cfg.rectzoom[3]),
             )
-        except:
+        except Exception:
             pass
         try:
             self.ui.display_image.roiSet(
@@ -2628,7 +2693,7 @@ class GraphicUserInterface(QMainWindow):
                 float(self.cfg.ROI[3]),
                 rel=(use_abs == 0),
             )
-        except:
+        except Exception:
             pass
         self.updateall()
         self.ui.comboBoxColor.setCurrentIndex(
@@ -2652,19 +2717,19 @@ class GraphicUserInterface(QMainWindow):
         try:
             self.ui.grayScale.setChecked(int(self.cfg.grayscale))
             self.onCheckGrayUpdate(int(self.cfg.grayscale))
-        except:
+        except Exception:
             pass
         self.setColorMap()
         try:
             self.useglobmarks = bool(int(self.cfg.globmarks))
-        except:
+        except Exception:
             self.useglobmarks = False
         if self.useglobmarks:
             self.useglobmarks = self.connectMarkerPVs()
         self.ui.actionGlobalMarkers.setChecked(self.useglobmarks)
         try:
             self.useglobmarks2 = bool(int(self.cfg.globmarks2))
-        except:
+        except Exception:
             self.useglobmarks2 = False
         if self.useglobmarks2:
             self.useglobmarks2 = self.connectMarkerPVs2()
@@ -2710,6 +2775,27 @@ class GraphicUserInterface(QMainWindow):
             # OK, see if we've delayed the command line orientation setting until now.
             orientation = self.cfg.cmd_orientation
             self.setOrientation(int(orientation))
-        except:
+        except Exception:
             pass
+        # Process projection settings, if any.
+        try:
+            self.ui.checkBoxProjRoi.setChecked(self.cfg.projroi == "1")
+            check = [ll == "1" for ll in self.cfg.projlineout]
+            self.ui.checkBoxM1Lineout.setChecked(check[0])
+            self.ui.checkBoxM2Lineout.setChecked(check[1])
+            self.ui.checkBoxM3Lineout.setChecked(check[2])
+            self.ui.checkBoxM4Lineout.setChecked(check[3])
+            self.ui.checkBoxFits.setChecked(self.cfg.projfit == "1")
+            check = [ll == "1" for ll in self.cfg.projfittype]
+            if check[0]:
+                self.ui.radioGaussian.setChecked(True)
+            if check[1]:
+                self.ui.radioSG4.setChecked(True)
+            if check[2]:
+                self.ui.radioSG6.setChecked(True)
+            self.calib = float(self.cfg.projcalib)
+            self.ui.lineEditCalib.setText(str(self.calib))
+        except Exception:
+            pass
+
         self.cfg = None

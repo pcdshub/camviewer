@@ -1,6 +1,6 @@
 AD  - An AreaDetector camera.  The image data is bytes in ArrayData,
-      and the dimensions are in ArraySize0_RBV, ArraySize1_RBV, and 
-      ArraySize2_RBV.  If color, these are 3, X, Y, and if B/W, these 
+      and the dimensions are in ArraySize0_RBV, ArraySize1_RBV, and
+      ArraySize2_RBV.  If color, these are 3, X, Y, and if B/W, these
       are X, Y, 0.
 
 GE is a backwards compatible alias for AD.
