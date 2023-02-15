@@ -249,7 +249,8 @@ class forcedialog(QDialog):
                 pidlabel.setText(pre + ll[1] + post)
                 self.gridLayout.addWidget(pidlabel, i, 1, 1, 1)
 
-                lines = open(dir + file).readlines()
+                with open(dir + file) as f:
+                    lines = f.readlines()
                 ttylabel = QLabel(self)
                 ttylabel.setTextFormat(QtCore.Qt.RichText)
                 ttylabel.setText(pre + lines[0].strip() + post)
