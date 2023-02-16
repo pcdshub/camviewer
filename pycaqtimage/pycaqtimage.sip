@@ -546,7 +546,7 @@ static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi, bool bPro
 	uint32_t* pPixel = pPixelLineStart;
 	for (int iX = x1; iX <= x2; ++iX, ++pPixel) {
 #define SUMRGB(x) (((x)&0xff)+(((x)>>8)&0xff)+(((x)>>16)&0xff))
-	    int iValue = isColor ? SUMRGB(*pPixel) : *pPixel;
+	    uint32_t iValue = isColor ? SUMRGB(*pPixel) : *pPixel;
 	    if ( iValue >= 0x10000) {
 		fprintf(stderr, "Pixel value (%d,%d) too large: value 0x%x\n", iX, iY, iValue);
 		continue;
