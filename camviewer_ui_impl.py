@@ -2551,11 +2551,15 @@ class GraphicUserInterface(QMainWindow):
         if self.camera is None:
             return
         self.cfg = cfginfo()
+        # Global defaults.
+        self.cfg.add("config", "0")
+        self.cfg.add("projection", "0")
+        self.cfg.add("markers", "0")
+        self.cfg.add("dispspec", "0")
         if not self.cfg.read(self.cfgdir + "GLOBAL"):
             self.cfg.add("config", "1")
             self.cfg.add("projection", "1")
             self.cfg.add("markers", "1")
-            self.cfg.add("orientation", str(param.ORIENT0))
             self.cfg.add("dispspec", "0")
         if self.options is not None:
             # Let the command line options override the config file!
