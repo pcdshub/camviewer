@@ -4,22 +4,92 @@ from PyQt5.QtWidgets import QWidget
 import param
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
-from lmfit.models import GaussianModel, Model, update_param_vals
+from lmfit.models import (
+    GaussianModel,
+    Model,
+    update_param_vals,
+    guess_from_peak,
+    fwhm_expr,
+    height_expr,
+)
 import numpy as np
 
 # From lmfit.lineshapes, because it's not worth importing...
 #
+s2pi = np.sqrt(2 * np.pi)
 # tiny had been numpy.finfo(numpy.float64).eps ~=2.2e16.
 # here, we explicitly set it to 1.e-15 == numpy.finfo(numpy.float64).resolution
 tiny = 1.0e-15
+
+
+def gaussian_with_base(x, amplitude=1.0, center=0.0, sigma=1.0, base=0.0):
+    return base + (
+        (amplitude / (max(tiny, s2pi * sigma)))
+        * np.exp(-((1.0 * x - center) ** 2) / max(tiny, (2 * sigma**2)))
+    )
 
 
 def sg4(x, amplitude=1.0, center=0.0, width=1.0):
     return amplitude * np.exp(-2.0 * ((x - center) ** 4 / max(tiny, width**4)))
 
 
+def sg4_with_base(x, amplitude=1.0, center=0.0, width=1.0, base=0.0):
+    return base + amplitude * np.exp(-2.0 * ((x - center) ** 4 / max(tiny, width**4)))
+
+
 def sg6(x, amplitude=1.0, center=0.0, width=1.0):
     return amplitude * np.exp(-2.0 * ((x - center) ** 6 / max(tiny, width**6)))
+
+
+def sg6_with_base(x, amplitude=1.0, center=0.0, width=1.0, base=0.0):
+    return base + amplitude * np.exp(-2.0 * ((x - center) ** 6 / max(tiny, width**6)))
+
+
+# A shameless copy from lmfit.
+class GaussianModelWithBase(Model):
+    r"""A model based on a Gaussian or normal distribution lineshape.
+
+    The model has three Parameters: `amplitude`, `center`, and `sigma`.
+    In addition, parameters `fwhm` and `height` are included as
+    constraints to report full width at half maximum and maximum peak
+    height, respectively.
+
+    .. math::
+
+        f(x; A, \mu, \sigma) = \frac{A}{\sigma\sqrt{2\pi}} e^{[{-{(x-\mu)^2}/{{2\sigma}^2}}]}
+
+    where the parameter `amplitude` corresponds to :math:`A`, `center` to
+    :math:`\mu`, and `sigma` to :math:`\sigma`. The full width at half
+    maximum is :math:`2\sigma\sqrt{2\ln{2}}`, approximately
+    :math:`2.3548\sigma`.
+
+    For more information, see: https://en.wikipedia.org/wiki/Normal_distribution
+
+    """
+
+    fwhm_factor = 2 * np.sqrt(2 * np.log(2))
+    height_factor = 1.0 / np.sqrt(2 * np.pi)
+
+    def __init__(self, independent_vars=["x"], prefix="", nan_policy="raise", **kwargs):
+        kwargs.update(
+            {
+                "prefix": prefix,
+                "nan_policy": nan_policy,
+                "independent_vars": independent_vars,
+            }
+        )
+        super().__init__(gaussian_with_base, **kwargs)
+        self._set_paramhints_prefix()
+
+    def _set_paramhints_prefix(self):
+        self.set_param_hint("sigma", min=0)
+        self.set_param_hint("fwhm", expr=fwhm_expr(self))
+        self.set_param_hint("height", expr=height_expr(self))
+
+    def guess(self, data, x, negative=False, **kwargs):
+        """Estimate initial model parameter values from data."""
+        pars = guess_from_peak(self, data, x, negative)
+        return update_param_vals(pars, self.prefix, **kwargs)
 
 
 class SG4Model(Model):
@@ -38,7 +108,9 @@ class SG4Model(Model):
     is :math:`w`. p is a constant 4.
     """
 
-    def __init__(self, independent_vars=["x"], prefix="", nan_policy="raise", **kwargs):
+    def __init__(
+        self, with_base, independent_vars=["x"], prefix="", nan_policy="raise", **kwargs
+    ):
         kwargs.update(
             {
                 "prefix": prefix,
@@ -46,7 +118,11 @@ class SG4Model(Model):
                 "independent_vars": independent_vars,
             }
         )
-        super().__init__(sg4, **kwargs)
+        self.with_base = with_base
+        if self.with_base:
+            super().__init__(sg4_with_base, **kwargs)
+        else:
+            super().__init__(sg4, **kwargs)
         self._set_paramhints_prefix()
 
     def _set_paramhints_prefix(self):
@@ -61,7 +137,10 @@ class SG4Model(Model):
         cen = x[np.argmax(data)]
         height = (maxy - miny) * 3.0
         sig = (maxx - minx) / 6.0
-        pars = self.make_params(amplitude=height, center=cen, width=sig)
+        if self.with_base:
+            pars = self.make_params(amplitude=height, center=cen, width=sig, base=0)
+        else:
+            pars = self.make_params(amplitude=height, center=cen, width=sig)
         pars[f"{self.prefix}width"].set(min=0.0)
         return update_param_vals(pars, self.prefix, **kwargs)
 
@@ -82,7 +161,9 @@ class SG6Model(Model):
     is :math:`w`. p is a constant 6.
     """
 
-    def __init__(self, independent_vars=["x"], prefix="", nan_policy="raise", **kwargs):
+    def __init__(
+        self, with_base, independent_vars=["x"], prefix="", nan_policy="raise", **kwargs
+    ):
         kwargs.update(
             {
                 "prefix": prefix,
@@ -90,7 +171,11 @@ class SG6Model(Model):
                 "independent_vars": independent_vars,
             }
         )
-        super().__init__(sg6, **kwargs)
+        self.with_base = with_base
+        if self.with_base:
+            super().__init__(sg6_with_base, **kwargs)
+        else:
+            super().__init__(sg6, **kwargs)
         self._set_paramhints_prefix()
 
     def _set_paramhints_prefix(self):
@@ -105,7 +190,10 @@ class SG6Model(Model):
         cen = x[np.argmax(data)]
         height = (maxy - miny) * 3.0
         sig = (maxx - minx) / 6.0
-        pars = self.make_params(amplitude=height, center=cen, width=sig)
+        if self.with_base:
+            pars = self.make_params(amplitude=height, center=cen, width=sig, base=0)
+        else:
+            pars = self.make_params(amplitude=height, center=cen, width=sig)
         pars[f"{self.prefix}width"].set(min=0.0)
         return update_param_vals(pars, self.prefix, **kwargs)
 
@@ -150,12 +238,15 @@ class ProjWidget(QWidget):
 
     def plotFit(self, ax, is_x, x, y, xmin, xmax, ymin, ymax):
         if self.gui.ui.radioGaussian.isChecked():
-            mod = GaussianModel()
+            if self.gui.ui.checkBoxConstant.isChecked():
+                mod = GaussianModelWithBase()
+            else:
+                mod = GaussianModel()
             mod.set_param_hint("e2w", expr="1.699*fwhm")
         elif self.gui.ui.radioSG4.isChecked():
-            mod = SG4Model()
+            mod = SG4Model(self.gui.ui.checkBoxConstant.isChecked())
         elif self.gui.ui.radioSG6.isChecked():
-            mod = SG6Model()
+            mod = SG6Model(self.gui.ui.checkBoxConstant.isChecked())
         else:
             return  # Not sure how we manage to check nothing here?!?
         pars = mod.guess(y, x=x)

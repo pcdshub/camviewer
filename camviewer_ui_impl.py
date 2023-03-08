@@ -2118,6 +2118,7 @@ class GraphicUserInterface(QMainWindow):
             pv = Pv(gui.readpvname, initialize=True)
             pv.wait_ready(1.0)
             pv.add_monitor_callback(lambda e=None: callback(e, pv, gui))
+            callback(None, pv, gui)
             self.otherpvs.append(pv)
         except Exception:
             pass
@@ -2238,8 +2239,6 @@ class GraphicUserInterface(QMainWindow):
                     self.ui.projectionFrame.setFixedSize(
                         QSize(self.projsize, self.projsize)
                     )
-                    self.ui.projectionFrame_left.setFixedWidth(self.projsize)
-                    self.ui.projectionFrame_right.setFixedHeight(self.projsize)
                     self.finishResize()
             self.setImageSize(
                 self.colPv.value / self.scale, self.rowPv.value / self.scale, False
@@ -2532,6 +2531,9 @@ class GraphicUserInterface(QMainWindow):
                 + str(int(self.ui.radioSG6.isChecked()))
                 + "\n"
             )
+            f.write(
+                "projconstant " + str(int(self.ui.checkBoxConstant.isChecked())) + "\n"
+            )
             f.write("projcalib   %g\n" % self.calib)
 
             f.close()
@@ -2799,6 +2801,10 @@ class GraphicUserInterface(QMainWindow):
                 self.ui.radioSG6.setChecked(True)
             self.calib = float(self.cfg.projcalib)
             self.ui.lineEditCalib.setText(str(self.calib))
+        except Exception:
+            pass
+        try:
+            self.ui.checkBoxConstant.setChecked(self.cfg.projconstant == "1")
         except Exception:
             pass
 
