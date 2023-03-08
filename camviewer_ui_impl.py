@@ -548,6 +548,8 @@ class GraphicUserInterface(QMainWindow):
         self.ui.checkBoxFits.stateChanged.connect(self.onCheckFitsUpdate)
         self.ui.lineEditCalib.returnPressed.connect(self.onCalibTextEnter)
         self.calib = 1.0
+        self.calibPVName = ""
+        self.calibPV = None
 
         self.advdialog.ui.buttonBox.clicked.connect(self.onAdvanced)
         self.specificdialog.ui.buttonBox.clicked.connect(self.onSpecific)
@@ -1290,6 +1292,8 @@ class GraphicUserInterface(QMainWindow):
     def onCalibTextEnter(self):
         try:
             self.calib = float(self.ui.lineEditCalib.text())
+            if self.calibPV is not None:
+                self.calibPV.put(self.calib)
             if self.cfg is None:
                 self.dumpConfig()
         except Exception:
@@ -1829,6 +1833,8 @@ class GraphicUserInterface(QMainWindow):
         self.nelmPv = self.disconnectPv(self.nelmPv)
         self.rowPv = self.disconnectPv(self.rowPv)
         self.colPv = self.disconnectPv(self.colPv)
+        self.calibPV = self.disconnectPv(self.calibPV)
+        self.calibPVName = ""
 
         self.cfgname = self.cameraBase + ",GE"
         if self.lFlags[index] != "":
@@ -2081,6 +2087,7 @@ class GraphicUserInterface(QMainWindow):
             self.advdialog.ui.viewHeight.setText(str(self.viewheight))
             self.advdialog.ui.projSize.setText(str(self.projsize))
             self.advdialog.ui.configCheckBox.setChecked(self.dispspec == 1)
+            self.advdialog.ui.calibPVName.setText(self.calibPVName)
             self.advdialog.show()
         else:
             self.advdialog.hide()
@@ -2259,9 +2266,32 @@ class GraphicUserInterface(QMainWindow):
                 self.advdialog.ui.viewHeight.setText(str(self.viewheight))
                 self.advdialog.ui.projSize.setText(str(self.projsize))
             except Exception:
-                print("onAdvanced threw an exception")
+                print("onAdvanced resizing threw an exception")
+            self.setCalibPV(self.advdialog.ui.calibPVName.text())
         if role == QDialogButtonBox.RejectRole or role == QDialogButtonBox.AcceptRole:
             self.ui.showexpert.setChecked(False)
+
+    def calibPVmon(self, exception=None):
+        if exception is None:
+            self.calib = self.calibPV.value
+            self.ui.lineEditCalib.setText(str(self.calib))
+
+    def setCalibPV(self, pvname):
+        try:
+            if pvname == "":
+                self.calibPV = self.disconnectPv(self.calibPV)
+                self.calibPVName = ""
+            else:
+                pv = self.connectPv(pvname)
+                pv.monitor_cb = self.calibPVmon
+                self.calib = pv.value
+                self.ui.lineEditCalib.setText(str(self.calib))
+                pv.monitor(pyca.DBE_VALUE)
+                self.calibPV = self.disconnectPv(self.calibPV)
+                self.calibPV = pv
+                self.calibPVName = pvname
+        except Exception:
+            pass  # The failing PV routine should have popped up a message.
 
     def onSpecific(self, button):
         pass
@@ -2535,6 +2565,7 @@ class GraphicUserInterface(QMainWindow):
                 "projconstant " + str(int(self.ui.checkBoxConstant.isChecked())) + "\n"
             )
             f.write("projcalib   %g\n" % self.calib)
+            f.write('projcalibPV "%s"\n' % self.calibPVName)
 
             f.close()
             g.close()
@@ -2803,6 +2834,15 @@ class GraphicUserInterface(QMainWindow):
             self.ui.lineEditCalib.setText(str(self.calib))
         except Exception:
             pass
+        try:
+            if self.cfg.projcalibPV[0] == '"' and self.cfg.projcalibPV[-1] == '"':
+                self.setCalibPV(self.cfg.projcalibPV[1:-1])
+            else:
+                self.calibPVName = ""
+                self.calibPV = None
+        except Exception:
+            self.calibPVName = ""
+            self.calibPV = None
         try:
             self.ui.checkBoxConstant.setChecked(self.cfg.projconstant == "1")
         except Exception:
