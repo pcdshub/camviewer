@@ -21,37 +21,7 @@
      </property>
     </widget>
    </item>
-   <item row="0" column="2">
-    <widget class="QLineEdit" name="viewWidth"/>
-   </item>
-   <item row="1" column="0" colspan="2">
-    <widget class="QLabel" name="label_3">
-     <property name="text">
-      <string>Viewing Area Height (&gt; 450 pixels)</string>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="2">
-    <widget class="QLineEdit" name="viewHeight"/>
-   </item>
-   <item row="2" column="0" colspan="2">
-    <widget class="QLabel" name="label_2">
-     <property name="text">
-      <string>Projection Size (&gt; 250 pixels)</string>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="2">
-    <widget class="QLineEdit" name="projSize"/>
-   </item>
-   <item row="3" column="0" colspan="3">
-    <widget class="QCheckBox" name="configCheckBox">
-     <property name="text">
-      <string>Display Camera Configuration on Main Screen</string>
-     </property>
-    </widget>
-   </item>
-   <item row="4" column="0">
+   <item row="5" column="0">
     <widget class="QPushButton" name="showevr">
      <property name="minimumSize">
       <size>
@@ -64,7 +34,27 @@
      </property>
     </widget>
    </item>
-   <item row="4" column="1" colspan="2">
+   <item row="1" column="0" colspan="2">
+    <widget class="QLabel" name="label_3">
+     <property name="text">
+      <string>Viewing Area Height (&gt; 450 pixels)</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="2">
+    <widget class="QLineEdit" name="viewHeight"/>
+   </item>
+   <item row="4" column="0" colspan="3">
+    <widget class="QCheckBox" name="configCheckBox">
+     <property name="text">
+      <string>Display Camera Configuration on Main Screen</string>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="2">
+    <widget class="QLineEdit" name="viewWidth"/>
+   </item>
+   <item row="5" column="1" colspan="2">
     <widget class="QDialogButtonBox" name="buttonBox">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
@@ -74,6 +64,26 @@
      </property>
      <property name="centerButtons">
       <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0" colspan="2">
+    <widget class="QLabel" name="label_2">
+     <property name="text">
+      <string>Projection Size (&gt; 250 pixels)</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="2">
+    <widget class="QLineEdit" name="projSize"/>
+   </item>
+   <item row="3" column="2">
+    <widget class="QLineEdit" name="calibPVName"/>
+   </item>
+   <item row="3" column="0" colspan="2">
+    <widget class="QLabel" name="label_4">
+     <property name="text">
+      <string>Spatial Calibration PV name</string>
      </property>
     </widget>
    </item>
