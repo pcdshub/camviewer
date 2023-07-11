@@ -2058,16 +2058,14 @@ class GraphicUserInterface(QMainWindow):
                     self.ui.horizontalSliderLens.setMinimum(0)
                     self.ui.horizontalSliderLens.setMaximum(100)
                 if len(lensName) > 1:
-                    self.putlensPv = Pv(lensName[0])
-                    self.lensPv = Pv(lensName[1])
+                    self.putlensPv = Pv(lensName[0], initialize=True)
+                    self.lensPv = Pv(lensName[1], initialize=True, monitor=self.lensPvUpdateCallback)
                 else:
                     self.putlensPv = None
-                    self.lensPv = Pv(lensName[0])
-                self.lensPv.connect(timeout, initialize=True)
+                    self.lensPv = Pv(lensName[0], initialize=True, monitor=self.lensPvUpdateCallback)
                 self.lensPv.wait_ready(1.0)
-                self.lensPv.add_monitor_callback(self.lensPvUpdateCallback)
                 if self.putlensPv is not None:
-                    self.putlensPv.connect(timeout, initialize=True)
+                    self.putlensPv.wait_ready(1.0)
                 pyca.flush_io()
             except Exception:
                 QMessageBox.critical(
