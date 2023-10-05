@@ -550,6 +550,7 @@ class GraphicUserInterface(QMainWindow):
         self.calib = 1.0
         self.calibPVName = ""
         self.calibPV = None
+        self.displayFormat = "%12.8g"
 
         self.advdialog.ui.buttonBox.clicked.connect(self.onAdvanced)
         self.specificdialog.ui.buttonBox.clicked.connect(self.onSpecific)
@@ -1835,6 +1836,7 @@ class GraphicUserInterface(QMainWindow):
         self.colPv = self.disconnectPv(self.colPv)
         self.calibPV = self.disconnectPv(self.calibPV)
         self.calibPVName = ""
+        self.displayFormat = "%12.8g"
 
         self.cfgname = self.cameraBase + ",GE"
         if self.lFlags[index] != "":
@@ -2086,6 +2088,7 @@ class GraphicUserInterface(QMainWindow):
             self.advdialog.ui.projSize.setText(str(self.projsize))
             self.advdialog.ui.configCheckBox.setChecked(self.dispspec == 1)
             self.advdialog.ui.calibPVName.setText(self.calibPVName)
+            self.advdialog.ui.displayFormat.setText(self.displayFormat)
             self.advdialog.show()
         else:
             self.advdialog.hide()
@@ -2263,12 +2266,18 @@ class GraphicUserInterface(QMainWindow):
                 self.advdialog.ui.viewWidth.setText(str(self.viewwidth))
                 self.advdialog.ui.viewHeight.setText(str(self.viewheight))
                 self.advdialog.ui.projSize.setText(str(self.projsize))
+                # self.advdialog
             except Exception:
                 print("onAdvanced resizing threw an exception")
             self.setCalibPV(self.advdialog.ui.calibPVName.text())
+            if self.validDisplayFormat(self.advdialog.ui.displayFormat.text()):
+                self.displayFormat = self.advdialog.ui.displayFormat.text()
         if role == QDialogButtonBox.RejectRole or role == QDialogButtonBox.AcceptRole:
             self.ui.showexpert.setChecked(False)
 
+    def validDisplayFormat(self, rawString):
+        return re.match("^%\d+(\.\d*)?[efg]$", rawString) is not None
+        
     def calibPVmon(self, exception=None):
         if exception is None:
             self.calib = self.calibPV.value
@@ -2564,6 +2573,7 @@ class GraphicUserInterface(QMainWindow):
             )
             f.write("projcalib   %g\n" % self.calib)
             f.write('projcalibPV "%s"\n' % self.calibPVName)
+            f.write('projdisplayFormat "%s"\n' % self.displayFormat)
 
             f.close()
             g.close()
@@ -2587,11 +2597,13 @@ class GraphicUserInterface(QMainWindow):
         self.cfg.add("projection", "0")
         self.cfg.add("markers", "0")
         self.cfg.add("dispspec", "0")
+        # self.cfg.add("displayFormat", "%12.8g")
         if not self.cfg.read(self.cfgdir + "GLOBAL"):
             self.cfg.add("config", "1")
             self.cfg.add("projection", "1")
             self.cfg.add("markers", "1")
             self.cfg.add("dispspec", "0")
+            # self.cfg.add("displayFormat","%12.8g")
         if self.options is not None:
             # Let the command line options override the config file!
             if self.options.config is not None:
@@ -2602,6 +2614,8 @@ class GraphicUserInterface(QMainWindow):
                 self.cfg.add("markers", self.options.marker)
             if self.options.camcfg is not None:
                 self.cfg.add("dispspec", self.options.camcfg)
+            # if self.options.displayFormat is not None:
+            #     self.cfg.add("displayFormat", self.options.displayFormat)
 
         # Read the config file
         #
@@ -2845,5 +2859,14 @@ class GraphicUserInterface(QMainWindow):
             self.ui.checkBoxConstant.setChecked(self.cfg.projconstant == "1")
         except Exception:
             pass
+        try:
+            if self.cfg.projdisplayFormat[0] == '"' and self.cfg.projdisplayFormat[-1] == '"':
+                self.displayFormat = self.cfg.projdisplayFormat[1:-1]
+            else:
+                self.displayFormat = "%12.8g"
+        except Exception:
+            self.displayFormat = "%12.8g"
+        
+
 
         self.cfg = None
