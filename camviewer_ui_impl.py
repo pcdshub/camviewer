@@ -2266,7 +2266,6 @@ class GraphicUserInterface(QMainWindow):
                 self.advdialog.ui.viewWidth.setText(str(self.viewwidth))
                 self.advdialog.ui.viewHeight.setText(str(self.viewheight))
                 self.advdialog.ui.projSize.setText(str(self.projsize))
-                # self.advdialog
             except Exception:
                 print("onAdvanced resizing threw an exception")
             self.setCalibPV(self.advdialog.ui.calibPVName.text())
@@ -2277,7 +2276,7 @@ class GraphicUserInterface(QMainWindow):
 
     def validDisplayFormat(self, rawString):
         return re.match("^%\d+(\.\d*)?[efg]$", rawString) is not None
-        
+
     def calibPVmon(self, exception=None):
         if exception is None:
             self.calib = self.calibPV.value
