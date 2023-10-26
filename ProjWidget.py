@@ -270,11 +270,11 @@ class ProjWidget(QWidget):
         fwhm = self.gui.calib * out.params["fwhm"].value
         e2w = self.gui.calib * out.params["e2w"].value
         if self.is_x:
-            self.gui.ui.lineEditFWHMx.setText("%12.8g" % (fwhm))
-            self.gui.ui.lineEdite2x.setText("%12.8g" % (e2w))
+            self.gui.ui.lineEditFWHMx.setText(self.gui.displayFormat % (fwhm))
+            self.gui.ui.lineEdite2x.setText(self.gui.displayFormat % (e2w))
         else:
-            self.gui.ui.lineEditFWHMy.setText("%12.8g" % (fwhm))
-            self.gui.ui.lineEdite2y.setText("%12.8g" % (e2w))
+            self.gui.ui.lineEditFWHMy.setText(self.gui.displayFormat % (fwhm))
+            self.gui.ui.lineEdite2y.setText(self.gui.displayFormat % (e2w))
         return (ymin, ymax)
 
     def plotLineout(
