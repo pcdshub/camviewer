@@ -2596,13 +2596,11 @@ class GraphicUserInterface(QMainWindow):
         self.cfg.add("projection", "0")
         self.cfg.add("markers", "0")
         self.cfg.add("dispspec", "0")
-        # self.cfg.add("displayFormat", "%12.8g")
         if not self.cfg.read(self.cfgdir + "GLOBAL"):
             self.cfg.add("config", "1")
             self.cfg.add("projection", "1")
             self.cfg.add("markers", "1")
             self.cfg.add("dispspec", "0")
-            # self.cfg.add("displayFormat","%12.8g")
         if self.options is not None:
             # Let the command line options override the config file!
             if self.options.config is not None:
@@ -2613,8 +2611,6 @@ class GraphicUserInterface(QMainWindow):
                 self.cfg.add("markers", self.options.marker)
             if self.options.camcfg is not None:
                 self.cfg.add("dispspec", self.options.camcfg)
-            # if self.options.displayFormat is not None:
-            #     self.cfg.add("displayFormat", self.options.displayFormat)
 
         # Read the config file
         #
