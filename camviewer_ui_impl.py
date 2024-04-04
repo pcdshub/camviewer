@@ -2061,10 +2061,14 @@ class GraphicUserInterface(QMainWindow):
                     self.ui.horizontalSliderLens.setMaximum(100)
                 if len(lensName) > 1:
                     self.putlensPv = Pv(lensName[0], initialize=True)
-                    self.lensPv = Pv(lensName[1], initialize=True, monitor=self.lensPvUpdateCallback)
+                    self.lensPv = Pv(
+                        lensName[1], initialize=True, monitor=self.lensPvUpdateCallback
+                    )
                 else:
                     self.putlensPv = None
-                    self.lensPv = Pv(lensName[0], initialize=True, monitor=self.lensPvUpdateCallback)
+                    self.lensPv = Pv(
+                        lensName[0], initialize=True, monitor=self.lensPvUpdateCallback
+                    )
                 self.lensPv.wait_ready(1.0)
                 if self.putlensPv is not None:
                     self.putlensPv.wait_ready(1.0)
@@ -2855,13 +2859,14 @@ class GraphicUserInterface(QMainWindow):
         except Exception:
             pass
         try:
-            if self.cfg.projdisplayFormat[0] == '"' and self.cfg.projdisplayFormat[-1] == '"':
+            if (
+                self.cfg.projdisplayFormat[0] == '"'
+                and self.cfg.projdisplayFormat[-1] == '"'
+            ):
                 self.displayFormat = self.cfg.projdisplayFormat[1:-1]
             else:
                 self.displayFormat = "%12.8g"
         except Exception:
             self.displayFormat = "%12.8g"
-        
-
 
         self.cfg = None
