@@ -550,6 +550,7 @@ class GraphicUserInterface(QMainWindow):
         self.calib = 1.0
         self.calibPVName = ""
         self.calibPV = None
+        self.displayFormat = "%12.8g"
 
         self.advdialog.ui.buttonBox.clicked.connect(self.onAdvanced)
         self.specificdialog.ui.buttonBox.clicked.connect(self.onSpecific)
@@ -1835,6 +1836,7 @@ class GraphicUserInterface(QMainWindow):
         self.colPv = self.disconnectPv(self.colPv)
         self.calibPV = self.disconnectPv(self.calibPV)
         self.calibPVName = ""
+        self.displayFormat = "%12.8g"
 
         self.cfgname = self.cameraBase + ",GE"
         if self.lFlags[index] != "":
@@ -2059,10 +2061,14 @@ class GraphicUserInterface(QMainWindow):
                     self.ui.horizontalSliderLens.setMaximum(100)
                 if len(lensName) > 1:
                     self.putlensPv = Pv(lensName[0], initialize=True)
-                    self.lensPv = Pv(lensName[1], initialize=True, monitor=self.lensPvUpdateCallback)
+                    self.lensPv = Pv(
+                        lensName[1], initialize=True, monitor=self.lensPvUpdateCallback
+                    )
                 else:
                     self.putlensPv = None
-                    self.lensPv = Pv(lensName[0], initialize=True, monitor=self.lensPvUpdateCallback)
+                    self.lensPv = Pv(
+                        lensName[0], initialize=True, monitor=self.lensPvUpdateCallback
+                    )
                 self.lensPv.wait_ready(1.0)
                 if self.putlensPv is not None:
                     self.putlensPv.wait_ready(1.0)
@@ -2086,6 +2092,7 @@ class GraphicUserInterface(QMainWindow):
             self.advdialog.ui.projSize.setText(str(self.projsize))
             self.advdialog.ui.configCheckBox.setChecked(self.dispspec == 1)
             self.advdialog.ui.calibPVName.setText(self.calibPVName)
+            self.advdialog.ui.displayFormat.setText(self.displayFormat)
             self.advdialog.show()
         else:
             self.advdialog.hide()
@@ -2266,8 +2273,13 @@ class GraphicUserInterface(QMainWindow):
             except Exception:
                 print("onAdvanced resizing threw an exception")
             self.setCalibPV(self.advdialog.ui.calibPVName.text())
+            if self.validDisplayFormat(self.advdialog.ui.displayFormat.text()):
+                self.displayFormat = self.advdialog.ui.displayFormat.text()
         if role == QDialogButtonBox.RejectRole or role == QDialogButtonBox.AcceptRole:
             self.ui.showexpert.setChecked(False)
+
+    def validDisplayFormat(self, rawString):
+        return re.match("^%\d+(\.\d*)?[efg]$", rawString) is not None
 
     def calibPVmon(self, exception=None):
         if exception is None:
@@ -2564,6 +2576,7 @@ class GraphicUserInterface(QMainWindow):
             )
             f.write("projcalib   %g\n" % self.calib)
             f.write('projcalibPV "%s"\n' % self.calibPVName)
+            f.write('projdisplayFormat "%s"\n' % self.displayFormat)
 
             f.close()
             g.close()
@@ -2845,5 +2858,15 @@ class GraphicUserInterface(QMainWindow):
             self.ui.checkBoxConstant.setChecked(self.cfg.projconstant == "1")
         except Exception:
             pass
+        try:
+            if (
+                self.cfg.projdisplayFormat[0] == '"'
+                and self.cfg.projdisplayFormat[-1] == '"'
+            ):
+                self.displayFormat = self.cfg.projdisplayFormat[1:-1]
+            else:
+                self.displayFormat = "%12.8g"
+        except Exception:
+            self.displayFormat = "%12.8g"
 
         self.cfg = None
