@@ -10,6 +10,24 @@ ORIENT180F = 5
 ORIENT270 = 6
 ORIENT270F = 7
 
+orient2idx = {ORIENT0:    0,
+              ORIENT90:   1,
+              ORIENT180:  2,
+              ORIENT270:  3,
+              ORIENT0F:   4,
+              ORIENT90F:  5,
+              ORIENT180F: 6,
+              ORIENT270F: 7}
+
+idx2orient = { 0: ORIENT0,
+               1: ORIENT90,
+               2: ORIENT180,
+               3: ORIENT270,
+               4: ORIENT0F,
+               5: ORIENT90F,
+               6: ORIENT180F,
+               7: ORIENT270F}
+
 orientation = 0
 
 # These are all *image* variables.
