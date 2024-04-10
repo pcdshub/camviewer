@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1119</width>
-    <height>992</height>
+    <height>1022</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -481,6 +481,38 @@ Vmin\</string>
          <string>Camera</string>
         </property>
         <layout class="QGridLayout" name="gridLayout_5">
+         <item row="3" column="1">
+          <widget class="QLabel" name="label_dataRate">
+           <property name="minimumSize">
+            <size>
+             <width>45</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>-</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="2">
+          <widget class="QLabel" name="label_disp">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>75</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Display Rate</string>
+           </property>
+          </widget>
+         </item>
          <item row="0" column="0">
           <widget class="QLabel" name="labelCamera">
            <property name="sizePolicy">
@@ -497,8 +529,21 @@ Vmin\</string>
            </property>
           </widget>
          </item>
-         <item row="1" column="0" colspan="2">
-          <widget class="QLabel" name="label_20">
+         <item row="3" column="4">
+          <widget class="QLabel" name="label_dispRate">
+           <property name="minimumSize">
+            <size>
+             <width>45</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>-</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="2">
+          <widget class="QLabel" name="label_connected">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
              <horstretch>0</horstretch>
@@ -506,7 +551,7 @@ Vmin\</string>
             </sizepolicy>
            </property>
            <property name="text">
-            <string>Connected</string>
+            <string>NO</string>
            </property>
           </widget>
          </item>
@@ -523,33 +568,7 @@ Vmin\</string>
            </property>
           </widget>
          </item>
-         <item row="3" column="1">
-          <widget class="QLabel" name="label_dataRate">
-           <property name="minimumSize">
-            <size>
-             <width>45</width>
-             <height>0</height>
-            </size>
-           </property>
-           <property name="text">
-            <string>-</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="4">
-          <widget class="QLabel" name="label_dispRate">
-           <property name="minimumSize">
-            <size>
-             <width>45</width>
-             <height>0</height>
-            </size>
-           </property>
-           <property name="text">
-            <string>-</string>
-           </property>
-          </widget>
-         </item>
-         <item row="4" column="0" colspan="5">
+         <item row="5" column="0" colspan="5">
           <layout class="QHBoxLayout" name="LensLayout">
            <item>
             <widget class="QLabel" name="labelLens">
@@ -606,27 +625,8 @@ Vmin\</string>
            </item>
           </layout>
          </item>
-         <item row="3" column="2">
-          <widget class="QLabel" name="label_disp">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="minimumSize">
-            <size>
-             <width>75</width>
-             <height>0</height>
-            </size>
-           </property>
-           <property name="text">
-            <string>Display Rate</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="2">
-          <widget class="QLabel" name="label_connected">
+         <item row="1" column="0" colspan="2">
+          <widget class="QLabel" name="label_20">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
              <horstretch>0</horstretch>
@@ -634,12 +634,95 @@ Vmin\</string>
             </sizepolicy>
            </property>
            <property name="text">
-            <string>NO</string>
+            <string>Connected</string>
            </property>
           </widget>
          </item>
          <item row="0" column="2" colspan="3">
           <widget class="QComboBox" name="comboBoxCamera"/>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="label_6">
+           <property name="text">
+            <string>Orientation</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="2" colspan="3">
+          <widget class="QComboBox" name="comboBoxOrientation">
+           <item>
+            <property name="text">
+             <string>None</string>
+            </property>
+            <property name="icon">
+             <iconset resource="icon.qrc">
+              <normaloff>:/icons/icon0.xpm</normaloff>:/icons/icon0.xpm</iconset>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>90deg</string>
+            </property>
+            <property name="icon">
+             <iconset resource="icon.qrc">
+              <normaloff>:/icons/icon90.xpm</normaloff>:/icons/icon90.xpm</iconset>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>180deg</string>
+            </property>
+            <property name="icon">
+             <iconset resource="icon.qrc">
+              <normaloff>:/icons/icon180.xpm</normaloff>:/icons/icon180.xpm</iconset>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>270deg</string>
+            </property>
+            <property name="icon">
+             <iconset resource="icon.qrc">
+              <normaloff>:/icons/icon270.xpm</normaloff>:/icons/icon270.xpm</iconset>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Flip</string>
+            </property>
+            <property name="icon">
+             <iconset resource="icon.qrc">
+              <normaloff>:/icons/icon0F.xpm</normaloff>:/icons/icon0F.xpm</iconset>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Flip+90deg</string>
+            </property>
+            <property name="icon">
+             <iconset resource="icon.qrc">
+              <normaloff>:/icons/icon90F.xpm</normaloff>:/icons/icon90F.xpm</iconset>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Flip+180deg</string>
+            </property>
+            <property name="icon">
+             <iconset resource="icon.qrc">
+              <normaloff>:/icons/icon180F.xpm</normaloff>:/icons/icon180F.xpm</iconset>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Flip+270deg</string>
+            </property>
+            <property name="icon">
+             <iconset resource="icon.qrc">
+              <normaloff>:/icons/icon270F.xpm</normaloff>:/icons/icon270F.xpm</iconset>
+            </property>
+           </item>
+          </widget>
          </item>
         </layout>
        </widget>

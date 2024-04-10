@@ -496,6 +496,7 @@ class GraphicUserInterface(QMainWindow):
         self.discoTimer.timeout.connect(self.do_disco)
 
         self.ui.average.returnPressed.connect(self.onAverageSet)
+        self.ui.comboBoxOrientation.currentIndexChanged.connect(self.onOrientationSelect)
         self.ui.orient0.triggered.connect(lambda: self.setOrientation(param.ORIENT0))
         self.ui.orient90.triggered.connect(lambda: self.setOrientation(param.ORIENT90))
         self.ui.orient180.triggered.connect(
@@ -1256,7 +1257,12 @@ class GraphicUserInterface(QMainWindow):
             print("fileSave failed:", e)
             QMessageBox.warning(self, "File Save Failed", str(e))
 
-    def setOrientation(self, orientation, reorient=True):
+    def onOrientationSelect(self, index):
+        self.setOrientation(param.idx2orient[index], fromCombo=True)
+
+    def setOrientation(self, orientation, reorient=True, fromCombo=False):
+        if not fromCombo:
+            self.ui.comboBoxOrientation.setCurrentIndex(param.orient2idx[orientation])
         self.ui.orient0.setChecked(orientation == param.ORIENT0)
         self.ui.orient90.setChecked(orientation == param.ORIENT90)
         self.ui.orient180.setChecked(orientation == param.ORIENT180)
