@@ -202,7 +202,6 @@ class GraphicUserInterface(QMainWindow):
         self.cwd = cwd
         self.rcnt = 0
         self.resizing = False
-        self.startResize()
         self.cfgdir = cfgdir
         self.cfg = None
         self.activedir = activedir
@@ -635,7 +634,6 @@ class GraphicUserInterface(QMainWindow):
             self.ui.comboBoxCamera.setCurrentIndex(int(cameraIndex))
         except Exception:
             pass
-        self.finishResize()
         self.efilter = FilterObject(self.app, self)
 
     def closeEvent(self, event):
@@ -650,81 +648,6 @@ class GraphicUserInterface(QMainWindow):
         if self.cfg is None:
             self.dumpConfig()
         QMainWindow.closeEvent(self, event)
-
-    #
-    # OK, what is going on here?
-    #
-    # When we want to do something that could cause a resize, we:
-    #     - Call startResize(), which sets the size contraint to fixed and resizing to True.
-    #     - Do the resize/hide/show/whatever.  The DisplayImage has its sizeHint() set to our view size.
-    #     - Call finishResize().  If we are totally done with any enclosed operation, we call adjustSize()
-    #       to force the window to recalculate/relayout.
-    #
-    # When the resize actually happens, we get a resize event, but this seems to be before most things
-    # have settled down.  So we do a singleShot(0) timer to get a callback when everything is done.
-    #
-    #
-    #
-
-    def startResize(self):
-        if self.rcnt == 0:
-            self.layout().setSizeConstraint(QLayout.SetFixedSize)
-            self.resizing = True
-        self.rcnt += 1
-
-    def finishResize(self):
-        self.rcnt -= 1
-        if self.rcnt == 0:
-            self.adjustSize()
-
-    def resizeEvent(self, ev):
-        QTimer.singleShot(0, self.completeResize)
-
-    def completeResize(self):
-        self.layout().setSizeConstraint(QLayout.SetDefaultConstraint)
-        self.setMaximumSize(QSize(16777215, 16777215))
-        di = self.ui.display_image
-        dis = di.size()
-        if dis != di.hint:
-            if not self.resizing:
-                # We must really be resizing the window!
-                self.changeSize(dis.width(), dis.height(), self.projsize, True, False)
-                self.ui.display_image.hint = dis
-                return
-            else:
-                # See if we are limited by the right panel height or info width?
-                rps = self.ui.RightPanel.geometry()
-                info = self.ui.info.geometry()
-                lph = info.height() + self.viewheight
-                if self.ui.showproj.isChecked():
-                    lph += self.ui.projH.geometry().height()
-                spc = self.RPSpacer.geometry().height()
-                hlim = rps.height() - spc
-                if rps.width() > 0 and lph < hlim:
-                    # Yeah, the right panel is keeping us from shrinking the window.
-                    hlim -= info.height()
-                    self.startResize()
-                    self.changeSize(self.viewwidth, hlim, self.projsize, True)
-                    self.finishResize()
-                elif abs(self.viewheight - dis.height()) <= 3:
-                    # We're just off by a little bit!  Nudge the window into place!
-                    newsize = QSize(
-                        self.width(), self.height() - (dis.height() - self.viewheight)
-                    )
-                    QTimer.singleShot(0, lambda: self.resize(newsize))
-                else:
-                    # We're just wrong.  Who knows why?  Just retry.
-                    QTimer.singleShot(0, self.delayedRetry)
-        else:
-            # We're good!
-            self.resizing = False
-
-    def delayedRetry(self):
-        # Try the resize again...
-        self.startResize()
-        self.layout().invalidate()
-        self.ui.display_image.updateGeometry()
-        self.finishResize()
 
     def setImageSize(self, newx, newy, reset=True):
         if newx == 0 or newy == 0:
@@ -765,36 +688,30 @@ class GraphicUserInterface(QMainWindow):
 
     def doShowProj(self):
         v = self.ui.showproj.isChecked()
-        self.startResize()
         self.ui.projH.setVisible(v)
         self.ui.projV.setVisible(v)
         self.ui.projectionFrame.setVisible(v)
         self.ui.groupBoxFits.setVisible(v and self.ui.checkBoxFits.isChecked())
-        self.finishResize()
         if self.cfg is None:
             # print("done doShowProj")
             self.dumpConfig()
 
     def doShowMarker(self):
         v = self.ui.showmarker.isChecked()
-        self.startResize()
         self.ui.groupBoxMarker.setVisible(v)
         self.ui.RightPanel.invalidate()
-        self.finishResize()
         if self.cfg is None:
             # print("done doShowMarker")
             self.dumpConfig()
 
     def doShowConf(self):
         v = self.ui.showconf.isChecked()
-        self.startResize()
         self.ui.groupBoxAverage.setVisible(v)
         self.ui.groupBoxCamera.setVisible(v)
         self.ui.groupBoxColor.setVisible(v)
         self.ui.groupBoxZoom.setVisible(v)
         self.ui.groupBoxROI.setVisible(v)
         self.ui.RightPanel.invalidate()
-        self.finishResize()
         if self.cfg is None:
             # print("done doShowConf")
             self.dumpConfig()
@@ -1979,7 +1896,6 @@ class GraphicUserInterface(QMainWindow):
         self.index = index
         self.cameraBase = sCameraPv
 
-        self.startResize()
         self.activeSet()
         self.timeoutdialog.newconn()
 
@@ -2089,7 +2005,6 @@ class GraphicUserInterface(QMainWindow):
                 )
         self.setupSpecific()
         self.setupDrags()
-        self.finishResize()
 
     def onExpertMode(self):
         if self.ui.showexpert.isChecked():
@@ -2246,7 +2161,6 @@ class GraphicUserInterface(QMainWindow):
                     self.advdialog.ui.viewHeight.setText(str(self.viewheight))
                     self.advdialog.ui.projSize.setText(str(self.projsize))
                 if doresize:
-                    self.startResize()
                     self.ui.display_image.doResize(
                         QSize(self.viewwidth, self.viewheight)
                     )
@@ -2257,7 +2171,6 @@ class GraphicUserInterface(QMainWindow):
                     self.ui.projectionFrame.setFixedSize(
                         QSize(self.projsize, self.projsize)
                     )
-                    self.finishResize()
             self.setImageSize(
                 self.colPv.value / self.scale, self.rowPv.value / self.scale, False
             )
