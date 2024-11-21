@@ -490,7 +490,11 @@ class GraphicUserInterface(QMainWindow):
         self.rfshTimer.start(1000)
 
         self.imageTimer.timeout.connect(self.wantImage)
-        self.imageTimer.start(1000.0 / rate)
+        rate = max(int(rate), 1)
+        self.set_max_image_rate(rate)
+
+        self.ui.spinbox_set_max_rate.setValue(rate)
+        self.ui.spinbox_set_max_rate.valueChanged.connect(self.set_max_image_rate)
 
         self.discoTimer.timeout.connect(self.do_disco)
 
@@ -1238,6 +1242,21 @@ class GraphicUserInterface(QMainWindow):
                 self.setImageSize(newx, newy, False)
         except Exception:
             pass
+
+    def set_max_image_rate(self, rate: int) -> None:
+        """
+        Update the maximum allowed rate by restarting the appropriate timer.
+
+        Rate is expected to be a positive integer in Hz.
+
+        When this timer expires, wantImage is called.
+        If a new image is available at this time, it will be fetched and rendered.
+        """
+        rate = int(rate)
+        if rate <= 0:
+            raise ValueError("Rate must be greater than zero!")
+        self.imageTimer.start(int(1000.0 / rate))
+        self.ui.label_max_rate_value.setText(f"{rate} Hz")
 
     # This monitors LIVE_IMAGE_FULL... which updates at 5 Hz, whether we have an image or not!
     # Therefore, we need to check the time and just skip it if it's a repeat!
