@@ -12,7 +12,6 @@ from psp.Pv import Pv
 from dialogs import advdialog
 from dialogs import markerdialog
 from dialogs import specificdialog
-from dialogs import timeoutdialog
 from dialogs import forcedialog
 
 import sys
@@ -181,7 +180,6 @@ class GraphicUserInterface(QMainWindow):
     cross4Update = pyqtSignal()
     param1Update = pyqtSignal()
     param2Update = pyqtSignal()
-    timeoutExpiry = pyqtSignal()
 
     def __init__(
         self,
@@ -281,6 +279,7 @@ class GraphicUserInterface(QMainWindow):
         self.rfshTimer = QTimer()
         self.imageTimer = QTimer()
         self.discoTimer = QTimer()
+        self.refreshTimeoutTimer = QTimer()
 
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
@@ -342,9 +341,6 @@ class GraphicUserInterface(QMainWindow):
 
         self.specificdialog = specificdialog(self)
         self.specificdialog.hide()
-
-        self.timeoutdialog = timeoutdialog(self, idle)
-        self.timeoutdialog.hide()
 
         self.forcedialog = None
         self.haveforce = False
@@ -498,6 +494,10 @@ class GraphicUserInterface(QMainWindow):
 
         self.discoTimer.timeout.connect(self.do_disco)
 
+        self.refreshTimeoutTimer.timeout.connect(self.update_display_timer)
+        self.refreshTimeoutTimer.setInterval(1000 * 60)
+        self.refreshTimeoutTimer.start()
+
         self.ui.average.returnPressed.connect(self.onAverageSet)
         self.ui.comboBoxOrientation.currentIndexChanged.connect(self.onOrientationSelect)
         self.ui.orient0.triggered.connect(lambda: self.setOrientation(param.ORIENT0))
@@ -530,7 +530,6 @@ class GraphicUserInterface(QMainWindow):
         self.cross2Update.connect(lambda: self.onCrossUpdate(1))
         self.cross3Update.connect(lambda: self.onCrossUpdate(2))
         self.cross4Update.connect(lambda: self.onCrossUpdate(3))
-        self.timeoutExpiry.connect(self.onTimeoutExpiry)
 
         self.ui.showconf.triggered.connect(self.doShowConf)
         self.ui.showproj.triggered.connect(self.doShowProj)
@@ -645,7 +644,6 @@ class GraphicUserInterface(QMainWindow):
             self.activeClear()
         if self.haveforce and self.forcedialog is not None:
             self.forcedialog.close()
-        self.timeoutdialog.close()
         self.advdialog.close()
         self.markerdialog.close()
         self.specificdialog.close()
@@ -1251,12 +1249,28 @@ class GraphicUserInterface(QMainWindow):
 
         When this timer expires, wantImage is called.
         If a new image is available at this time, it will be fetched and rendered.
+
+        The image rate will determine the rate limiting timeout.
+        1 Hz will never time out
+        5 Hz or less will time out in a week
+        30 Hz and greater will time out in a day
         """
         rate = int(rate)
         if rate <= 0:
             raise ValueError("Rate must be greater than zero!")
         self.imageTimer.start(int(1000.0 / rate))
         self.ui.label_max_rate_value.setText(f"{rate} Hz")
+
+        # One week
+        max_timeout = 7 * 24 * 60 * 60
+        # One day
+        min_timeout = 24 * 60 * 60
+
+        if rate <= 1:
+            self.stop_disco()
+        else:
+            self.setDisco(np.interp(rate, [5, 30], [max_timeout, min_timeout]))
+        
 
     # This monitors LIVE_IMAGE_FULL... which updates at 5 Hz, whether we have an image or not!
     # Therefore, we need to check the time and just skip it if it's a repeat!
@@ -1916,7 +1930,6 @@ class GraphicUserInterface(QMainWindow):
         self.cameraBase = sCameraPv
 
         self.activeSet()
-        self.timeoutdialog.newconn()
 
         self.ctrlBase = str(self.lCtrlList[index])
 
@@ -2355,30 +2368,59 @@ class GraphicUserInterface(QMainWindow):
                 print("channel access exception: %s" % (e))
 
     def onReconnect(self):
-        self.timeoutdialog.reconn()
+        ...
 
     def onForceDisco(self):
         if self.cameraBase != "" and not self.haveforce:
             self.forcedialog = forcedialog(self.activedir + self.cameraBase + "/", self)
             self.haveforce = True
 
+    def update_display_timer(self):
+        """
+        Show the user how much time until the rate timer expires.
+        
+        If the timer is not active, this will set the display text to "Never".
+        Otherwise, it will set the display text in the form:
+        xx days, yy hours, zz minutes
+        """
+        if not self.discoTimer.isActive():
+            self.ui.label_rate_timeout_value.setText("Never")
+            return
+        msec = self.discoTimer.remainingTime()
+        sec = msec / 1000
+        mins = sec / 60
+        hours = mins / 60
+        days = hours / 24
+        display_days = math.floor(days)
+        display_hours = math.floor(hours) % 24
+        display_mins = math.floor(mins) % 60
+        if display_days:
+            text = f"{display_days} days, {display_hours} hours"
+        elif display_hours:
+            text = f"{display_hours} hours, {display_mins} mins"
+        else:
+            text = f"{display_mins} mins"
+        self.ui.label_rate_timeout_value.setText(text)
+
     # We have been idle for a while!
     def do_disco(self):
-        self.discoTimer.stop()
-        self.timeoutdialog.activate()
+        self.stop_disco()
+        self.set_max_image_rate(1)
 
     def stop_disco(self):
         self.discoTimer.stop()
+        self.update_display_timer()
+
+    def refresh_disco(self):
+        self.discoTimer.start()
 
     def setDisco(self, secs):
-        self.discoTimer.start(1000 * secs)
+        self.discoTimer.start(int(1000 * secs))
+        self.refreshTimeoutTimer.start()
+        self.update_display_timer()
         if self.notify is not None and not self.notify.ismonitored:
             self.notify.monitor(pyca.DBE_VALUE, False, 1)
             pyca.flush_io()
-
-    def onTimeoutExpiry(self):
-        self.notify.unsubscribe()
-        pyca.flush_io()
 
     def activeCheck(self):
         if self.cameraBase == "":
@@ -2388,7 +2430,6 @@ class GraphicUserInterface(QMainWindow):
             f = open(file)
             lines = f.readlines()
             if len(lines) > 1:
-                self.timeoutdialog.force(lines[1].strip())
                 self.activeSet()
         except Exception:
             pass

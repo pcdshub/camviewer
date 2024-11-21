@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1119</width>
-    <height>1051</height>
+    <height>1075</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -494,7 +494,7 @@ Vmin\</string>
            </property>
           </widget>
          </item>
-         <item row="5" column="2" colspan="2">
+         <item row="6" column="2" colspan="2">
           <widget class="QComboBox" name="comboBoxOrientation">
            <item>
             <property name="text">
@@ -586,7 +586,7 @@ Vmin\</string>
            </property>
           </widget>
          </item>
-         <item row="5" column="0">
+         <item row="6" column="0">
           <widget class="QLabel" name="label_6">
            <property name="text">
             <string>Orientation</string>
@@ -606,7 +606,7 @@ Vmin\</string>
            </property>
           </widget>
          </item>
-         <item row="6" column="0" colspan="4">
+         <item row="7" column="0" colspan="4">
           <layout class="QHBoxLayout" name="LensLayout">
            <item>
             <widget class="QLabel" name="labelLens">
@@ -706,6 +706,19 @@ Vmin\</string>
            </property>
           </widget>
          </item>
+         <item row="4" column="3">
+          <widget class="QSpinBox" name="spinbox_set_max_rate">
+           <property name="buttonSymbols">
+            <enum>QAbstractSpinBox::NoButtons</enum>
+           </property>
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>999</number>
+           </property>
+          </widget>
+         </item>
          <item row="3" column="2">
           <widget class="QLabel" name="label_disp">
            <property name="sizePolicy">
@@ -738,16 +751,17 @@ Vmin\</string>
            </property>
           </widget>
          </item>
-         <item row="4" column="3">
-          <widget class="QSpinBox" name="spinbox_set_max_rate">
-           <property name="buttonSymbols">
-            <enum>QAbstractSpinBox::NoButtons</enum>
+         <item row="5" column="0" colspan="2">
+          <widget class="QLabel" name="label_rate_timeout_in">
+           <property name="text">
+            <string>Rate Timeout In</string>
            </property>
-           <property name="minimum">
-            <number>1</number>
-           </property>
-           <property name="maximum">
-            <number>999</number>
+          </widget>
+         </item>
+         <item row="5" column="2" colspan="2">
+          <widget class="QLabel" name="label_rate_timeout_value">
+           <property name="text">
+            <string>-</string>
            </property>
           </widget>
          </item>
