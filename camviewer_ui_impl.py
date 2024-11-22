@@ -198,6 +198,8 @@ class GraphicUserInterface(QMainWindow):
         activedir,
         rate,
         idle,
+        min_timeout,
+        max_timeout,
         options,
     ):
         QMainWindow.__init__(self)
@@ -210,6 +212,8 @@ class GraphicUserInterface(QMainWindow):
         self.activedir = activedir
         self.instrument = instrument
         self.description = "%s:%d" % (os.uname()[1], os.getpid())
+        self.min_timeout = min_timeout
+        self.max_timeout = max_timeout
         self.options = options
 
         if self.options.pos is not None:
@@ -1279,15 +1283,12 @@ class GraphicUserInterface(QMainWindow):
         self.imageTimer.start(int(1000.0 / rate))
         self.ui.label_max_rate_value.setText(f"{rate} Hz")
 
-        # One week
-        max_timeout = 7 * 24 * 60 * 60
-        # One day
-        min_timeout = 24 * 60 * 60
-
         if rate <= 1:
             self.stop_disco()
         else:
-            self.setDisco(np.interp(rate, [5, 30], [max_timeout, min_timeout]))
+            self.setDisco(
+                np.interp(rate, [5, 30], [self.max_timeout, self.min_timeout])
+            )
 
     # This monitors LIVE_IMAGE_FULL... which updates at 5 Hz, whether we have an image or not!
     # Therefore, we need to check the time and just skip it if it's a repeat!
