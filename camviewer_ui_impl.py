@@ -24,6 +24,10 @@ import re
 import time
 import functools
 import numpy as np
+import tempfile
+import shutil
+import typing
+import contextlib
 
 from PyQt5.QtWidgets import (
     QSizePolicy,
@@ -2712,7 +2716,7 @@ class GraphicUserInterface(QMainWindow):
 
 
 def write_camera_config(gui: GraphicUserInterface) -> None:
-    with open(gui.cfgdir + gui.cameraBase, "w") as fd:
+    with atomic_writer(gui.cfgdir + gui.cameraBase) as fd:
         fd.write("projsize    " + str(gui.projsize) + "\n")
         fd.write("viewwidth   " + str(gui.viewwidth) + "\n")
         fd.write("viewheight  " + str(gui.viewheight) + "\n")
@@ -2780,8 +2784,18 @@ def write_camera_config(gui: GraphicUserInterface) -> None:
 
 
 def write_global_config(gui: GraphicUserInterface) -> None:
-    with open(gui.cfgdir + "GLOBAL", "w") as fd:
+    with atomic_writer(gui.cfgdir + "GLOBAL") as fd:
         fd.write("config      " + str(int(gui.ui.showconf.isChecked())) + "\n")
         fd.write("projection  " + str(int(gui.ui.showproj.isChecked())) + "\n")
         fd.write("markers     " + str(int(gui.ui.showmarker.isChecked())) + "\n")
         fd.write("dispspec    " + str(gui.dispspec) + "\n")
+
+
+@contextlib.contextmanager
+def atomic_writer(path: str) -> typing.Iterator[typing.TextIO]:
+    with tempfile.NamedTemporaryFile("w", delete=False) as fd:
+        yield fd
+        fd.close()
+        # Set -rw-r--r-- instead of temp file default -rw-------
+        os.chmod(fd.name, 0o644)
+        shutil.move(fd.name, path)
