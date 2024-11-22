@@ -2712,76 +2712,76 @@ class GraphicUserInterface(QMainWindow):
 
 
 def write_camera_config(gui: GraphicUserInterface) -> None:
-    fd = open(gui.cfgdir + gui.cameraBase, "w")
-    fd.write("projsize    " + str(gui.projsize) + "\n")
-    fd.write("viewwidth   " + str(gui.viewwidth) + "\n")
-    fd.write("viewheight  " + str(gui.viewheight) + "\n")
-    fd.write("portrait    " + str(int(param.orientation == param.ORIENT90)) + "\n")
-    fd.write("orientation " + str(param.orientation) + "\n")
-    fd.write("autorange   " + str(int(gui.ui.checkBoxProjAutoRange.isChecked())) + "\n")
-    fd.write("use_abs     1\n")
-    rz = gui.ui.display_image.rectZoom.abs()
-    fd.write(
-        "rectzoom    "
-        + str(rz.x())
-        + " "
-        + str(rz.y())
-        + " "
-        + str(rz.width())
-        + " "
-        + str(rz.height())
-        + "\n"
-    )
-    fd.write("colormap    " + str(gui.ui.comboBoxColor.currentText()) + "\n")
-    fd.write("colorscale  " + str(gui.ui.comboBoxScale.currentText()) + "\n")
-    fd.write("colormin    " + gui.ui.lineEditRangeMin.text() + "\n")
-    fd.write("colormax    " + gui.ui.lineEditRangeMax.text() + "\n")
-    fd.write("grayscale   " + str(int(gui.ui.grayScale.isChecked())) + "\n")
-    roi = gui.ui.display_image.rectRoi.abs()
-    fd.write(
-        "ROI         %d %d %d %d\n" % (roi.x(), roi.y(), roi.width(), roi.height())
-    )
-    fd.write("globmarks   " + str(int(gui.useglobmarks)) + "\n")
-    fd.write("globmarks2  " + str(int(gui.useglobmarks2)) + "\n")
-    lMarker = gui.ui.display_image.lMarker
-    for i in range(4):
+    with open(gui.cfgdir + gui.cameraBase, "w") as fd:
+        fd.write("projsize    " + str(gui.projsize) + "\n")
+        fd.write("viewwidth   " + str(gui.viewwidth) + "\n")
+        fd.write("viewheight  " + str(gui.viewheight) + "\n")
+        fd.write("portrait    " + str(int(param.orientation == param.ORIENT90)) + "\n")
+        fd.write("orientation " + str(param.orientation) + "\n")
         fd.write(
-            "m%d          %d %d\n" % (i + 1, lMarker[i].abs().x(), lMarker[i].abs().y())
+            "autorange   " + str(int(gui.ui.checkBoxProjAutoRange.isChecked())) + "\n"
         )
-    fd.write("projroi     " + str(int(gui.ui.checkBoxProjRoi.isChecked())) + "\n")
-    fd.write(
-        "projlineout "
-        + str(int(gui.ui.checkBoxM1Lineout.isChecked()))
-        + " "
-        + str(int(gui.ui.checkBoxM2Lineout.isChecked()))
-        + " "
-        + str(int(gui.ui.checkBoxM3Lineout.isChecked()))
-        + " "
-        + str(int(gui.ui.checkBoxM4Lineout.isChecked()))
-        + "\n"
-    )
-    fd.write("projfit     " + str(int(gui.ui.checkBoxFits.isChecked())) + "\n")
-    fd.write(
-        "projfittype "
-        + str(int(gui.ui.radioGaussian.isChecked()))
-        + " "
-        + str(int(gui.ui.radioSG4.isChecked()))
-        + " "
-        + str(int(gui.ui.radioSG6.isChecked()))
-        + "\n"
-    )
-    fd.write("projconstant " + str(int(gui.ui.checkBoxConstant.isChecked())) + "\n")
-    fd.write("projcalib   %g\n" % gui.calib)
-    fd.write('projcalibPV "%s"\n' % gui.calibPVName)
-    fd.write('projdisplayFormat "%s"\n' % gui.displayFormat)
-
-    fd.close()
+        fd.write("use_abs     1\n")
+        rz = gui.ui.display_image.rectZoom.abs()
+        fd.write(
+            "rectzoom    "
+            + str(rz.x())
+            + " "
+            + str(rz.y())
+            + " "
+            + str(rz.width())
+            + " "
+            + str(rz.height())
+            + "\n"
+        )
+        fd.write("colormap    " + str(gui.ui.comboBoxColor.currentText()) + "\n")
+        fd.write("colorscale  " + str(gui.ui.comboBoxScale.currentText()) + "\n")
+        fd.write("colormin    " + gui.ui.lineEditRangeMin.text() + "\n")
+        fd.write("colormax    " + gui.ui.lineEditRangeMax.text() + "\n")
+        fd.write("grayscale   " + str(int(gui.ui.grayScale.isChecked())) + "\n")
+        roi = gui.ui.display_image.rectRoi.abs()
+        fd.write(
+            "ROI         %d %d %d %d\n" % (roi.x(), roi.y(), roi.width(), roi.height())
+        )
+        fd.write("globmarks   " + str(int(gui.useglobmarks)) + "\n")
+        fd.write("globmarks2  " + str(int(gui.useglobmarks2)) + "\n")
+        lMarker = gui.ui.display_image.lMarker
+        for i in range(4):
+            fd.write(
+                "m%d          %d %d\n"
+                % (i + 1, lMarker[i].abs().x(), lMarker[i].abs().y())
+            )
+        fd.write("projroi     " + str(int(gui.ui.checkBoxProjRoi.isChecked())) + "\n")
+        fd.write(
+            "projlineout "
+            + str(int(gui.ui.checkBoxM1Lineout.isChecked()))
+            + " "
+            + str(int(gui.ui.checkBoxM2Lineout.isChecked()))
+            + " "
+            + str(int(gui.ui.checkBoxM3Lineout.isChecked()))
+            + " "
+            + str(int(gui.ui.checkBoxM4Lineout.isChecked()))
+            + "\n"
+        )
+        fd.write("projfit     " + str(int(gui.ui.checkBoxFits.isChecked())) + "\n")
+        fd.write(
+            "projfittype "
+            + str(int(gui.ui.radioGaussian.isChecked()))
+            + " "
+            + str(int(gui.ui.radioSG4.isChecked()))
+            + " "
+            + str(int(gui.ui.radioSG6.isChecked()))
+            + "\n"
+        )
+        fd.write("projconstant " + str(int(gui.ui.checkBoxConstant.isChecked())) + "\n")
+        fd.write("projcalib   %g\n" % gui.calib)
+        fd.write('projcalibPV "%s"\n' % gui.calibPVName)
+        fd.write('projdisplayFormat "%s"\n' % gui.displayFormat)
 
 
 def write_global_config(gui: GraphicUserInterface) -> None:
-    fd = open(gui.cfgdir + "GLOBAL", "w")
-    fd.write("config      " + str(int(gui.ui.showconf.isChecked())) + "\n")
-    fd.write("projection  " + str(int(gui.ui.showproj.isChecked())) + "\n")
-    fd.write("markers     " + str(int(gui.ui.showmarker.isChecked())) + "\n")
-    fd.write("dispspec    " + str(gui.dispspec) + "\n")
-    fd.close()
+    with open(gui.cfgdir + "GLOBAL", "w") as fd:
+        fd.write("config      " + str(int(gui.ui.showconf.isChecked())) + "\n")
+        fd.write("projection  " + str(int(gui.ui.showproj.isChecked())) + "\n")
+        fd.write("markers     " + str(int(gui.ui.showmarker.isChecked())) + "\n")
+        fd.write("dispspec    " + str(gui.dispspec) + "\n")
