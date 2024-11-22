@@ -2415,9 +2415,9 @@ class GraphicUserInterface(QMainWindow):
         mins = sec / 60
         hours = mins / 60
         days = hours / 24
-        display_days = math.floor(days)
-        display_hours = math.floor(hours) % 24
-        display_mins = math.floor(mins) % 60
+        display_days = round(days)
+        display_hours = round(hours) % 24
+        display_mins = round(mins) % 60
         if display_days:
             text = f"{display_days} days, {display_hours} hours"
         elif display_hours:
