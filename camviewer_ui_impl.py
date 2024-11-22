@@ -2795,6 +2795,7 @@ def write_global_config(gui: GraphicUserInterface) -> None:
 def atomic_writer(path: str) -> typing.Iterator[typing.TextIO]:
     with tempfile.NamedTemporaryFile("w", delete=False) as fd:
         yield fd
+        # File must be closed before we can chmod and move it
         fd.close()
         # Set -rw-r--r-- instead of temp file default -rw-------
         os.chmod(fd.name, 0o644)
