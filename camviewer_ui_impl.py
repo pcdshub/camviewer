@@ -492,10 +492,10 @@ class GraphicUserInterface(QMainWindow):
 
         self.imageTimer.timeout.connect(self.wantImage)
         rate = max(int(rate), 1)
-        self.set_max_image_rate(rate)
+        self.user_set_max_image_rate(rate)
 
         self.ui.spinbox_set_max_rate.setValue(rate)
-        self.ui.spinbox_set_max_rate.valueChanged.connect(self.set_max_image_rate)
+        self.ui.spinbox_set_max_rate.valueChanged.connect(self.user_set_max_image_rate)
 
         self.discoTimer.timeout.connect(self.do_disco)
 
@@ -1248,6 +1248,17 @@ class GraphicUserInterface(QMainWindow):
         except Exception:
             pass
 
+    def user_set_max_image_rate(self, rate: int) -> None:
+        """
+        Call set_max_image_rate and record the value as the desired rate.
+
+        This desired rate is used so that after a timeout, we can
+        restore the GUI to the user's last desired rate when they
+        interact with the GUI again.
+        """
+        self.last_des_max_rate = rate
+        self.set_max_image_rate(rate)
+
     def set_max_image_rate(self, rate: int) -> None:
         """
         Update the maximum allowed rate by restarting the appropriate timer.
@@ -1272,8 +1283,6 @@ class GraphicUserInterface(QMainWindow):
         max_timeout = 7 * 24 * 60 * 60
         # One day
         min_timeout = 24 * 60 * 60
-
-        self.last_des_max_rate = rate
 
         if rate <= 1:
             self.stop_disco()
