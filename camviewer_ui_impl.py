@@ -2794,9 +2794,19 @@ def write_global_config(gui: GraphicUserInterface) -> None:
 @contextlib.contextmanager
 def atomic_writer(path: str) -> typing.Iterator[typing.TextIO]:
     with tempfile.NamedTemporaryFile("w", delete=False) as fd:
-        yield fd
-        # File must be closed before we can chmod and move it
-        fd.close()
-        # Set -rw-r--r-- instead of temp file default -rw-------
-        os.chmod(fd.name, 0o644)
-        shutil.move(fd.name, path)
+        try:
+            yield fd
+        except Exception as exc:
+            # There is some issue and the temp file is not complete.
+            # Avoid the else block, we don't want to keep the corrupt file.
+            # Show some error instead of bricking the gui
+            print(f"Error writing {path}: {exc}")
+        else:
+            # File must be closed before we can chmod and move it
+            fd.close()
+            # Set -rw-r--r-- instead of temp file default -rw-------
+            os.chmod(fd.name, 0o644)
+            shutil.move(fd.name, path)
+    # If the tempfile still exists, we should clean it up.
+    if os.path.exists(fd.name):
+        os.remove(fd.name)
