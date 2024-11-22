@@ -2711,16 +2711,16 @@ class GraphicUserInterface(QMainWindow):
         self.cfg = None
 
 
-def write_camera_config(self: GraphicUserInterface) -> None:
-    f = open(self.cfgdir + self.cameraBase, "w")
-    f.write("projsize    " + str(self.projsize) + "\n")
-    f.write("viewwidth   " + str(self.viewwidth) + "\n")
-    f.write("viewheight  " + str(self.viewheight) + "\n")
+def write_camera_config(gui: GraphicUserInterface) -> None:
+    f = open(gui.cfgdir + gui.cameraBase, "w")
+    f.write("projsize    " + str(gui.projsize) + "\n")
+    f.write("viewwidth   " + str(gui.viewwidth) + "\n")
+    f.write("viewheight  " + str(gui.viewheight) + "\n")
     f.write("portrait    " + str(int(param.orientation == param.ORIENT90)) + "\n")
     f.write("orientation " + str(param.orientation) + "\n")
-    f.write("autorange   " + str(int(self.ui.checkBoxProjAutoRange.isChecked())) + "\n")
+    f.write("autorange   " + str(int(gui.ui.checkBoxProjAutoRange.isChecked())) + "\n")
     f.write("use_abs     1\n")
-    rz = self.ui.display_image.rectZoom.abs()
+    rz = gui.ui.display_image.rectZoom.abs()
     f.write(
         "rectzoom    "
         + str(rz.x())
@@ -2732,54 +2732,54 @@ def write_camera_config(self: GraphicUserInterface) -> None:
         + str(rz.height())
         + "\n"
     )
-    f.write("colormap    " + str(self.ui.comboBoxColor.currentText()) + "\n")
-    f.write("colorscale  " + str(self.ui.comboBoxScale.currentText()) + "\n")
-    f.write("colormin    " + self.ui.lineEditRangeMin.text() + "\n")
-    f.write("colormax    " + self.ui.lineEditRangeMax.text() + "\n")
-    f.write("grayscale   " + str(int(self.ui.grayScale.isChecked())) + "\n")
-    roi = self.ui.display_image.rectRoi.abs()
+    f.write("colormap    " + str(gui.ui.comboBoxColor.currentText()) + "\n")
+    f.write("colorscale  " + str(gui.ui.comboBoxScale.currentText()) + "\n")
+    f.write("colormin    " + gui.ui.lineEditRangeMin.text() + "\n")
+    f.write("colormax    " + gui.ui.lineEditRangeMax.text() + "\n")
+    f.write("grayscale   " + str(int(gui.ui.grayScale.isChecked())) + "\n")
+    roi = gui.ui.display_image.rectRoi.abs()
     f.write("ROI         %d %d %d %d\n" % (roi.x(), roi.y(), roi.width(), roi.height()))
-    f.write("globmarks   " + str(int(self.useglobmarks)) + "\n")
-    f.write("globmarks2  " + str(int(self.useglobmarks2)) + "\n")
-    lMarker = self.ui.display_image.lMarker
+    f.write("globmarks   " + str(int(gui.useglobmarks)) + "\n")
+    f.write("globmarks2  " + str(int(gui.useglobmarks2)) + "\n")
+    lMarker = gui.ui.display_image.lMarker
     for i in range(4):
         f.write(
             "m%d          %d %d\n" % (i + 1, lMarker[i].abs().x(), lMarker[i].abs().y())
         )
-    f.write("projroi     " + str(int(self.ui.checkBoxProjRoi.isChecked())) + "\n")
+    f.write("projroi     " + str(int(gui.ui.checkBoxProjRoi.isChecked())) + "\n")
     f.write(
         "projlineout "
-        + str(int(self.ui.checkBoxM1Lineout.isChecked()))
+        + str(int(gui.ui.checkBoxM1Lineout.isChecked()))
         + " "
-        + str(int(self.ui.checkBoxM2Lineout.isChecked()))
+        + str(int(gui.ui.checkBoxM2Lineout.isChecked()))
         + " "
-        + str(int(self.ui.checkBoxM3Lineout.isChecked()))
+        + str(int(gui.ui.checkBoxM3Lineout.isChecked()))
         + " "
-        + str(int(self.ui.checkBoxM4Lineout.isChecked()))
+        + str(int(gui.ui.checkBoxM4Lineout.isChecked()))
         + "\n"
     )
-    f.write("projfit     " + str(int(self.ui.checkBoxFits.isChecked())) + "\n")
+    f.write("projfit     " + str(int(gui.ui.checkBoxFits.isChecked())) + "\n")
     f.write(
         "projfittype "
-        + str(int(self.ui.radioGaussian.isChecked()))
+        + str(int(gui.ui.radioGaussian.isChecked()))
         + " "
-        + str(int(self.ui.radioSG4.isChecked()))
+        + str(int(gui.ui.radioSG4.isChecked()))
         + " "
-        + str(int(self.ui.radioSG6.isChecked()))
+        + str(int(gui.ui.radioSG6.isChecked()))
         + "\n"
     )
-    f.write("projconstant " + str(int(self.ui.checkBoxConstant.isChecked())) + "\n")
-    f.write("projcalib   %g\n" % self.calib)
-    f.write('projcalibPV "%s"\n' % self.calibPVName)
-    f.write('projdisplayFormat "%s"\n' % self.displayFormat)
+    f.write("projconstant " + str(int(gui.ui.checkBoxConstant.isChecked())) + "\n")
+    f.write("projcalib   %g\n" % gui.calib)
+    f.write('projcalibPV "%s"\n' % gui.calibPVName)
+    f.write('projdisplayFormat "%s"\n' % gui.displayFormat)
 
     f.close()
 
 
-def write_global_config(self: GraphicUserInterface) -> None:
-    g = open(self.cfgdir + "GLOBAL", "w")
-    g.write("config      " + str(int(self.ui.showconf.isChecked())) + "\n")
-    g.write("projection  " + str(int(self.ui.showproj.isChecked())) + "\n")
-    g.write("markers     " + str(int(self.ui.showmarker.isChecked())) + "\n")
-    g.write("dispspec    " + str(self.dispspec) + "\n")
+def write_global_config(gui: GraphicUserInterface) -> None:
+    g = open(gui.cfgdir + "GLOBAL", "w")
+    g.write("config      " + str(int(gui.ui.showconf.isChecked())) + "\n")
+    g.write("projection  " + str(int(gui.ui.showproj.isChecked())) + "\n")
+    g.write("markers     " + str(int(gui.ui.showmarker.isChecked())) + "\n")
+    g.write("dispspec    " + str(gui.dispspec) + "\n")
     g.close()
