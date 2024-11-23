@@ -1,14 +1,6 @@
 #!/bin/bash
-unset EPICS_HOST_ARCH
-export EPICS_SITE_CONFIG=/reg/g/pcds/package/epics/3.14/RELEASE_SITE
-export PATH=/usr/local/bin:/bin:/usr/bin
-unset LD_LIBRARY_PATH
-unset EPICS_EXTENSIONS
-unset EDMLIBS
-unset EDMFILES
-unset EPICS_BASE
-source /reg/g/pcds/package/epics/3.14/tools/current/bin/epicsenv.sh
-cd /reg/g/pcds/epics/R7.0.3.1-2.0/modules/event2/R5.6.0/event2Screens/
+source /cds/group/pcds/setup/epicsenv-7.0.3.1-2.0.sh
+cd /cds/group/pcds/epics/R7.0.3.1-2.0/modules/event2/R6.0.2/
 # This gets weird and squirrelly.  Originally, SLAC was returning 0.
 # Then, it started returning 0x1Fxx vs. 0x11xx.  Now it returns full
 # 32-bit 0x1Fxxxxxx vs. 0x11xxxxxx.
