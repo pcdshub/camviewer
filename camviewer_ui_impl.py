@@ -24,13 +24,16 @@ import re
 import time
 import functools
 import numpy as np
+import tempfile
+import shutil
+import typing
+import contextlib
 
 from PyQt5.QtWidgets import (
     QSizePolicy,
     QLabel,
     QMainWindow,
     QSpacerItem,
-    QLayout,
     QFileDialog,
     QMessageBox,
     QAction,
@@ -495,7 +498,9 @@ class GraphicUserInterface(QMainWindow):
         self.discoTimer.timeout.connect(self.do_disco)
 
         self.ui.average.returnPressed.connect(self.onAverageSet)
-        self.ui.comboBoxOrientation.currentIndexChanged.connect(self.onOrientationSelect)
+        self.ui.comboBoxOrientation.currentIndexChanged.connect(
+            self.onOrientationSelect
+        )
         self.ui.orient0.triggered.connect(lambda: self.setOrientation(param.ORIENT0))
         self.ui.orient90.triggered.connect(lambda: self.setOrientation(param.ORIENT90))
         self.ui.orient180.triggered.connect(
@@ -2198,7 +2203,7 @@ class GraphicUserInterface(QMainWindow):
             self.ui.showexpert.setChecked(False)
 
     def validDisplayFormat(self, rawString):
-        return re.match("^%\d+(\.\d*)?[efg]$", rawString) is not None
+        return re.match(r"^%\d+(\.\d*)?[efg]$", rawString) is not None
 
     def calibPVmon(self, exception=None):
         if exception is None:
@@ -2416,89 +2421,8 @@ class GraphicUserInterface(QMainWindow):
 
     def dumpConfig(self):
         if self.camera is not None and self.options is None:
-            f = open(self.cfgdir + self.cameraBase, "w")
-            g = open(self.cfgdir + "GLOBAL", "w")
-
-            f.write("projsize    " + str(self.projsize) + "\n")
-            f.write("viewwidth   " + str(self.viewwidth) + "\n")
-            f.write("viewheight  " + str(self.viewheight) + "\n")
-            g.write("config      " + str(int(self.ui.showconf.isChecked())) + "\n")
-            g.write("projection  " + str(int(self.ui.showproj.isChecked())) + "\n")
-            g.write("markers     " + str(int(self.ui.showmarker.isChecked())) + "\n")
-            f.write(
-                "portrait    " + str(int(param.orientation == param.ORIENT90)) + "\n"
-            )
-            f.write("orientation " + str(param.orientation) + "\n")
-            f.write(
-                "autorange   "
-                + str(int(self.ui.checkBoxProjAutoRange.isChecked()))
-                + "\n"
-            )
-            f.write("use_abs     1\n")
-            rz = self.ui.display_image.rectZoom.abs()
-            f.write(
-                "rectzoom    "
-                + str(rz.x())
-                + " "
-                + str(rz.y())
-                + " "
-                + str(rz.width())
-                + " "
-                + str(rz.height())
-                + "\n"
-            )
-            f.write("colormap    " + str(self.ui.comboBoxColor.currentText()) + "\n")
-            f.write("colorscale  " + str(self.ui.comboBoxScale.currentText()) + "\n")
-            f.write("colormin    " + self.ui.lineEditRangeMin.text() + "\n")
-            f.write("colormax    " + self.ui.lineEditRangeMax.text() + "\n")
-            f.write("grayscale   " + str(int(self.ui.grayScale.isChecked())) + "\n")
-            roi = self.ui.display_image.rectRoi.abs()
-            f.write(
-                "ROI         %d %d %d %d\n"
-                % (roi.x(), roi.y(), roi.width(), roi.height())
-            )
-            f.write("globmarks   " + str(int(self.useglobmarks)) + "\n")
-            f.write("globmarks2  " + str(int(self.useglobmarks2)) + "\n")
-            lMarker = self.ui.display_image.lMarker
-            for i in range(4):
-                f.write(
-                    "m%d          %d %d\n"
-                    % (i + 1, lMarker[i].abs().x(), lMarker[i].abs().y())
-                )
-            g.write("dispspec    " + str(self.dispspec) + "\n")
-            f.write(
-                "projroi     " + str(int(self.ui.checkBoxProjRoi.isChecked())) + "\n"
-            )
-            f.write(
-                "projlineout "
-                + str(int(self.ui.checkBoxM1Lineout.isChecked()))
-                + " "
-                + str(int(self.ui.checkBoxM2Lineout.isChecked()))
-                + " "
-                + str(int(self.ui.checkBoxM3Lineout.isChecked()))
-                + " "
-                + str(int(self.ui.checkBoxM4Lineout.isChecked()))
-                + "\n"
-            )
-            f.write("projfit     " + str(int(self.ui.checkBoxFits.isChecked())) + "\n")
-            f.write(
-                "projfittype "
-                + str(int(self.ui.radioGaussian.isChecked()))
-                + " "
-                + str(int(self.ui.radioSG4.isChecked()))
-                + " "
-                + str(int(self.ui.radioSG6.isChecked()))
-                + "\n"
-            )
-            f.write(
-                "projconstant " + str(int(self.ui.checkBoxConstant.isChecked())) + "\n"
-            )
-            f.write("projcalib   %g\n" % self.calib)
-            f.write('projcalibPV "%s"\n' % self.calibPVName)
-            f.write('projdisplayFormat "%s"\n' % self.displayFormat)
-
-            f.close()
-            g.close()
+            write_camera_config(self)
+            write_global_config(self)
 
             settings = QSettings("SLAC", "CamViewer")
             settings.setValue("geometry/%s" % self.cfgname, self.saveGeometry())
@@ -2789,3 +2713,100 @@ class GraphicUserInterface(QMainWindow):
             self.displayFormat = "%12.8g"
 
         self.cfg = None
+
+
+def write_camera_config(gui: GraphicUserInterface) -> None:
+    with atomic_writer(gui.cfgdir + gui.cameraBase) as fd:
+        fd.write("projsize    " + str(gui.projsize) + "\n")
+        fd.write("viewwidth   " + str(gui.viewwidth) + "\n")
+        fd.write("viewheight  " + str(gui.viewheight) + "\n")
+        fd.write("portrait    " + str(int(param.orientation == param.ORIENT90)) + "\n")
+        fd.write("orientation " + str(param.orientation) + "\n")
+        fd.write(
+            "autorange   " + str(int(gui.ui.checkBoxProjAutoRange.isChecked())) + "\n"
+        )
+        fd.write("use_abs     1\n")
+        rz = gui.ui.display_image.rectZoom.abs()
+        fd.write(
+            "rectzoom    "
+            + str(rz.x())
+            + " "
+            + str(rz.y())
+            + " "
+            + str(rz.width())
+            + " "
+            + str(rz.height())
+            + "\n"
+        )
+        fd.write("colormap    " + str(gui.ui.comboBoxColor.currentText()) + "\n")
+        fd.write("colorscale  " + str(gui.ui.comboBoxScale.currentText()) + "\n")
+        fd.write("colormin    " + gui.ui.lineEditRangeMin.text() + "\n")
+        fd.write("colormax    " + gui.ui.lineEditRangeMax.text() + "\n")
+        fd.write("grayscale   " + str(int(gui.ui.grayScale.isChecked())) + "\n")
+        roi = gui.ui.display_image.rectRoi.abs()
+        fd.write(
+            "ROI         %d %d %d %d\n" % (roi.x(), roi.y(), roi.width(), roi.height())
+        )
+        fd.write("globmarks   " + str(int(gui.useglobmarks)) + "\n")
+        fd.write("globmarks2  " + str(int(gui.useglobmarks2)) + "\n")
+        lMarker = gui.ui.display_image.lMarker
+        for i in range(4):
+            fd.write(
+                "m%d          %d %d\n"
+                % (i + 1, lMarker[i].abs().x(), lMarker[i].abs().y())
+            )
+        fd.write("projroi     " + str(int(gui.ui.checkBoxProjRoi.isChecked())) + "\n")
+        fd.write(
+            "projlineout "
+            + str(int(gui.ui.checkBoxM1Lineout.isChecked()))
+            + " "
+            + str(int(gui.ui.checkBoxM2Lineout.isChecked()))
+            + " "
+            + str(int(gui.ui.checkBoxM3Lineout.isChecked()))
+            + " "
+            + str(int(gui.ui.checkBoxM4Lineout.isChecked()))
+            + "\n"
+        )
+        fd.write("projfit     " + str(int(gui.ui.checkBoxFits.isChecked())) + "\n")
+        fd.write(
+            "projfittype "
+            + str(int(gui.ui.radioGaussian.isChecked()))
+            + " "
+            + str(int(gui.ui.radioSG4.isChecked()))
+            + " "
+            + str(int(gui.ui.radioSG6.isChecked()))
+            + "\n"
+        )
+        fd.write("projconstant " + str(int(gui.ui.checkBoxConstant.isChecked())) + "\n")
+        fd.write("projcalib   %g\n" % gui.calib)
+        fd.write('projcalibPV "%s"\n' % gui.calibPVName)
+        fd.write('projdisplayFormat "%s"\n' % gui.displayFormat)
+
+
+def write_global_config(gui: GraphicUserInterface) -> None:
+    with atomic_writer(gui.cfgdir + "GLOBAL") as fd:
+        fd.write("config      " + str(int(gui.ui.showconf.isChecked())) + "\n")
+        fd.write("projection  " + str(int(gui.ui.showproj.isChecked())) + "\n")
+        fd.write("markers     " + str(int(gui.ui.showmarker.isChecked())) + "\n")
+        fd.write("dispspec    " + str(gui.dispspec) + "\n")
+
+
+@contextlib.contextmanager
+def atomic_writer(path: str) -> typing.Iterator[typing.TextIO]:
+    with tempfile.NamedTemporaryFile("w", delete=False) as fd:
+        try:
+            yield fd
+        except Exception as exc:
+            # There is some issue and the temp file is not complete.
+            # Avoid the else block, we don't want to keep the corrupt file.
+            # Show some error instead of bricking the gui
+            print(f"Error writing {path}: {exc}")
+        else:
+            # File must be closed before we can chmod and move it
+            fd.close()
+            # Set -rw-r--r-- instead of temp file default -rw-------
+            os.chmod(fd.name, 0o644)
+            shutil.move(fd.name, path)
+    # If the tempfile still exists, we should clean it up.
+    if os.path.exists(fd.name):
+        os.remove(fd.name)
