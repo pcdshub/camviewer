@@ -1151,30 +1151,56 @@ class GraphicUserInterface(QMainWindow):
 
     def onfileSave(self):
         try:
-            fileName = QFileDialog.getSaveFileName(
+            filename = QFileDialog.getSaveFileName(
                 self,
                 "Save Image...",
                 self.cwd,
                 "Images (*.npy *.jpg *.png *.bmp *.pgm *.tif)",
             )[0]
-            if fileName == "":
+            if filename == "":
                 raise Exception("No File Name Specified")
-            if fileName.lower().endswith(".npy"):
-                np.save(fileName, self.image)
+            if filename.lower().endswith(".npy"):
+                np.save(filename, self.image)
                 QMessageBox.information(
                     self,
                     "File Save Succeeded",
-                    "Image has been saved as a numpy file: %s" % (fileName),
+                    "Image has been saved as a numpy file: %s" % (filename),
                 )
-                print("Saved to a numpy file %s" % (fileName))
+                print("Saved to a numpy file %s" % (filename))
+            elif self.ui.display_image.image.save(filename, format=None, quality=-1):
+                # QImage.save returned True, so the save succeeded.
+                QMessageBox.information(
+                    self,
+                    "File Save Succeeded",
+                    "Image has been saved to an image file: %s" % (filename),
+                )
+                print("Saved to an image file %s" % (filename))
             else:
-                self.ui.display_image.image.save(fileName, format=None, quality=-1)
-                QMessageBox.information(
+                # QImage.save returned False, so the save failed.
+                # Check for obvious errors, then retry the save
+                # File already exists?
+                if os.path.exists(filename):
+                    reason = (
+                        f"{filename} already exists! Please pick a different filename"
+                    )
+                # No write permissions?
+                else:
+                    # This is the most robust way to check if we have permissions
+                    # os.access exists but doesn't quite work fully on NFS filesystems as per the Python docs
+                    try:
+                        with open(filename, "w"):
+                            ...
+                    except PermissionError:
+                        reason = f"No permissions to write to {filename}! Please pick a different location."
+                    else:
+                        # Clean up the stub file we made
+                        os.remove(filename)
+                QMessageBox.warning(
                     self,
-                    "File Save Succeeded",
-                    "Image has been saved to an image file: %s" % (fileName),
+                    "File Save Failed",
+                    reason,
                 )
-                print("Saved to an image file %s" % (fileName))
+                return self.onfileSave()
         except Exception as e:
             print("fileSave failed:", e)
             QMessageBox.warning(self, "File Save Failed", str(e))
