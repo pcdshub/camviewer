@@ -7,6 +7,8 @@
 # So, we only have to deal with true screen coordinates and how the oriented image is mapped to
 # this.
 #
+from __future__ import annotations
+
 from camviewer_ui import Ui_MainWindow
 from psp.Pv import Pv
 from dialogs import advdialog
@@ -24,10 +26,12 @@ import re
 import time
 import functools
 import numpy as np
+import numpy.typing as npt
 import tempfile
 import shutil
 import typing
 import contextlib
+import subprocess
 
 from PyQt5.QtWidgets import (
     QSizePolicy,
@@ -255,6 +259,10 @@ class GraphicUserInterface(QMainWindow):
         self.maxcount = None
         self.rowPv = None
         self.colPv = None
+        self.launch_gui_pv = None
+        self.launch_edm_pv = None
+        self.launch_gui_script = ""
+        self.launch_edm_script = ""
         self.scale = 1
         self.fLensPrevValue = -1
         self.fLensValue = 0
@@ -539,7 +547,7 @@ class GraphicUserInterface(QMainWindow):
         self.ui.showexpert.triggered.connect(self.onExpertMode)
         self.ui.showspecific.triggered.connect(self.doShowSpecific)
         self.ui.actionGlobalMarkers.triggered.connect(self.onGlobMarks)
-        self.advdialog.ui.showevr.clicked.connect(self.onOpenEvr)
+        self.advdialog.ui.showexpert.clicked.connect(self.on_open_expert)
         self.onExpertMode()
 
         self.ui.checkBoxProjRoi.stateChanged.connect(self.onGenericConfigChange)
@@ -1763,6 +1771,10 @@ class GraphicUserInterface(QMainWindow):
         self.rowPv = self.disconnectPv(self.rowPv)
         self.colPv = self.disconnectPv(self.colPv)
         self.calibPV = self.disconnectPv(self.calibPV)
+        self.launch_gui_pv = self.disconnectPv(self.launch_gui_pv)
+        self.launch_edm_pv = self.disconnectPv(self.launch_edm_pv)
+        self.launch_gui_script = ""
+        self.launch_edm_script = ""
         self.calibPVName = ""
         self.displayFormat = "%12.8g"
 
@@ -1864,6 +1876,19 @@ class GraphicUserInterface(QMainWindow):
         self.rowPv.monitor(pyca.DBE_VALUE)
         self.colPv.monitor(pyca.DBE_VALUE)
         pyca.flush_io()
+        # Deliberately after flush_io so we don't wait for them
+        self.launch_gui_pv = Pv(
+            self.ctrlBase + ":LAUNCH_GUI",
+            initialize=True,
+            monitor=self.new_launch_gui_script,
+            use_numpy=True,
+        )
+        self.launch_edm_pv = Pv(
+            self.ctrlBase + ":LAUNCH_EDM",
+            initialize=True,
+            monitor=self.new_launch_edm_script,
+            use_numpy=True,
+        )
         self.sWindowTitle = "Camera: " + self.lCameraDesc[index]
         self.setWindowTitle("MainWindow")
         self.advdialog.setWindowTitle(self.sWindowTitle + " Advanced Mode")
@@ -2230,14 +2255,59 @@ class GraphicUserInterface(QMainWindow):
     def onSpecific(self, button):
         pass
 
-    def onOpenEvr(self):
-        iCamera = self.ui.comboBoxCamera.currentIndex()
-        if self.lEvrList[iCamera] != "None":
-            print(
-                "Open Evr %s for camera [%d] %s..."
-                % (self.lEvrList[iCamera], iCamera, self.lCameraList[iCamera])
+    def new_launch_gui_script(self, exc: Exception | None = None):
+        """
+        This function will be called if the camera has a "LAUNCH_GUI" PV.
+
+        The contents of this PV will be a int8 array that encodes an ascii string.
+        This string is the filepath of a script that can be run to open the
+        expert screen.
+
+        We stash this string for later use.
+        """
+        try:
+            if exc is None and self.launch_gui_pv is not None:
+                self.launch_gui_script = decode_char_waveform(
+                    self.launch_gui_pv.data["value"]
+                )
+        except Exception as exc:
+            print(f"Error receiving new launch gui script: {exc}")
+
+    def new_launch_edm_script(self, exc: Exception | None = None):
+        """
+        This is the same as new_launch_gui_script above, except it uses the older "LAUNCH_EDM" PV.
+
+        Old IOCs may not have "LAUNCH_GUI" yet.
+        This PV was renamed to be more gui framework agnostic.
+        """
+        try:
+            if exc is None and self.launch_edm_pv is not None:
+                self.launch_edm_script = decode_char_waveform(
+                    self.launch_edm_pv.data["value"]
+                )
+        except Exception as exc:
+            print(f"Error receiving new launch edm script: {exc}")
+
+    def on_open_expert(self):
+        """
+        Open the appropriate expert screen script.
+
+        Requires the LAUNCH_GUI or LAUNCH_EDM PV to have given us a value
+        at some point.
+        """
+        script = self.launch_gui_script or self.launch_edm_script
+        if not script:
+            QMessageBox.critical(
+                None,
+                "Error",
+                "No expert screen available, PVs did not connect.",
+                QMessageBox.Ok,
+                QMessageBox.Ok,
             )
-            os.system(self.cwd + "/openEvr.sh " + self.lEvrList[iCamera] + " &")
+            return
+        print(f"Running {script}")
+        # Not handling other errors for now
+        subprocess.run([script])
 
     def onSliderRangeMinChanged(self, newSliderValue):
         self.ui.lineEditRangeMin.setText(str(newSliderValue))
@@ -2810,3 +2880,21 @@ def atomic_writer(path: str) -> typing.Iterator[typing.TextIO]:
     # If the tempfile still exists, we should clean it up.
     if os.path.exists(fd.name):
         os.remove(fd.name)
+
+
+def decode_char_waveform(waveform: npt.NDArray[np.int8]) -> str:
+    """
+    Convert an epics char waveform to a string.
+
+    In pyca, these can be loaded into numpy arrays via passing
+    numpy=True as a kwarg.
+
+    The waveform is an array of signed 8-bit integers whose
+    unsigned representations correspond to the ascii character codes.
+    The string is null-terminated.
+    """
+    # Implementation lifted from PyDM's "parse_value_for_display"
+    zeros = np.where(waveform == 0)[0]
+    if zeros.size > 0:
+        waveform = waveform[: zeros[0]]
+    return waveform.tobytes().decode(encoding="ascii", errors="ignore")
