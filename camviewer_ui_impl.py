@@ -1178,7 +1178,7 @@ class GraphicUserInterface(QMainWindow):
             else:
                 # QImage.save returned False, so the save failed.
                 # Check for obvious errors, then retry the save
-                # File already exists?
+                # File already exists? This shouldn't happen due to the qt file dialog.
                 if os.path.exists(filename):
                     reason = (
                         f"{filename} already exists! Please pick a different filename"
@@ -1195,6 +1195,8 @@ class GraphicUserInterface(QMainWindow):
                     else:
                         # Clean up the stub file we made
                         os.remove(filename)
+                        # I guess we have no idea what went wrong
+                        reason = "Unknown failure! Please try again."
                 QMessageBox.warning(
                     self,
                     "File Save Failed",
