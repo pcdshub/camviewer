@@ -17,6 +17,7 @@ from dialogs import forcedialog
 
 import sys
 import os
+import os.path
 from pycaqtimage import pycaqtimage
 import pyca
 import math
@@ -1154,7 +1155,7 @@ class GraphicUserInterface(QMainWindow):
             filename = QFileDialog.getSaveFileName(
                 self,
                 "Save Image...",
-                self.cwd,
+                os.path.expanduser("~"),
                 "Images (*.npy *.jpg *.png *.bmp *.pgm *.tif)",
             )[0]
             if filename == "":
