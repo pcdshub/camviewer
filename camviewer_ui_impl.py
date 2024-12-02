@@ -17,7 +17,6 @@ from dialogs import forcedialog
 
 import sys
 import os
-import os.path
 from pycaqtimage import pycaqtimage
 import pyca
 import math
