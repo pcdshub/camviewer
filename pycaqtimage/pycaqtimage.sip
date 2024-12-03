@@ -350,7 +350,7 @@ static int rowIncMult2[8] = {  0,   2,   0,   0,   0,  -2,   0,   0}; /* Scaled 
 static int rowIncK[8]     = {  0,   0,  -1,   1,   0,   0,   1,  -1}; /* Constant */
 
 template <class T>
-void _pyDoAvg(ImageBuffer *imageBuffer, T *cadata)
+void _pyDoAvg(ImageBuffer *imageBuffer, T *cadata, long count)
 {
     T *src           = cadata;
     uint32_t *dst    = imageBuffer->imageData;
@@ -373,8 +373,12 @@ void _pyDoAvg(ImageBuffer *imageBuffer, T *cadata)
 		*dstF++ = *src;
 		*dst++ = *src;
 		src += col_inc;
+        count -= 1;
 	    }
 	    src += row_inc;
+        if (count <= 0) {
+            break;
+        }
 	}
     } else {
 	for (int iRow = 0; iRow < imageBuffer->imgheight; ++iRow) {
@@ -382,8 +386,12 @@ void _pyDoAvg(ImageBuffer *imageBuffer, T *cadata)
 		*dstF += (*src - *dstF) / iNewAverage;
 		*dst++ = *dstF++;
 		src += col_inc;
+        count -= 1;
 	    }
 	    src += row_inc;
+        if (count <= 0) {
+            break;
+        }
 	}
     }
     imageBuffer->iNumAveraged = iNewAverage % imageBuffer->iAverage;
@@ -456,16 +464,15 @@ static void _pyImagePvCallback(void* cadata, long count, size_t size, void* usr)
 {
   ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
 
-  UNUSED(count);
   switch (size) {
     case 4:
-	_pyDoAvg(imageBuffer, reinterpret_cast<uint32_t*>(cadata));
+	_pyDoAvg(imageBuffer, reinterpret_cast<uint32_t*>(cadata), count);
         break;
     case 2:
-	_pyDoAvg(imageBuffer, reinterpret_cast<uint16_t*>(cadata));
+	_pyDoAvg(imageBuffer, reinterpret_cast<uint16_t*>(cadata), count);
         break;
     case 1:
-	_pyDoAvg(imageBuffer, reinterpret_cast<uint8_t*>(cadata));
+	_pyDoAvg(imageBuffer, reinterpret_cast<uint8_t*>(cadata), count);
         break;
     default:
         fprintf(stderr, "Image pixel size is %d bytes?\n", (int) size);
