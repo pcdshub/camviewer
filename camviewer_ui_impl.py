@@ -1183,8 +1183,8 @@ class GraphicUserInterface(QMainWindow):
                     message=f"No permissions to write {filename}! Please pick a different location."
                 )
             # Invalid image type?
-            image_types = ["npy"] + [
-                qba.data().decode("utf-8")
+            image_types = [".npy"] + [
+                "." + qba.data().decode("utf-8")
                 for qba in QImageWriter.supportedImageFormats()
             ]
             if file_ext not in image_types:
