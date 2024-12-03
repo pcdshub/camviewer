@@ -185,6 +185,7 @@ class GraphicUserInterface(QMainWindow):
     param1Update = pyqtSignal()
     param2Update = pyqtSignal()
     timeoutExpiry = pyqtSignal()
+    retry_save_image = pyqtSignal()
 
     def __init__(
         self,
@@ -522,6 +523,7 @@ class GraphicUserInterface(QMainWindow):
         self.setOrientation(param.ORIENT0)  # default to use unrotated
 
         self.ui.FileSave.triggered.connect(self.onfileSave)
+        self.retry_save_image.connect(self.onfileSave)
 
         self.imageUpdate.connect(self.onImageUpdate)
         self.miscUpdate.connect(self.onMiscUpdate)
@@ -1202,7 +1204,7 @@ class GraphicUserInterface(QMainWindow):
                     "File Save Failed",
                     reason,
                 )
-                return self.onfileSave()
+                self.retry_save_image.emit()
         except Exception as e:
             print("fileSave failed:", e)
             QMessageBox.warning(self, "File Save Failed", str(e))
