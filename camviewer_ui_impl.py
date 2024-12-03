@@ -1177,8 +1177,13 @@ class GraphicUserInterface(QMainWindow):
             # QImage.save returned False, so the save failed.
             # Check for obvious errors, then retry the save
             # No write permissions?
-            directory = os.path.dirname(filename)
-            if not os.access(path=directory, mode=os.W_OK):
+            # If the file exists, we need to check the filename. Otherwise, we check the dirname.
+            if os.path.exists(filename):
+                can_write = os.access(path=filename, mode=os.W_OK)
+            else:
+                directory = os.path.dirname(filename)
+                can_write = os.access(path=directory, mode=os.W_OK)
+            if not can_write:
                 return self.warn_and_retry_save(
                     message=f"No permissions to write {filename}! Please pick a different location."
                 )
