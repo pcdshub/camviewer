@@ -66,7 +66,7 @@
     </widget>
    </item>
    <item row="6" column="0">
-    <widget class="QPushButton" name="showevr">
+    <widget class="QPushButton" name="showexpert">
      <property name="minimumSize">
       <size>
        <width>0</width>
@@ -74,7 +74,7 @@
       </size>
      </property>
      <property name="text">
-      <string>Open Evr</string>
+      <string>Open Expert Screen</string>
      </property>
     </widget>
    </item>
