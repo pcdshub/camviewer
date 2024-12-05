@@ -47,6 +47,7 @@ from PyQt5.QtGui import (
     QClipboard,
     QPixmap,
     QDrag,
+    QImageWriter,
 )
 from PyQt5.QtCore import (
     QTimer,
@@ -189,6 +190,7 @@ class GraphicUserInterface(QMainWindow):
     param1Update = pyqtSignal()
     param2Update = pyqtSignal()
     timeoutExpiry = pyqtSignal()
+    retry_save_image = pyqtSignal()
 
     def __init__(
         self,
@@ -530,6 +532,7 @@ class GraphicUserInterface(QMainWindow):
         self.setOrientation(param.ORIENT0)  # default to use unrotated
 
         self.ui.FileSave.triggered.connect(self.onfileSave)
+        self.retry_save_image.connect(self.onfileSave)
 
         self.imageUpdate.connect(self.onImageUpdate)
         self.miscUpdate.connect(self.onMiscUpdate)
@@ -1159,33 +1162,75 @@ class GraphicUserInterface(QMainWindow):
 
     def onfileSave(self):
         try:
-            fileName = QFileDialog.getSaveFileName(
-                self,
-                "Save Image...",
-                self.cwd,
-                "Images (*.npy *.jpg *.png *.bmp *.pgm *.tif)",
+            filename = QFileDialog.getSaveFileName(
+                parent=self,
+                caption="Save Image...",
+                directory=os.path.expanduser("~"),
+                filter="Images (*.npy *.jpg *.png *.bmp *.pgm *.tif)",
             )[0]
-            if fileName == "":
-                raise Exception("No File Name Specified")
-            if fileName.lower().endswith(".npy"):
-                np.save(fileName, self.image)
-                QMessageBox.information(
-                    self,
-                    "File Save Succeeded",
-                    "Image has been saved as a numpy file: %s" % (fileName),
-                )
-                print("Saved to a numpy file %s" % (fileName))
+            if filename == "":
+                # The only way to get here is by clicking "X" or "Cancel"
+                return
+            file_ext = os.path.splitext(filename)[1]
+            if file_ext == ".npy":
+                # This either works or raises an OSError such as PermissionError
+                np.save(filename, self.image)
+                return self.show_file_success(filename=filename, file_ext=file_ext)
+            save_ok = self.ui.display_image.image.save(
+                filename, format=None, quality=-1
+            )
+            if save_ok:
+                # QImage.save returned True, so the save succeeded.
+                return self.show_file_success(filename=filename, file_ext=file_ext)
+            # QImage.save returned False, so the save failed.
+            # Check for obvious errors, then retry the save
+            # No write permissions?
+            # If the file exists, we need to check the filename. Otherwise, we check the dirname.
+            if os.path.exists(filename):
+                can_write = os.access(path=filename, mode=os.W_OK)
             else:
-                self.ui.display_image.image.save(fileName, format=None, quality=-1)
-                QMessageBox.information(
-                    self,
-                    "File Save Succeeded",
-                    "Image has been saved to an image file: %s" % (fileName),
+                directory = os.path.dirname(filename)
+                can_write = os.access(path=directory, mode=os.W_OK)
+            if not can_write:
+                return self.warn_and_retry_save(
+                    message=f"No permissions to write {filename}! Please pick a different location."
                 )
-                print("Saved to an image file %s" % (fileName))
-        except Exception as e:
-            print("fileSave failed:", e)
-            QMessageBox.warning(self, "File Save Failed", str(e))
+            # Invalid image type?
+            image_types = [".npy"] + [
+                "." + qba.data().decode("utf-8")
+                for qba in QImageWriter.supportedImageFormats()
+            ]
+            if file_ext not in image_types:
+                return self.warn_and_retry_save(
+                    message=f"Invalid image type {file_ext}! Please pick from the list {image_types}."
+                )
+            # I guess we have no idea what went wrong
+            return self.warn_and_retry_save(
+                message="Unknown failure! Please try again."
+            )
+        except OSError as exc:
+            self.warn_and_retry_save(message=str(exc))
+        except Exception as exc:
+            print("fileSave failed:", exc)
+            QMessageBox.warning(
+                self, "File Save Failed", f"Internal error, cancelling save: {exc}"
+            )
+
+    def show_file_success(self, filename: str, file_ext: str):
+        QMessageBox.information(
+            self,
+            "File Save Succeeded",
+            f"Image has been saved as a {file_ext} file: {filename}",
+        )
+        print(f"Saved to a {file_ext} file: {filename}")
+
+    def warn_and_retry_save(self, message: str):
+        QMessageBox.warning(
+            self,
+            "File Save Failed",
+            message,
+        )
+        self.retry_save_image.emit()
 
     def onOrientationSelect(self, index):
         self.setOrientation(param.idx2orient[index], fromCombo=True)
