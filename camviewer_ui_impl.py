@@ -516,7 +516,7 @@ class GraphicUserInterface(QMainWindow):
         self.discoTimer.timeout.connect(self.do_disco)
 
         self.refreshTimeoutTimer.timeout.connect(self.update_display_timer)
-        self.refreshTimeoutTimer.setInterval(1000 * 60)
+        self.refreshTimeoutTimer.setInterval(1000 * 20)
         self.refreshTimeoutTimer.start()
 
         self.ui.average.returnPressed.connect(self.onAverageSet)
