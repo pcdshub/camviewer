@@ -2510,7 +2510,7 @@ class GraphicUserInterface(QMainWindow):
             self.forcedialog = forcedialog(self.activedir + self.cameraBase + "/", self)
             self.haveforce = True
 
-    def update_display_timer(self):
+    def update_display_timer(self, msec: int | None = None):
         """
         Show the user how much time until the rate timer expires.
 
@@ -2525,14 +2525,15 @@ class GraphicUserInterface(QMainWindow):
         - x mins
         - under 1 minute
         """
-        if not self.discoTimer.isActive():
-            if self.last_des_max_rate <= 1:
-                text = "Never"
-            else:
-                text = "Timed Out"
-            self.ui.label_rate_timeout_value.setText(text)
-            return
-        msec = self.discoTimer.remainingTime()
+        if msec is None:
+            if not self.discoTimer.isActive():
+                if self.last_des_max_rate <= 1:
+                    text = "Never"
+                else:
+                    text = "Timed Out"
+                self.ui.label_rate_timeout_value.setText(text)
+                return
+            msec = self.discoTimer.remainingTime()
         sec = msec // 1000
         mins, sec = divmod(sec, 60)
         hours, mins = divmod(mins, 60)
@@ -2564,9 +2565,10 @@ class GraphicUserInterface(QMainWindow):
             self.set_max_image_rate(self.last_des_max_rate)
 
     def setDisco(self, secs):
-        self.discoTimer.start(int(1000 * secs))
+        msec = int(1000 * secs)
+        self.discoTimer.start(msec)
         self.refreshTimeoutTimer.start()
-        self.update_display_timer()
+        self.update_display_timer(msec)
         if self.notify is not None and not self.notify.ismonitored:
             self.notify.monitor(pyca.DBE_VALUE, False, 1)
             pyca.flush_io()
