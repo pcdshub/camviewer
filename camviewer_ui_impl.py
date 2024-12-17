@@ -2503,7 +2503,7 @@ class GraphicUserInterface(QMainWindow):
                 print("channel access exception: %s" % (e))
 
     def onReconnect(self):
-        ...
+        self.onCameraSelect(self.ui.comboBoxCamera.currentIndex())
 
     def onForceDisco(self):
         if self.cameraBase != "" and not self.haveforce:
