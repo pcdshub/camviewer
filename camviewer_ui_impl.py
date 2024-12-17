@@ -2517,8 +2517,13 @@ class GraphicUserInterface(QMainWindow):
         If the timer is not active, this will set the display text to "Never",
         or to "Timed Out" if we've completely timed out.
 
-        Otherwise, it will set the display text in the form:
-        xx days, yy hours, zz minutes
+        Otherwise, it will set the display text in the most appropriate form
+        from the options:
+
+        - x days, y hours
+        - x hours, y mins
+        - x mins
+        - under 1 minute
         """
         if not self.discoTimer.isActive():
             if self.last_des_max_rate <= 1:
@@ -2528,19 +2533,20 @@ class GraphicUserInterface(QMainWindow):
             self.ui.label_rate_timeout_value.setText(text)
             return
         msec = self.discoTimer.remainingTime()
-        sec = msec / 1000
-        mins = sec / 60
-        hours = mins / 60
-        days = hours / 24
-        display_days = round(days)
-        display_hours = round(hours) % 24
-        display_mins = round(mins) % 60
-        if display_days:
-            text = f"{display_days} days, {display_hours} hours"
-        elif display_hours:
-            text = f"{display_hours} hours, {display_mins} mins"
+        sec = msec // 1000
+        mins, sec = divmod(sec, 60)
+        hours, mins = divmod(mins, 60)
+        days, hours = divmod(hours, 24)
+
+        if days:
+            text = f"{days} days, {hours} hours"
+        elif hours:
+            text = f"{hours} hours, {mins} mins"
+        elif mins:
+            text = f"{mins} mins"
         else:
-            text = f"{display_mins} mins"
+            text = "under 1 minute"
+
         self.ui.label_rate_timeout_value.setText(text)
 
     # We have been idle for a while!
