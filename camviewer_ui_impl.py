@@ -25,6 +25,12 @@ import re
 import time
 import functools
 import numpy as np
+import numpy.typing as npt
+import tempfile
+import shutil
+import typing
+import contextlib
+import subprocess
 
 from PyQt5.QtWidgets import (
     QSizePolicy,
@@ -41,6 +47,7 @@ from PyQt5.QtGui import (
     QClipboard,
     QPixmap,
     QDrag,
+    QImageWriter,
 )
 from PyQt5.QtCore import (
     QTimer,
@@ -184,6 +191,8 @@ class GraphicUserInterface(QMainWindow):
     cross4Update = pyqtSignal()
     param1Update = pyqtSignal()
     param2Update = pyqtSignal()
+    timeoutExpiry = pyqtSignal()
+    retry_save_image = pyqtSignal()
 
     def __init__(
         self,
@@ -258,6 +267,10 @@ class GraphicUserInterface(QMainWindow):
         self.maxcount = None
         self.rowPv = None
         self.colPv = None
+        self.launch_gui_pv = None
+        self.launch_edm_pv = None
+        self.launch_gui_script = ""
+        self.launch_edm_script = ""
         self.scale = 1
         self.fLensPrevValue = -1
         self.fLensValue = 0
@@ -531,6 +544,7 @@ class GraphicUserInterface(QMainWindow):
         self.setOrientation(param.ORIENT0)  # default to use unrotated
 
         self.ui.FileSave.triggered.connect(self.onfileSave)
+        self.retry_save_image.connect(self.onfileSave)
 
         self.imageUpdate.connect(self.onImageUpdate)
         self.miscUpdate.connect(self.onMiscUpdate)
@@ -547,7 +561,7 @@ class GraphicUserInterface(QMainWindow):
         self.ui.showexpert.triggered.connect(self.onExpertMode)
         self.ui.showspecific.triggered.connect(self.doShowSpecific)
         self.ui.actionGlobalMarkers.triggered.connect(self.onGlobMarks)
-        self.advdialog.ui.showevr.clicked.connect(self.onOpenEvr)
+        self.advdialog.ui.showexpert.clicked.connect(self.on_open_expert)
         self.onExpertMode()
 
         self.ui.checkBoxProjRoi.stateChanged.connect(self.onGenericConfigChange)
@@ -1158,33 +1172,75 @@ class GraphicUserInterface(QMainWindow):
 
     def onfileSave(self):
         try:
-            fileName = QFileDialog.getSaveFileName(
-                self,
-                "Save Image...",
-                self.cwd,
-                "Images (*.npy *.jpg *.png *.bmp *.pgm *.tif)",
+            filename = QFileDialog.getSaveFileName(
+                parent=self,
+                caption="Save Image...",
+                directory=os.path.expanduser("~"),
+                filter="Images (*.npy *.jpg *.png *.bmp *.pgm *.tif)",
             )[0]
-            if fileName == "":
-                raise Exception("No File Name Specified")
-            if fileName.lower().endswith(".npy"):
-                np.save(fileName, self.image)
-                QMessageBox.information(
-                    self,
-                    "File Save Succeeded",
-                    "Image has been saved as a numpy file: %s" % (fileName),
-                )
-                print("Saved to a numpy file %s" % (fileName))
+            if filename == "":
+                # The only way to get here is by clicking "X" or "Cancel"
+                return
+            file_ext = os.path.splitext(filename)[1]
+            if file_ext == ".npy":
+                # This either works or raises an OSError such as PermissionError
+                np.save(filename, self.image)
+                return self.show_file_success(filename=filename, file_ext=file_ext)
+            save_ok = self.ui.display_image.image.save(
+                filename, format=None, quality=-1
+            )
+            if save_ok:
+                # QImage.save returned True, so the save succeeded.
+                return self.show_file_success(filename=filename, file_ext=file_ext)
+            # QImage.save returned False, so the save failed.
+            # Check for obvious errors, then retry the save
+            # No write permissions?
+            # If the file exists, we need to check the filename. Otherwise, we check the dirname.
+            if os.path.exists(filename):
+                can_write = os.access(path=filename, mode=os.W_OK)
             else:
-                self.ui.display_image.image.save(fileName, format=None, quality=-1)
-                QMessageBox.information(
-                    self,
-                    "File Save Succeeded",
-                    "Image has been saved to an image file: %s" % (fileName),
+                directory = os.path.dirname(filename)
+                can_write = os.access(path=directory, mode=os.W_OK)
+            if not can_write:
+                return self.warn_and_retry_save(
+                    message=f"No permissions to write {filename}! Please pick a different location."
                 )
-                print("Saved to an image file %s" % (fileName))
-        except Exception as e:
-            print("fileSave failed:", e)
-            QMessageBox.warning(self, "File Save Failed", str(e))
+            # Invalid image type?
+            image_types = [".npy"] + [
+                "." + qba.data().decode("utf-8")
+                for qba in QImageWriter.supportedImageFormats()
+            ]
+            if file_ext not in image_types:
+                return self.warn_and_retry_save(
+                    message=f"Invalid image type {file_ext}! Please pick from the list {image_types}."
+                )
+            # I guess we have no idea what went wrong
+            return self.warn_and_retry_save(
+                message="Unknown failure! Please try again."
+            )
+        except OSError as exc:
+            self.warn_and_retry_save(message=str(exc))
+        except Exception as exc:
+            print("fileSave failed:", exc)
+            QMessageBox.warning(
+                self, "File Save Failed", f"Internal error, cancelling save: {exc}"
+            )
+
+    def show_file_success(self, filename: str, file_ext: str):
+        QMessageBox.information(
+            self,
+            "File Save Succeeded",
+            f"Image has been saved as a {file_ext} file: {filename}",
+        )
+        print(f"Saved to a {file_ext} file: {filename}")
+
+    def warn_and_retry_save(self, message: str):
+        QMessageBox.warning(
+            self,
+            "File Save Failed",
+            message,
+        )
+        self.retry_save_image.emit()
 
     def onOrientationSelect(self, index):
         self.setOrientation(param.idx2orient[index], fromCombo=True)
@@ -1808,6 +1864,10 @@ class GraphicUserInterface(QMainWindow):
         self.rowPv = self.disconnectPv(self.rowPv)
         self.colPv = self.disconnectPv(self.colPv)
         self.calibPV = self.disconnectPv(self.calibPV)
+        self.launch_gui_pv = self.disconnectPv(self.launch_gui_pv)
+        self.launch_edm_pv = self.disconnectPv(self.launch_edm_pv)
+        self.launch_gui_script = ""
+        self.launch_edm_script = ""
         self.calibPVName = ""
         self.displayFormat = "%12.8g"
 
@@ -1909,6 +1969,19 @@ class GraphicUserInterface(QMainWindow):
         self.rowPv.monitor(pyca.DBE_VALUE)
         self.colPv.monitor(pyca.DBE_VALUE)
         pyca.flush_io()
+        # Deliberately after flush_io so we don't wait for them
+        self.launch_gui_pv = Pv(
+            self.ctrlBase + ":LAUNCH_GUI",
+            initialize=True,
+            monitor=self.new_launch_gui_script,
+            use_numpy=True,
+        )
+        self.launch_edm_pv = Pv(
+            self.ctrlBase + ":LAUNCH_EDM",
+            initialize=True,
+            monitor=self.new_launch_edm_script,
+            use_numpy=True,
+        )
         self.sWindowTitle = "Camera: " + self.lCameraDesc[index]
         self.setWindowTitle("MainWindow")
         self.advdialog.setWindowTitle(self.sWindowTitle + " Advanced Mode")
@@ -2274,14 +2347,59 @@ class GraphicUserInterface(QMainWindow):
     def onSpecific(self, button):
         pass
 
-    def onOpenEvr(self):
-        iCamera = self.ui.comboBoxCamera.currentIndex()
-        if self.lEvrList[iCamera] != "None":
-            print(
-                "Open Evr %s for camera [%d] %s..."
-                % (self.lEvrList[iCamera], iCamera, self.lCameraList[iCamera])
+    def new_launch_gui_script(self, exc: Exception | None = None):
+        """
+        This function will be called if the camera has a "LAUNCH_GUI" PV.
+
+        The contents of this PV will be a int8 array that encodes an ascii string.
+        This string is the filepath of a script that can be run to open the
+        expert screen.
+
+        We stash this string for later use.
+        """
+        try:
+            if exc is None and self.launch_gui_pv is not None:
+                self.launch_gui_script = decode_char_waveform(
+                    self.launch_gui_pv.data["value"]
+                )
+        except Exception as exc:
+            print(f"Error receiving new launch gui script: {exc}")
+
+    def new_launch_edm_script(self, exc: Exception | None = None):
+        """
+        This is the same as new_launch_gui_script above, except it uses the older "LAUNCH_EDM" PV.
+
+        Old IOCs may not have "LAUNCH_GUI" yet.
+        This PV was renamed to be more gui framework agnostic.
+        """
+        try:
+            if exc is None and self.launch_edm_pv is not None:
+                self.launch_edm_script = decode_char_waveform(
+                    self.launch_edm_pv.data["value"]
+                )
+        except Exception as exc:
+            print(f"Error receiving new launch edm script: {exc}")
+
+    def on_open_expert(self):
+        """
+        Open the appropriate expert screen script.
+
+        Requires the LAUNCH_GUI or LAUNCH_EDM PV to have given us a value
+        at some point.
+        """
+        script = self.launch_gui_script or self.launch_edm_script
+        if not script:
+            QMessageBox.critical(
+                None,
+                "Error",
+                "No expert screen available, PVs did not connect.",
+                QMessageBox.Ok,
+                QMessageBox.Ok,
             )
-            os.system(self.cwd + "/openEvr.sh " + self.lEvrList[iCamera] + " &")
+            return
+        print(f"Running {script}")
+        # Not handling other errors for now
+        subprocess.run([script])
 
     def onSliderRangeMinChanged(self, newSliderValue):
         self.ui.lineEditRangeMin.setText(str(newSliderValue))
@@ -2501,89 +2619,8 @@ class GraphicUserInterface(QMainWindow):
 
     def dumpConfig(self):
         if self.camera is not None and self.options is None:
-            f = open(self.cfgdir + self.cameraBase, "w")
-            g = open(self.cfgdir + "GLOBAL", "w")
-
-            f.write("projsize    " + str(self.projsize) + "\n")
-            f.write("viewwidth   " + str(self.viewwidth) + "\n")
-            f.write("viewheight  " + str(self.viewheight) + "\n")
-            g.write("config      " + str(int(self.ui.showconf.isChecked())) + "\n")
-            g.write("projection  " + str(int(self.ui.showproj.isChecked())) + "\n")
-            g.write("markers     " + str(int(self.ui.showmarker.isChecked())) + "\n")
-            f.write(
-                "portrait    " + str(int(param.orientation == param.ORIENT90)) + "\n"
-            )
-            f.write("orientation " + str(param.orientation) + "\n")
-            f.write(
-                "autorange   "
-                + str(int(self.ui.checkBoxProjAutoRange.isChecked()))
-                + "\n"
-            )
-            f.write("use_abs     1\n")
-            rz = self.ui.display_image.rectZoom.abs()
-            f.write(
-                "rectzoom    "
-                + str(rz.x())
-                + " "
-                + str(rz.y())
-                + " "
-                + str(rz.width())
-                + " "
-                + str(rz.height())
-                + "\n"
-            )
-            f.write("colormap    " + str(self.ui.comboBoxColor.currentText()) + "\n")
-            f.write("colorscale  " + str(self.ui.comboBoxScale.currentText()) + "\n")
-            f.write("colormin    " + self.ui.lineEditRangeMin.text() + "\n")
-            f.write("colormax    " + self.ui.lineEditRangeMax.text() + "\n")
-            f.write("grayscale   " + str(int(self.ui.grayScale.isChecked())) + "\n")
-            roi = self.ui.display_image.rectRoi.abs()
-            f.write(
-                "ROI         %d %d %d %d\n"
-                % (roi.x(), roi.y(), roi.width(), roi.height())
-            )
-            f.write("globmarks   " + str(int(self.useglobmarks)) + "\n")
-            f.write("globmarks2  " + str(int(self.useglobmarks2)) + "\n")
-            lMarker = self.ui.display_image.lMarker
-            for i in range(4):
-                f.write(
-                    "m%d          %d %d\n"
-                    % (i + 1, lMarker[i].abs().x(), lMarker[i].abs().y())
-                )
-            g.write("dispspec    " + str(self.dispspec) + "\n")
-            f.write(
-                "projroi     " + str(int(self.ui.checkBoxProjRoi.isChecked())) + "\n"
-            )
-            f.write(
-                "projlineout "
-                + str(int(self.ui.checkBoxM1Lineout.isChecked()))
-                + " "
-                + str(int(self.ui.checkBoxM2Lineout.isChecked()))
-                + " "
-                + str(int(self.ui.checkBoxM3Lineout.isChecked()))
-                + " "
-                + str(int(self.ui.checkBoxM4Lineout.isChecked()))
-                + "\n"
-            )
-            f.write("projfit     " + str(int(self.ui.checkBoxFits.isChecked())) + "\n")
-            f.write(
-                "projfittype "
-                + str(int(self.ui.radioGaussian.isChecked()))
-                + " "
-                + str(int(self.ui.radioSG4.isChecked()))
-                + " "
-                + str(int(self.ui.radioSG6.isChecked()))
-                + "\n"
-            )
-            f.write(
-                "projconstant " + str(int(self.ui.checkBoxConstant.isChecked())) + "\n"
-            )
-            f.write("projcalib   %g\n" % self.calib)
-            f.write('projcalibPV "%s"\n' % self.calibPVName)
-            f.write('projdisplayFormat "%s"\n' % self.displayFormat)
-
-            f.close()
-            g.close()
+            write_camera_config(self)
+            write_global_config(self)
 
             settings = QSettings("SLAC", "CamViewer")
             settings.setValue("geometry/%s" % self.cfgname, self.saveGeometry())
@@ -2874,3 +2911,118 @@ class GraphicUserInterface(QMainWindow):
             self.displayFormat = "%12.8g"
 
         self.cfg = None
+
+
+def write_camera_config(gui: GraphicUserInterface) -> None:
+    with atomic_writer(gui.cfgdir + gui.cameraBase) as fd:
+        fd.write("projsize    " + str(gui.projsize) + "\n")
+        fd.write("viewwidth   " + str(gui.viewwidth) + "\n")
+        fd.write("viewheight  " + str(gui.viewheight) + "\n")
+        fd.write("portrait    " + str(int(param.orientation == param.ORIENT90)) + "\n")
+        fd.write("orientation " + str(param.orientation) + "\n")
+        fd.write(
+            "autorange   " + str(int(gui.ui.checkBoxProjAutoRange.isChecked())) + "\n"
+        )
+        fd.write("use_abs     1\n")
+        rz = gui.ui.display_image.rectZoom.abs()
+        fd.write(
+            "rectzoom    "
+            + str(rz.x())
+            + " "
+            + str(rz.y())
+            + " "
+            + str(rz.width())
+            + " "
+            + str(rz.height())
+            + "\n"
+        )
+        fd.write("colormap    " + str(gui.ui.comboBoxColor.currentText()) + "\n")
+        fd.write("colorscale  " + str(gui.ui.comboBoxScale.currentText()) + "\n")
+        fd.write("colormin    " + gui.ui.lineEditRangeMin.text() + "\n")
+        fd.write("colormax    " + gui.ui.lineEditRangeMax.text() + "\n")
+        fd.write("grayscale   " + str(int(gui.ui.grayScale.isChecked())) + "\n")
+        roi = gui.ui.display_image.rectRoi.abs()
+        fd.write(
+            "ROI         %d %d %d %d\n" % (roi.x(), roi.y(), roi.width(), roi.height())
+        )
+        fd.write("globmarks   " + str(int(gui.useglobmarks)) + "\n")
+        fd.write("globmarks2  " + str(int(gui.useglobmarks2)) + "\n")
+        lMarker = gui.ui.display_image.lMarker
+        for i in range(4):
+            fd.write(
+                "m%d          %d %d\n"
+                % (i + 1, lMarker[i].abs().x(), lMarker[i].abs().y())
+            )
+        fd.write("projroi     " + str(int(gui.ui.checkBoxProjRoi.isChecked())) + "\n")
+        fd.write(
+            "projlineout "
+            + str(int(gui.ui.checkBoxM1Lineout.isChecked()))
+            + " "
+            + str(int(gui.ui.checkBoxM2Lineout.isChecked()))
+            + " "
+            + str(int(gui.ui.checkBoxM3Lineout.isChecked()))
+            + " "
+            + str(int(gui.ui.checkBoxM4Lineout.isChecked()))
+            + "\n"
+        )
+        fd.write("projfit     " + str(int(gui.ui.checkBoxFits.isChecked())) + "\n")
+        fd.write(
+            "projfittype "
+            + str(int(gui.ui.radioGaussian.isChecked()))
+            + " "
+            + str(int(gui.ui.radioSG4.isChecked()))
+            + " "
+            + str(int(gui.ui.radioSG6.isChecked()))
+            + "\n"
+        )
+        fd.write("projconstant " + str(int(gui.ui.checkBoxConstant.isChecked())) + "\n")
+        fd.write("projcalib   %g\n" % gui.calib)
+        fd.write('projcalibPV "%s"\n' % gui.calibPVName)
+        fd.write('projdisplayFormat "%s"\n' % gui.displayFormat)
+
+
+def write_global_config(gui: GraphicUserInterface) -> None:
+    with atomic_writer(gui.cfgdir + "GLOBAL") as fd:
+        fd.write("config      " + str(int(gui.ui.showconf.isChecked())) + "\n")
+        fd.write("projection  " + str(int(gui.ui.showproj.isChecked())) + "\n")
+        fd.write("markers     " + str(int(gui.ui.showmarker.isChecked())) + "\n")
+        fd.write("dispspec    " + str(gui.dispspec) + "\n")
+
+
+@contextlib.contextmanager
+def atomic_writer(path: str) -> typing.Iterator[typing.TextIO]:
+    with tempfile.NamedTemporaryFile("w", delete=False) as fd:
+        try:
+            yield fd
+        except Exception as exc:
+            # There is some issue and the temp file is not complete.
+            # Avoid the else block, we don't want to keep the corrupt file.
+            # Show some error instead of bricking the gui
+            print(f"Error writing {path}: {exc}")
+        else:
+            # File must be closed before we can chmod and move it
+            fd.close()
+            # Set -rw-r--r-- instead of temp file default -rw-------
+            os.chmod(fd.name, 0o644)
+            shutil.move(fd.name, path)
+    # If the tempfile still exists, we should clean it up.
+    if os.path.exists(fd.name):
+        os.remove(fd.name)
+
+
+def decode_char_waveform(waveform: npt.NDArray[np.int8]) -> str:
+    """
+    Convert an epics char waveform to a string.
+
+    In pyca, these can be loaded into numpy arrays via passing
+    numpy=True as a kwarg.
+
+    The waveform is an array of signed 8-bit integers whose
+    unsigned representations correspond to the ascii character codes.
+    The string is null-terminated.
+    """
+    # Implementation lifted from PyDM's "parse_value_for_display"
+    zeros = np.where(waveform == 0)[0]
+    if zeros.size > 0:
+        waveform = waveform[: zeros[0]]
+    return waveform.tobytes().decode(encoding="ascii", errors="ignore")
