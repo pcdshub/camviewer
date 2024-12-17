@@ -418,6 +418,7 @@ class GraphicUserInterface(QMainWindow):
 
         self.ui.display_image.doResize(QSize(self.viewwidth, self.viewheight))
 
+        self.camconn_pvs: list[Pv] = []
         self.updateCameraCombo()
 
         self.ui.checkBoxProjAutoRange.stateChanged.connect(self.onCheckProjUpdate)
@@ -1497,6 +1498,8 @@ class GraphicUserInterface(QMainWindow):
         return lines
 
     def updateCameraCombo(self):
+        for pv in self.camconn_pvs:
+            pv.disconnect()
         self.lType = []
         self.lFlags = []
         self.lCameraList = []
@@ -1505,6 +1508,8 @@ class GraphicUserInterface(QMainWindow):
         self.lEvrList = []
         self.lLensList = []
         self.camactions = []
+        self.camconn = []
+        self.camconn_pvs = []
         self.ui.menuCameras.clear()
         sEvr = ""
         try:
@@ -1571,12 +1576,12 @@ class GraphicUserInterface(QMainWindow):
                 self.lEvrList.append(sEvr)
                 self.lLensList.append(sLensPv)
 
-                self.ui.comboBoxCamera.addItem(sCameraDesc)
+                self.ui.comboBoxCamera.addItem(sCameraDesc + " (Offline)")
 
                 try:
                     action = QAction(self)
                     action.setObjectName(sCameraPv)
-                    action.setText(sCameraDesc)
+                    action.setText(sCameraDesc + " (Offline)")
                     action.setCheckable(True)
                     action.setChecked(False)
                     self.ui.menuCameras.addAction(action)
@@ -1586,6 +1591,17 @@ class GraphicUserInterface(QMainWindow):
 
                 if sLensPv == "":
                     sLensPv = "None"
+
+                self.camconn.append(False)
+                image_pvname = self.get_image_pvname(cam_type=sType, cam_pv=sCameraPv)
+                pv = Pv(image_pvname, count=1)
+                pv.add_connection_callback(
+                    functools.partial(
+                        self.cam_combo_connect, index=len(self.camconn) - 1
+                    )
+                )
+                pv.connect(None)
+                self.camconn_pvs.append(pv)
                 print(
                     "Camera [%d] %s Pv %s Evr %s LensPv %s"
                     % (iCamera, sCameraDesc, sCameraPv, sEvr, sLensPv)
@@ -1596,6 +1612,17 @@ class GraphicUserInterface(QMainWindow):
             # traceback.print_exc(file=sys.stdout)
             print('!! Failed to read camera pv list from "%s"' % (fnCameraList))
             sys.exit(0)
+
+    def cam_combo_connect(self, is_connected: bool, index: int):
+        """
+        Update camera name in selectors when it goes online/offline
+        """
+        if is_connected:
+            text = ""
+        else:
+            text = " (Offline)"
+        self.ui.comboBoxCamera.setItemText(index, self.lCameraDesc[index] + text)
+        self.camactions[index].setText(self.lCameraDesc[index] + text)
 
     def disconnectPv(self, pv):
         if pv is not None:
@@ -1982,21 +2009,20 @@ class GraphicUserInterface(QMainWindow):
         sEvrPv = self.lEvrList[index]
         sType = self.lType[index]
 
-        if sType == "AVG" or sType == "LIF":
-            self.connectCamera(sCameraPv + ":LIVE_IMAGE_FULL", index)
-        elif sType == "LIO" or sType == "LIX":
-            self.connectCamera(sCameraPv + ":LIVE_IMAGE_12B", index)
-        elif sType == "LI":
-            self.connectCamera(sCameraPv + ":LIVE_IMAGE", index)
-        elif sType == "IC":
-            self.connectCamera(sCameraPv + ":IMAGE_CMPX", index)
-        elif sType == "GE":
-            self.connectCamera(sCameraPv + ":ArrayData", index)
-        elif sType == "MCC":
-            #     self.connectCamera(sCameraPv + ":IMAGE", index)
-            self.connectCamera(sCameraPv + ":BUFD_IMG", index)
-        elif sType == "DREC":
-            self.connectCamera(sCameraPv + ".ISLO", index)
+        try:
+            image_pvname = self.get_image_pvname(cam_type=sType, cam_pv=sCameraPv)
+        except ValueError as exc:
+            # We really should never get here
+            print(exc)
+            QMessageBox.critical(
+                None,
+                "Error",
+                str(exc),
+                QMessageBox.Ok,
+                QMessageBox.Ok,
+            )
+            return
+        self.connectCamera(image_pvname, index)
 
         if sType == "AVG":
             self.ui.rem_avg.setVisible(True)
@@ -2080,6 +2106,24 @@ class GraphicUserInterface(QMainWindow):
                 )
         self.setupSpecific()
         self.setupDrags()
+
+    def get_image_pvname(self, cam_type: str, cam_pv: str) -> str:
+        if cam_type == "AVG" or cam_type == "LIF":
+            return cam_pv + ":LIVE_IMAGE_FULL"
+        elif cam_type == "LIO" or cam_type == "LIX":
+            return cam_pv + ":LIVE_IMAGE_12B"
+        elif cam_type == "LI":
+            return cam_pv + ":LIVE_IMAGE"
+        elif cam_type == "IC":
+            return cam_pv + ":IMAGE_CMPX"
+        elif cam_type == "GE":
+            return cam_pv + ":ArrayData"
+        elif cam_type == "MCC":
+            return cam_pv + ":BUFD_IMG"
+        elif cam_type == "DREC":
+            return cam_pv + ".ISLO"
+        else:
+            raise ValueError(f"Invalid camera type {cam_type}")
 
     def onExpertMode(self):
         if self.ui.showexpert.isChecked():
