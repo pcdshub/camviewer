@@ -1015,7 +1015,7 @@ Vmin\</string>
          <item row="0" column="0" rowspan="2">
           <widget class="QRadioButton" name="singleframe">
            <property name="text">
-            <string>Single Frame (at ~5 Hz)</string>
+            <string>Single Frame</string>
            </property>
            <property name="checked">
             <bool>true</bool>
@@ -1032,7 +1032,7 @@ Vmin\</string>
          <item row="3" column="0">
           <widget class="QRadioButton" name="local_avg">
            <property name="text">
-            <string>Local Average (at 5Hz / #)</string>
+            <string>Local Average (# images)</string>
            </property>
           </widget>
          </item>
