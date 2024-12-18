@@ -243,8 +243,6 @@ class GraphicUserInterface(QMainWindow):
         self.lastUpdateTime = time.time()
         self.dispUpdates = 0
         self.lastDispUpdates = 0
-        self.dataUpdates = 0
-        self.lastDataUpdates = 0
         self.average = 1
         param.orientation = param.ORIENT0
         self.connected = False
@@ -270,7 +268,7 @@ class GraphicUserInterface(QMainWindow):
         self.fLensPrevValue = -1
         self.fLensValue = 0
         self.avgState = SINGLE_FRAME
-        self.index = 0
+        self.index = -1
         self.averageCur = 0
         self.iRangeMin = 0
         self.iRangeMax = 1023
@@ -416,6 +414,7 @@ class GraphicUserInterface(QMainWindow):
         self.ui.display_image.doResize(QSize(self.viewwidth, self.viewheight))
 
         self.camconn_pvs: list[Pv] = []
+        self.update_cam_rate_label(0)
         self.updateCameraCombo()
 
         self.ui.checkBoxProjAutoRange.stateChanged.connect(self.onCheckProjUpdate)
@@ -1339,7 +1338,6 @@ class GraphicUserInterface(QMainWindow):
     def imagePvUpdateCallback(self, exception=None):
         self.lastGetDone = True
         if exception is None:
-            self.dataUpdates += 1
             self.imageUpdate.emit()  # Send out the signal to notify windows update (in the GUI thread)
             self.wantImage(False)
         else:
@@ -1452,15 +1450,8 @@ class GraphicUserInterface(QMainWindow):
         dispRate = (float)(sum(self.idispUpdates)) / sum(self.itime)
         self.ui.label_dispRate.setText("%.1f Hz" % dispRate)
 
-        dataUpdates = self.dataUpdates - self.lastDataUpdates
-        self.idataUpdates.append(dataUpdates)
-        self.idataUpdates.pop(0)
-        dataRate = (float)(sum(self.idataUpdates)) / sum(self.itime)
-        self.ui.label_dataRate.setText("%.1f Hz" % dataRate)
-
         self.lastUpdateTime = now
         self.lastDispUpdates = self.dispUpdates
-        self.lastDataUpdates = self.dataUpdates
 
         # Also, check if someone is requesting us to disconnect!
         self.activeCheck()
@@ -1560,7 +1551,7 @@ class GraphicUserInterface(QMainWindow):
                 self.lEvrList.append(sEvr)
                 self.lLensList.append(sLensPv)
 
-                self.ui.comboBoxCamera.addItem(sCameraDesc + " (Offline)")
+                self.ui.comboBoxCamera.addItem(sCameraDesc)
 
                 try:
                     action = QAction(self)
@@ -1609,21 +1600,28 @@ class GraphicUserInterface(QMainWindow):
 
     def cam_combo_connect(self, is_connected: bool, index: int):
         """
-        Update camera name in selectors when it goes online/offline
+        Update camera name in actions when it goes online/offline
         """
         self.camconn[index] = is_connected
-        self.update_cam_combo_text(index=index)
+        self.update_cam_action_text(index=index)
 
     def cam_combo_rate(self, exception=None, index: int = 0):
         """
-        Update camera rate in selectors when it goes to zero
+        Update camera rate in actions when it goes to zero
         """
         if exception is not None:
             return
         self.camrates[index] = self.camconn_pvs[index].data["value"]
-        self.update_cam_combo_text(index=index)
+        if index == self.index:
+            self.update_cam_rate_label()
+        self.update_cam_action_text(index=index)
 
-    def update_cam_combo_text(self, index: int):
+    def update_cam_rate_label(self, value: float | None = None):
+        if value is None:
+            value = self.camrates[self.index]
+        self.ui.label_cam_rate.setText(f"{value:.1f} Hz")
+
+    def update_cam_action_text(self, index: int):
         """
         Called by the above two callbacks to avoid race conditions
         """
@@ -1633,7 +1631,6 @@ class GraphicUserInterface(QMainWindow):
             text = " (Stopped)"
         else:
             text = ""
-        self.ui.comboBoxCamera.setItemText(index, self.lCameraDesc[index] + text)
         self.camactions[index].setText(self.lCameraDesc[index] + text)
 
     def disconnectPv(self, pv):
@@ -2013,6 +2010,7 @@ class GraphicUserInterface(QMainWindow):
         if self.cameraBase != "":
             self.activeClear()
         self.index = index
+        self.update_cam_rate_label()
         self.cameraBase = sCameraPv
 
         self.activeSet()

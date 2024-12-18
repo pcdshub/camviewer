@@ -482,7 +482,7 @@ Vmin\</string>
         </property>
         <layout class="QGridLayout" name="gridLayout_5">
          <item row="3" column="1">
-          <widget class="QLabel" name="label_dataRate">
+          <widget class="QLabel" name="label_cam_rate">
            <property name="minimumSize">
             <size>
              <width>45</width>
@@ -491,6 +491,9 @@ Vmin\</string>
            </property>
            <property name="text">
             <string>-</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
            </property>
           </widget>
          </item>
@@ -602,7 +605,7 @@ Vmin\</string>
             </sizepolicy>
            </property>
            <property name="text">
-            <string>Data Rate</string>
+            <string>Cam Rate</string>
            </property>
           </widget>
          </item>
@@ -696,6 +699,9 @@ Vmin\</string>
            </property>
            <property name="text">
             <string>-</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
            </property>
           </widget>
          </item>
