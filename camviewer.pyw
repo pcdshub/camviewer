@@ -35,6 +35,8 @@ if __name__ == "__main__":
             "orientation",
             "cmap",
             "scale",
+            "min_timeout",
+            "max_timeout",
         ],
         [],
     )
@@ -76,6 +78,17 @@ if __name__ == "__main__":
     if options.scale is not None:
         os.environ["QT_SCALE_FACTOR"] = options.scale
 
+    if options.min_timeout is None:
+        # 1 day
+        min_timeout = 24 * 60 * 60
+    else:
+        min_timeout = int(options.min_timeout)
+    if options.max_timeout is None:
+        # 7 days
+        max_timeout = 7 * 24 * 60 * 60
+    else:
+        max_timeout = int(options.max_timeout)
+
     app = QApplication([""])
     app.setStyle("Windows")
     gui = GraphicUserInterface(
@@ -89,6 +102,8 @@ if __name__ == "__main__":
         activedir,
         rate,
         options.idle,
+        min_timeout,
+        max_timeout,
         options,
     )
     try:
