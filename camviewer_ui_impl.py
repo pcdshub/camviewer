@@ -189,9 +189,6 @@ class GraphicUserInterface(QMainWindow):
     cross2Update = pyqtSignal()
     cross3Update = pyqtSignal()
     cross4Update = pyqtSignal()
-    param1Update = pyqtSignal()
-    param2Update = pyqtSignal()
-    timeoutExpiry = pyqtSignal()
     retry_save_image = pyqtSignal()
 
     def __init__(
