@@ -143,7 +143,7 @@ class FilterObject(QObject):
 
     def eventFilter(self, obj, event):
         if event.type() in [QEvent.MouseButtonPress, QEvent.KeyPress]:
-            self.main.refresh_disco()
+            self.main.refresh_rate_timer()
         if event.type() == QEvent.MouseButtonPress and event.button() == Qt.MidButton:
             p = event.globalPos()
             w = self.app.widgetAt(p)
@@ -298,9 +298,9 @@ class GraphicUserInterface(QMainWindow):
         self.idataUpdates = 10 * [0]
 
         self.rfshTimer = QTimer()
-        self.imageTimer = QTimer()
-        self.discoTimer = QTimer()
-        self.refreshTimeoutTimer = QTimer()
+        self.acquire_image_timer = QTimer()
+        self.rate_limit_timer = QTimer()
+        self.refresh_timeout_display_timer = QTimer()
 
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
@@ -500,24 +500,24 @@ class GraphicUserInterface(QMainWindow):
         self.ui.actionZoomOut.triggered.connect(self.onZoomOut)
         self.ui.actionZoomReset.triggered.connect(self.onZoomReset)
 
-        self.ui.actionReconnect.triggered.connect(self.onReconnect)
-        self.ui.actionForce.triggered.connect(self.onForceDisco)
+        self.ui.actionReconnect.triggered.connect(self.on_reconnect)
+        self.ui.actionForce.triggered.connect(self.on_force_disconnect)
 
         self.rfshTimer.timeout.connect(self.UpdateRate)
         self.rfshTimer.start(1000)
 
-        self.imageTimer.timeout.connect(self.wantImage)
+        self.acquire_image_timer.timeout.connect(self.wantImage)
         rate = max(int(rate), 1)
         self.user_set_max_image_rate(rate)
 
         self.ui.spinbox_set_max_rate.setValue(rate)
         self.ui.spinbox_set_max_rate.valueChanged.connect(self.user_set_max_image_rate)
 
-        self.discoTimer.timeout.connect(self.do_disco)
+        self.rate_limit_timer.timeout.connect(self.apply_rate_limit)
 
-        self.refreshTimeoutTimer.timeout.connect(self.update_display_timer)
-        self.refreshTimeoutTimer.setInterval(1000 * 20)
-        self.refreshTimeoutTimer.start()
+        self.refresh_timeout_display_timer.timeout.connect(self.update_timeout_display)
+        self.refresh_timeout_display_timer.setInterval(1000 * 20)
+        self.refresh_timeout_display_timer.start()
 
         self.ui.average.returnPressed.connect(self.onAverageSet)
         self.ui.comboBoxOrientation.currentIndexChanged.connect(
@@ -1167,7 +1167,7 @@ class GraphicUserInterface(QMainWindow):
     def shutdown(self):
         self.clear()
         self.rfshTimer.stop()
-        self.imageTimer.stop()
+        self.acquire_image_timer.stop()
         # print("shutdown")
 
     def onfileSave(self):
@@ -1311,6 +1311,8 @@ class GraphicUserInterface(QMainWindow):
         """
         Call set_max_image_rate and record the value as the desired rate.
 
+        After init, this should only be called by user input.
+
         This desired rate is used so that after a timeout, we can
         restore the GUI to the user's last desired rate when they
         interact with the GUI again.
@@ -1324,8 +1326,9 @@ class GraphicUserInterface(QMainWindow):
 
         Rate is expected to be a positive integer in Hz.
 
-        When this timer expires, wantImage is called.
+        When the aquire_image_timer expires, wantImage is called.
         If a new image is available at this time, it will be fetched and rendered.
+        See the old comments from around that function.
 
         The image rate will determine the rate limiting timeout.
         1 Hz will never time out
@@ -1335,13 +1338,13 @@ class GraphicUserInterface(QMainWindow):
         rate = int(rate)
         if rate <= 0:
             raise ValueError("Rate must be greater than zero!")
-        self.imageTimer.start(int(1000.0 / rate))
+        self.acquire_image_timer.start(int(1000.0 / rate))
         self.ui.label_max_rate_value.setText(f"{rate} Hz")
 
         if rate <= 1:
-            self.stop_disco()
+            self.disable_rate_timer()
         else:
-            self.setDisco(
+            self.set_rate_limit_duration(
                 np.interp(rate, [5, 30], [self.max_timeout, self.min_timeout])
             )
 
@@ -2502,17 +2505,28 @@ class GraphicUserInterface(QMainWindow):
             except pyca.caexc as e:
                 print("channel access exception: %s" % (e))
 
-    def onReconnect(self):
+    def on_reconnect(self):
+        """
+        Disconnect from the currently selected camera's PV and reconnect to them.
+
+        This is called from the menu bar under Administration -> Reconnect
+        """
         self.onCameraSelect(self.ui.comboBoxCamera.currentIndex())
 
-    def onForceDisco(self):
+    def on_force_disconnect(self):
+        """
+        Open a small GUI for doing something (?) to your own camviewer processes.
+
+        This is currently very bugged.
+        This is called from the menu bar under Administration -> Force Disconnect
+        """
         if self.cameraBase != "" and not self.haveforce:
             self.forcedialog = forcedialog(self.activedir + self.cameraBase + "/", self)
             self.haveforce = True
 
-    def update_display_timer(self, msec: int | None = None):
+    def update_timeout_display(self, msec: int | None = None):
         """
-        Show the user how much time until the rate timer expires.
+        Show the user how much time until the rate_limit_timer expires.
 
         If the timer is not active, this will set the display text to "Never",
         or to "Timed Out" if we've completely timed out.
@@ -2524,16 +2538,20 @@ class GraphicUserInterface(QMainWindow):
         - x hours, y mins
         - x mins
         - under 1 minute
+
+        This function is meant to be called periodically using the
+        refresh_timeout_display_timer, or manually to set a specific value
+        when the user selects a new timeout duration.
         """
         if msec is None:
-            if not self.discoTimer.isActive():
+            if not self.rate_limit_timer.isActive():
                 if self.last_des_max_rate <= 1:
                     text = "Never"
                 else:
                     text = "Timed Out"
                 self.ui.label_rate_timeout_value.setText(text)
                 return
-            msec = self.discoTimer.remainingTime()
+            msec = self.rate_limit_timer.remainingTime()
         sec = msec // 1000
         mins, sec = divmod(sec, 60)
         hours, mins = divmod(mins, 60)
@@ -2550,25 +2568,68 @@ class GraphicUserInterface(QMainWindow):
 
         self.ui.label_rate_timeout_value.setText(text)
 
-    # We have been idle for a while!
-    def do_disco(self):
-        self.stop_disco()
+    def apply_rate_limit(self):
+        """
+        Decrease the maximum allowed image rate to 1 Hz.
+
+        This is meant to be called when the rate_limit_timer
+        expires, which means the user has not interacted
+        with the GUI for a long time.
+        """
+        self.disable_rate_timer()
         self.set_max_image_rate(1)
 
-    def stop_disco(self):
-        self.discoTimer.stop()
-        self.update_display_timer()
+    def disable_rate_timer(self):
+        """
+        Stop the rate_limit_timer and update the timeout display accordingly.
 
-    def refresh_disco(self):
+        This is means to be called when we get a rate_limit_timer timeout,
+        or when the user manually limits their own rate to 1 Hz.
+        """
+        self.rate_limit_timer.stop()
+        self.update_timeout_display()
+
+    def refresh_rate_timer(self):
+        """
+        Reset rate_limit_timer to the full timeout value.
+
+        If the user's last selected max rate is greater than 1,
+        restore this selection.
+
+        This is meant to be called when the user is no longer idle.
+
+        When the associated timer times out, it will force the rate
+        limit down to 1 Hz. Calling this function will ensure
+        that the timer starts again from the full timeout duration
+        and that any previous call to apply_rate_limit will be
+        reversed.
+        """
         if self.last_des_max_rate > 1:
-            self.discoTimer.start()
+            self.rate_limit_timer.start()
             self.set_max_image_rate(self.last_des_max_rate)
 
-    def setDisco(self, secs):
+    def set_rate_limit_duration(self, secs):
+        """
+        Set a new duration on the rate_limit_timer.
+
+        This handles starting the rate_limit_timer,
+        restarts the refresh_timeout_display_timer,
+        and directly updates the displayed timeout to exactly
+        the new duration we just set.
+
+        This ensures that we get a consistent starting point
+        for the displayed time remaining text.
+
+        This also starts the notify PV monitor if it didn't get started
+        in the normal flow of camera PV setup, which is normally
+        used to let this process know when a new image is available.
+        It's unlikely this bit of code is needed but I don't want to
+        tempt fate by removing it.
+        """
         msec = int(1000 * secs)
-        self.discoTimer.start(msec)
-        self.refreshTimeoutTimer.start()
-        self.update_display_timer(msec)
+        self.rate_limit_timer.start(msec)
+        self.refresh_timeout_display_timer.start()
+        self.update_timeout_display(msec)
         if self.notify is not None and not self.notify.ismonitored:
             self.notify.monitor(pyca.DBE_VALUE, False, 1)
             pyca.flush_io()
