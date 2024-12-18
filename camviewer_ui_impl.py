@@ -175,7 +175,6 @@ class FilterObject(QObject):
 
 
 SINGLE_FRAME = 0
-REMOTE_AVERAGE = 1
 LOCAL_AVERAGE = 2
 
 
@@ -183,7 +182,6 @@ class GraphicUserInterface(QMainWindow):
     # Define our signals.
     imageUpdate = pyqtSignal()
     miscUpdate = pyqtSignal()
-    avgUpdate = pyqtSignal()
     sizeUpdate = pyqtSignal()
     cross1Update = pyqtSignal()
     cross2Update = pyqtSignal()
@@ -376,8 +374,6 @@ class GraphicUserInterface(QMainWindow):
         self.ui.labelLens.setVisible(False)
         self.ui.horizontalSliderLens.setVisible(False)
         self.ui.lineEditLens.setVisible(False)
-        self.ui.rem_avg.setVisible(False)
-        self.ui.remote_average.setVisible(False)
         self.ui.groupBoxFits.setVisible(False)
 
         # Resize the main window!
@@ -439,9 +435,7 @@ class GraphicUserInterface(QMainWindow):
 
         self.ui.singleframe.toggled.connect(self.onCheckDisplayUpdate)
         self.ui.grayScale.stateChanged.connect(self.onCheckGrayUpdate)
-        self.ui.rem_avg.toggled.connect(self.onCheckDisplayUpdate)
         self.ui.local_avg.toggled.connect(self.onCheckDisplayUpdate)
-        self.ui.remote_average.returnPressed.connect(self.onRemAvgEnter)
 
         self.ui.comboBoxColor.currentIndexChanged.connect(
             self.onComboBoxColorIndexChanged
@@ -546,7 +540,6 @@ class GraphicUserInterface(QMainWindow):
 
         self.imageUpdate.connect(self.onImageUpdate)
         self.miscUpdate.connect(self.onMiscUpdate)
-        self.avgUpdate.connect(self.onAvgUpdate)
         self.sizeUpdate.connect(self.onSizeUpdate)
         self.cross1Update.connect(lambda: self.onCrossUpdate(0))
         self.cross2Update.connect(lambda: self.onCrossUpdate(1))
@@ -740,46 +733,6 @@ class GraphicUserInterface(QMainWindow):
             # print("done doShowConf")
             self.dumpConfig()
 
-    def onDropDebug(self, newval):
-        if newval:
-            if self.ui.ROI1.isChecked():
-                self.onDebugROI1(True)
-            else:
-                self.onDebugROI2(True)
-        else:
-            # Back to the main image.
-            if self.avgState == SINGLE_FRAME:
-                self.connectCamera(self.cameraBase + ":LIVE_IMAGE_FULL", self.index)
-                if self.isColor:
-                    pycaqtimage.pySetImageBufferGray(
-                        self.imageBuffer, self.ui.grayScale.isChecked()
-                    )
-            elif self.avgState == REMOTE_AVERAGE:
-                self.connectCamera(self.cameraBase + ":AVG_IMAGE", self.index)
-            elif self.avgState == LOCAL_AVERAGE:
-                self.connectCamera(self.cameraBase + ":LIVE_IMAGE_FULL", self.index)
-            self.onAverageSet()
-
-    def onDebugROI1(self, newval):
-        if newval and self.ui.dropDebug.isChecked():
-            # Start debugging BG_IMAGE1
-            caput(self.cameraBase + ":BG_IMAGE1.PROC", 1)
-            self.connectCamera(
-                self.cameraBase + ":BG_IMAGE1",
-                self.index,
-                self.cameraBase + ":LIVE_IMAGE_FULL",
-            )
-
-    def onDebugROI2(self, newval):
-        if newval and self.ui.dropDebug.isChecked():
-            # Start debugging BG_IMAGE2
-            caput(self.cameraBase + ":BG_IMAGE2.PROC", 1)
-            self.connectCamera(
-                self.cameraBase + ":BG_IMAGE2",
-                self.index,
-                self.cameraBase + ":LIVE_IMAGE_FULL",
-            )
-
     def onDropRoiSet(self):
         if self.ui.ROI1.isChecked():
             self.onSetROI1()
@@ -958,23 +911,13 @@ class GraphicUserInterface(QMainWindow):
         if not newval:
             return  # Only do this for the checked one!
         if self.ui.singleframe.isChecked():
-            if self.avgState != SINGLE_FRAME:
-                if self.avgState == REMOTE_AVERAGE:
-                    self.connectCamera(self.cameraBase + ":LIVE_IMAGE_FULL", self.index)
-                self.avgState = SINGLE_FRAME
+            self.avgState = SINGLE_FRAME
             if self.isColor:
                 pycaqtimage.pySetImageBufferGray(
                     self.imageBuffer, self.ui.grayScale.isChecked()
                 )
-        elif self.ui.rem_avg.isChecked():
-            if self.avgState != REMOTE_AVERAGE:
-                self.connectCamera(self.cameraBase + ":AVG_IMAGE", self.index)
-                self.avgState = REMOTE_AVERAGE
         elif self.ui.local_avg.isChecked():
-            if self.avgState != LOCAL_AVERAGE:
-                if self.avgState == REMOTE_AVERAGE:
-                    self.connectCamera(self.cameraBase + ":LIVE_IMAGE_FULL", self.index)
-                self.avgState = LOCAL_AVERAGE
+            self.avgState = LOCAL_AVERAGE
         self.onAverageSet()
 
     def onCheckFitsUpdate(self):
@@ -1425,16 +1368,8 @@ class GraphicUserInterface(QMainWindow):
         else:
             print("lensPvUpdateCallback(): %-30s " % (self.name), exception)
 
-    def avgPvUpdateCallback(self, exception=None):
-        if exception is None:
-            self.avgUpdate.emit()
-
     def onMiscUpdate(self):
         self.updateMiscInfo()
-
-    def onAvgUpdate(self):
-        if self.avgPv is not None:
-            self.ui.remote_average.setText(str(int(self.avgPv.value)))
 
     def updateProj(self):
         try:
@@ -1557,6 +1492,7 @@ class GraphicUserInterface(QMainWindow):
         self.lLensList = []
         self.camactions = []
         self.camconn = []
+        self.camrates = []
         self.camconn_pvs = []
         self.ui.menuCameras.clear()
         sEvr = ""
@@ -1641,15 +1577,25 @@ class GraphicUserInterface(QMainWindow):
                     sLensPv = "None"
 
                 self.camconn.append(False)
-                image_pvname = self.get_image_pvname(cam_type=sType, cam_pv=sCameraPv)
-                pv = Pv(image_pvname, count=1)
+                self.camrates.append(0)
+                index = len(self.camconn) - 1
+                pv = Pv(sCtrlPv + ":ArrayRate_RBV")
+                self.camconn_pvs.append(pv)
                 pv.add_connection_callback(
                     functools.partial(
-                        self.cam_combo_connect, index=len(self.camconn) - 1
+                        self.cam_combo_connect,
+                        index=index,
                     )
                 )
+                pv.add_monitor_callback(
+                    functools.partial(
+                        self.cam_combo_rate,
+                        index=index,
+                    )
+                )
+                pv.do_initialize = True
+                pv.do_monitor = True
                 pv.connect(None)
-                self.camconn_pvs.append(pv)
                 print(
                     "Camera [%d] %s Pv %s Evr %s LensPv %s"
                     % (iCamera, sCameraDesc, sCameraPv, sEvr, sLensPv)
@@ -1665,10 +1611,28 @@ class GraphicUserInterface(QMainWindow):
         """
         Update camera name in selectors when it goes online/offline
         """
-        if is_connected:
-            text = ""
-        else:
+        self.camconn[index] = is_connected
+        self.update_cam_combo_text(index=index)
+
+    def cam_combo_rate(self, exception=None, index: int = 0):
+        """
+        Update camera rate in selectors when it goes to zero
+        """
+        if exception is not None:
+            return
+        self.camrates[index] = self.camconn_pvs[index].data["value"]
+        self.update_cam_combo_text(index=index)
+
+    def update_cam_combo_text(self, index: int):
+        """
+        Called by the above two callbacks to avoid race conditions
+        """
+        if not self.camconn[index]:
             text = " (Offline)"
+        elif not self.camrates[index]:
+            text = " (Stopped)"
+        else:
+            text = ""
         self.ui.comboBoxCamera.setItemText(index, self.lCameraDesc[index] + text)
         self.camactions[index].setText(self.lCameraDesc[index] + text)
 
@@ -1878,12 +1842,17 @@ class GraphicUserInterface(QMainWindow):
         else:
             self.ui.horizontalSliderLens.readpvname = None
             self.ui.lineEditLens.readpvname = None
-        if self.avgPv is not None:
-            self.ui.remote_average.readpvname = self.avgPv.name
-        else:
-            self.ui.remote_average.readpvname = None
 
     def connectCamera(self, sCameraPv, index, sNotifyPv=None):
+        if not self.camconn[index]:
+            QMessageBox.critical(
+                None,
+                "Error",
+                "IOC for %s is offline!" % (sCameraPv),
+                QMessageBox.Ok,
+                QMessageBox.Ok,
+            )
+            return
         self.camera = self.disconnectPv(self.camera)
         self.notify = self.disconnectPv(self.notify)
         self.nordPv = self.disconnectPv(self.nordPv)
@@ -1918,10 +1887,10 @@ class GraphicUserInterface(QMainWindow):
         if self.count is None or self.count == 0:
             self.count = self.maxcount
         self.camera = self.connectPv(sCameraPv, count=self.count)
-        print("Connected!")
         if self.camera is None:
             self.ui.label_connected.setText("NO")
             return
+        print("Connected!")
 
         # Try to get the camera size!
         self.scale = 1
@@ -2054,45 +2023,9 @@ class GraphicUserInterface(QMainWindow):
 
         sLensPv = self.lLensList[index]
         sEvrPv = self.lEvrList[index]
-        sType = self.lType[index]
 
-        try:
-            image_pvname = self.get_image_pvname(cam_type=sType, cam_pv=sCameraPv)
-        except ValueError as exc:
-            # We really should never get here
-            print(exc)
-            QMessageBox.critical(
-                None,
-                "Error",
-                str(exc),
-                QMessageBox.Ok,
-                QMessageBox.Ok,
-            )
-            return
-        self.connectCamera(image_pvname, index)
+        self.connectCamera(sCameraPv + ":ArrayData", index)
 
-        if sType == "AVG":
-            self.ui.rem_avg.setVisible(True)
-            self.ui.remote_average.setVisible(True)
-            # Connect and monitor :AVERAGER.A (# of frames).
-            try:
-                self.avgPv = Pv(sCameraPv + ":AVERAGER.A", initialize=True)
-                timeout = 1.0
-                self.avgPv.wait_ready(timeout)
-                self.avgPv.add_monitor_callback(self.avgPvUpdateCallback)
-                pyca.flush_io()
-            except Exception:
-                QMessageBox.critical(
-                    None,
-                    "Error",
-                    "Failed to connect to Averager [%d] %s" % (index, sCameraPv),
-                    QMessageBox.Ok,
-                    QMessageBox.Ok,
-                )
-        else:
-            self.ui.rem_avg.setVisible(False)
-            self.ui.remote_average.setVisible(False)
-            self.avgPv = None
         self.avgState = SINGLE_FRAME
         self.ui.singleframe.setChecked(True)
         self.average = 1
@@ -2139,9 +2072,9 @@ class GraphicUserInterface(QMainWindow):
                     self.lensPv = Pv(
                         lensName[0], initialize=True, monitor=self.lensPvUpdateCallback
                     )
-                self.lensPv.wait_ready(1.0)
+                self.lensPv.wait_ready(timeout)
                 if self.putlensPv is not None:
-                    self.putlensPv.wait_ready(1.0)
+                    self.putlensPv.wait_ready(timeout)
                 pyca.flush_io()
             except Exception:
                 QMessageBox.critical(
@@ -2153,24 +2086,6 @@ class GraphicUserInterface(QMainWindow):
                 )
         self.setupSpecific()
         self.setupDrags()
-
-    def get_image_pvname(self, cam_type: str, cam_pv: str) -> str:
-        if cam_type == "AVG" or cam_type == "LIF":
-            return cam_pv + ":LIVE_IMAGE_FULL"
-        elif cam_type == "LIO" or cam_type == "LIX":
-            return cam_pv + ":LIVE_IMAGE_12B"
-        elif cam_type == "LI":
-            return cam_pv + ":LIVE_IMAGE"
-        elif cam_type == "IC":
-            return cam_pv + ":IMAGE_CMPX"
-        elif cam_type == "GE":
-            return cam_pv + ":ArrayData"
-        elif cam_type == "MCC":
-            return cam_pv + ":BUFD_IMG"
-        elif cam_type == "DREC":
-            return cam_pv + ".ISLO"
-        else:
-            raise ValueError(f"Invalid camera type {cam_type}")
 
     def onExpertMode(self):
         if self.ui.showexpert.isChecked():
@@ -2523,23 +2438,6 @@ class GraphicUserInterface(QMainWindow):
                     self.putlensPv.put(value)
                 else:
                     self.lensPv.put(value)
-                pyca.flush_io()
-            except pyca.pyexc as e:
-                print("pyca exception: %s" % (e))
-            except pyca.caexc as e:
-                print("channel access exception: %s" % (e))
-
-    def onRemAvgEnter(self):
-        try:
-            value = int(self.ui.remote_average.text())
-        except Exception:
-            value = 0
-
-        if value < 1:
-            value = 1
-        if self.avgPv is not None:
-            try:
-                self.avgPv.put(value)
                 pyca.flush_io()
             except pyca.pyexc as e:
                 print("pyca exception: %s" % (e))

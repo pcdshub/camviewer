@@ -1022,21 +1022,7 @@ Vmin\</string>
            </property>
           </widget>
          </item>
-         <item row="2" column="0">
-          <widget class="QRadioButton" name="rem_avg">
-           <property name="text">
-            <string>Average (at BR / #)</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="0">
-          <widget class="QRadioButton" name="local_avg">
-           <property name="text">
-            <string>Local Average (# images)</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="1">
+         <item row="2" column="1">
           <widget class="QLineEdit" name="average">
            <property name="minimumSize">
             <size>
@@ -1052,19 +1038,10 @@ Vmin\</string>
            </property>
           </widget>
          </item>
-         <item row="2" column="1">
-          <widget class="QLineEdit" name="remote_average">
-           <property name="minimumSize">
-            <size>
-             <width>0</width>
-             <height>25</height>
-            </size>
-           </property>
-           <property name="toolTip">
-            <string>The number of frames to average on the IOC. This is a global value for all users of this camera.</string>
-           </property>
+         <item row="2" column="0">
+          <widget class="QRadioButton" name="local_avg">
            <property name="text">
-            <string>1</string>
+            <string>Local Average (# images)</string>
            </property>
           </widget>
          </item>
