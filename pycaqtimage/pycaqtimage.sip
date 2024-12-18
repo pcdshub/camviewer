@@ -349,8 +349,17 @@ static int rowIncMult1[8] = {  0,   0,  -1,  -1,   0,   0,   1,   1}; /* Scaled 
 static int rowIncMult2[8] = {  0,   2,   0,   0,   0,  -2,   0,   0}; /* Scaled by srcwidth */
 static int rowIncK[8]     = {  0,   0,  -1,   1,   0,   0,   1,  -1}; /* Constant */
 
+int _max_row(ImageBuffer *imageBuffer, long count)
+{
+    if (imageBuffer->imgwidth > 0) {
+        return std::min(imageBuffer->imgheight, (int) std::floor(count / imageBuffer->imgwidth));
+    } else {
+        return 0;
+    }
+}
+
 template <class T>
-void _pyDoAvg(ImageBuffer *imageBuffer, T *cadata)
+void _pyDoAvg(ImageBuffer *imageBuffer, T *cadata, long count)
 {
     T *src           = cadata;
     uint32_t *dst    = imageBuffer->imageData;
@@ -365,10 +374,11 @@ void _pyDoAvg(ImageBuffer *imageBuffer, T *cadata)
     int col_inc      = imageBuffer->srcwidth * colIncMult[orientation] +
                        colIncK[orientation];
     int iNewAverage  = imageBuffer->iNumAveraged + 1;
+    int row_max = _max_row(imageBuffer, count);
 
     src += init_offset;
     if (iNewAverage == 1) {
-	for (int iRow = 0; iRow < imageBuffer->imgheight; ++iRow) {
+	for (int iRow = 0; iRow < row_max; ++iRow) {
 	    for (int iCol = 0; iCol < imageBuffer->imgwidth; ++iCol) {
 		*dstF++ = *src;
 		*dst++ = *src;
@@ -377,7 +387,7 @@ void _pyDoAvg(ImageBuffer *imageBuffer, T *cadata)
 	    src += row_inc;
 	}
     } else {
-	for (int iRow = 0; iRow < imageBuffer->imgheight; ++iRow) {
+	for (int iRow = 0; iRow < row_max; ++iRow) {
 	    for (int iCol = 0; iCol < imageBuffer->imgwidth; ++iCol) {
 		*dstF += (*src - *dstF) / iNewAverage;
 		*dst++ = *dstF++;
@@ -408,14 +418,14 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
     int col_inc      = imageBuffer->srcwidth * colIncMult[orientation] +
                        colIncK[orientation];
     int iNewAverage  = imageBuffer->iNumAveraged + 1;
+    int row_max = _max_row(imageBuffer, count);
 
-    UNUSED(count);
     UNUSED(size);
 
     /* If we're using the color image, don't average, just copy and we're done! */
     if (!imageBuffer->useGray) {
         src += 3 * init_offset;
-	for (int iRow = 0; iRow < imageBuffer->imgheight; ++iRow) {
+	for (int iRow = 0; iRow < row_max; ++iRow) {
 	    for (int iCol = 0; iCol < imageBuffer->imgwidth; ++iCol) {
 		*dst++ = RGB(src);
 		src += 3 * col_inc;
@@ -426,7 +436,7 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
     } else {
 	if (iNewAverage == 1) {
             src += 3 * init_offset;
-	    for (int iRow = 0; iRow < imageBuffer->imgheight; ++iRow) {
+	    for (int iRow = 0; iRow < row_max; ++iRow) {
 		for (int iCol = 0; iCol < imageBuffer->imgwidth; ++iCol) {
 		    *dstF = GRAY(src);
 		    *dst++ = *dstF++;
@@ -436,7 +446,7 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
 	    }
 	} else {
             src += 3 * init_offset;
-	    for (int iRow = 0; iRow < imageBuffer->imgheight; ++iRow) {
+	    for (int iRow = 0; iRow < row_max; ++iRow) {
 		for (int iCol = 0; iCol < imageBuffer->imgwidth; ++iCol) {
 		    *dstF += (GRAY(src) - *dstF) / iNewAverage;
 		    *dst++ = *dstF++;
@@ -456,16 +466,15 @@ static void _pyImagePvCallback(void* cadata, long count, size_t size, void* usr)
 {
   ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
 
-  UNUSED(count);
   switch (size) {
     case 4:
-	_pyDoAvg(imageBuffer, reinterpret_cast<uint32_t*>(cadata));
+	_pyDoAvg(imageBuffer, reinterpret_cast<uint32_t*>(cadata), count);
         break;
     case 2:
-	_pyDoAvg(imageBuffer, reinterpret_cast<uint16_t*>(cadata));
+	_pyDoAvg(imageBuffer, reinterpret_cast<uint16_t*>(cadata), count);
         break;
     case 1:
-	_pyDoAvg(imageBuffer, reinterpret_cast<uint8_t*>(cadata));
+	_pyDoAvg(imageBuffer, reinterpret_cast<uint8_t*>(cadata), count);
         break;
     default:
         fprintf(stderr, "Image pixel size is %d bytes?\n", (int) size);
