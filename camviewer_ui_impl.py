@@ -1620,7 +1620,7 @@ class GraphicUserInterface(QMainWindow):
         """
         if exception is not None:
             return
-        self.camrates[index] = self.camconn_pvs[index].data["value"]
+        self.camrates[index] = self.camconn_pvs[index].value
         if index == self.index:
             self.update_cam_rate_label()
         self.update_cam_action_text(index=index)
