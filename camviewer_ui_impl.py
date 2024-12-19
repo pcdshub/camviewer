@@ -590,7 +590,7 @@ class GraphicUserInterface(QMainWindow):
 
         # set camera pv and start display
         self.ui.menuCameras.triggered.connect(self.onCameraMenuSelect)
-        self.ui.comboBoxCamera.currentIndexChanged.connect(self.onCameraSelect)
+        self.ui.comboBoxCamera.activated.connect(self.onCameraSelect)
 
         # Sigh, we might change this if taking a one-liner!
         camera = options.camera
@@ -648,7 +648,7 @@ class GraphicUserInterface(QMainWindow):
             if cameraIndex < 0 or cameraIndex >= len(self.lCameraList):
                 print("Invalid camera index %d" % cameraIndex)
                 cameraIndex = 0
-            self.ui.comboBoxCamera.setCurrentIndex(int(cameraIndex))
+            self.onCameraSelect(int(cameraIndex))
         except Exception:
             pass
         self.efilter = FilterObject(self.app, self)
@@ -1859,18 +1859,6 @@ class GraphicUserInterface(QMainWindow):
             self.ui.lineEditLens.readpvname = None
 
     def connectCamera(self, sCameraPv, index, sNotifyPv=None):
-        if not self.camconn[index]:
-            QMessageBox.critical(
-                None,
-                "Error",
-                (
-                    f"PV named {self.camconn_pvs[index].name} did not connect.\n"
-                    f"IOC for {self.lCameraDesc[index]} is offline!"
-                ),
-                QMessageBox.Ok,
-                QMessageBox.Ok,
-            )
-            return
         self.camera = self.disconnectPv(self.camera)
         self.notify = self.disconnectPv(self.notify)
         self.nordPv = self.disconnectPv(self.nordPv)
@@ -2014,9 +2002,25 @@ class GraphicUserInterface(QMainWindow):
     def onCameraMenuSelect(self, action):
         index = self.camactions.index(action)
         if index >= 0 and index < len(self.camactions):
-            self.ui.comboBoxCamera.setCurrentIndex(index)
+            self.onCameraSelect(index)
+            for ind, action in enumerate(self.camactions):
+                if ind != self.index:
+                    action.setChecked(False)
 
     def onCameraSelect(self, index):
+        if not self.camconn[index]:
+            QMessageBox.critical(
+                None,
+                "Error",
+                (
+                    f"PV named {self.camconn_pvs[index].name} did not connect.\n"
+                    f"IOC for {self.lCameraDesc[index]} is offline!"
+                ),
+                QMessageBox.Ok,
+                QMessageBox.Ok,
+            )
+            self.ui.comboBoxCamera.setCurrentIndex(self.index)
+            return
         self.clear()
         if index < 0:
             return
@@ -2105,6 +2109,7 @@ class GraphicUserInterface(QMainWindow):
                 )
         self.setupSpecific()
         self.setupDrags()
+        self.ui.comboBoxCamera.setCurrentIndex(self.index)
 
     def onExpertMode(self):
         if self.ui.showexpert.isChecked():
