@@ -1567,11 +1567,11 @@ class GraphicUserInterface(QMainWindow):
                 if sLensPv == "":
                     sLensPv = "None"
 
-                self.camconn.append(False)
-                self.camrates.append(0)
-                index = len(self.camconn) - 1
                 pv = Pv(sCtrlPv + ":ArrayRate_RBV")
                 self.camconn_pvs.append(pv)
+                self.camconn.append(False)
+                self.camrates.append(0)
+                index = len(self.camconn_pvs) - 1
                 pv.add_connection_callback(
                     functools.partial(
                         self.cam_combo_connect,
@@ -1601,13 +1601,22 @@ class GraphicUserInterface(QMainWindow):
     def cam_combo_connect(self, is_connected: bool, index: int):
         """
         Update camera name in actions when it goes online/offline
+
+        Here, we stash the connected/disconnected boolean with
+        all the others and call for an update of the action text.
         """
         self.camconn[index] = is_connected
         self.update_cam_action_text(index=index)
 
     def cam_combo_rate(self, exception=None, index: int = 0):
         """
-        Update camera rate in actions when it goes to zero
+        Update camera rate in actions when it goes to zero.
+
+        Here, we stash the rate float with all the others
+        and call for an update of the action text.
+
+        We also update the "camera rate" indicator if the pv
+        we're monitoring is associated with the active camera.
         """
         if exception is not None:
             return
@@ -1617,13 +1626,22 @@ class GraphicUserInterface(QMainWindow):
         self.update_cam_action_text(index=index)
 
     def update_cam_rate_label(self, value: float | None = None):
+        """
+        Set the current shown rate near the "camera rate" indicator.
+
+        If no value is given, we'll use the current value of the
+        rate PV associated with the active camera.
+        """
         if value is None:
             value = self.camrates[self.index]
         self.ui.label_cam_rate.setText(f"{value:.1f} Hz")
 
     def update_cam_action_text(self, index: int):
         """
-        Called by the above two callbacks to avoid race conditions
+        Based on the cached values, update the camera text in the "cameras" menu.
+
+        This should be called any time either the connection state or the
+        rate value changes enough to possibly affect the desired display here.
         """
         if not self.camconn[index]:
             text = " (Offline)"
@@ -1845,7 +1863,10 @@ class GraphicUserInterface(QMainWindow):
             QMessageBox.critical(
                 None,
                 "Error",
-                "IOC for %s is offline!" % (sCameraPv),
+                (
+                    f"PV named {self.camconn_pvs[index].name} did not connect.\n"
+                    f"IOC for {self.lCameraDesc[index]} is offline!"
+                ),
                 QMessageBox.Ok,
                 QMessageBox.Ok,
             )
