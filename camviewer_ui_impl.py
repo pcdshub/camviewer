@@ -2008,6 +2008,13 @@ class GraphicUserInterface(QMainWindow):
                     action.setChecked(False)
 
     def onCameraSelect(self, index):
+        if index < 0:
+            return
+        if index >= len(self.lCameraList):
+            print(
+                "index %d out of range (max: %d)" % (index, len(self.lCameraList) - 1)
+            )
+            return
         if not self.camconn[index]:
             QMessageBox.critical(
                 None,
@@ -2022,13 +2029,6 @@ class GraphicUserInterface(QMainWindow):
             self.ui.comboBoxCamera.setCurrentIndex(self.index)
             return
         self.clear()
-        if index < 0:
-            return
-        if index >= len(self.lCameraList):
-            print(
-                "index %d out of range (max: %d)" % (index, len(self.lCameraList) - 1)
-            )
-            return
         sCameraPv = str(self.lCameraList[index])
         if sCameraPv == "":
             return
