@@ -1991,6 +1991,22 @@ class GraphicUserInterface(QMainWindow):
         # Get camera configuration
         self.getConfig()
 
+        # Check the expected size against the count to generate warnings
+        first_image_count = len(self.camera.value)
+        expected_count = self.rowPv.value * self.colPv.value
+        if first_image_count != expected_count:
+            QMessageBox.warning(
+                None,
+                "Warning",
+                (
+                    "IOC misconfiguration likely!\n"
+                    f"Received {first_image_count} pixels, expected {expected_count} "
+                    f"for {self.rowPv.value} x {self.colPv.value}."
+                ),
+                QMessageBox.Ok,
+                QMessageBox.Ok,
+            )
+
     def setCameraMenu(self, index):
         for a in self.camactions:
             a.setChecked(False)
