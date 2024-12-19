@@ -1993,19 +1993,21 @@ class GraphicUserInterface(QMainWindow):
         # Get camera configuration
         self.getConfig()
 
-    def setCameraMenu(self, index):
-        for a in self.camactions:
-            a.setChecked(False)
-        if index >= 0 and index < len(self.camactions):
-            self.camactions[index].setChecked(True)
+    def normalize_selectors(self):
+        """
+        Update the visual appearance of the camera combobox and the menu to be correct.
+
+        The combobox should display the currently connected camera and only the
+        action associated with the currently connected camera should be checked.
+        """
+        self.ui.comboBoxCamera.setCurrentIndex(self.index)
+        for num, action in enumerate(self.camactions):
+            action.setChecked(num == self.index)
 
     def onCameraMenuSelect(self, action):
         index = self.camactions.index(action)
         if index >= 0 and index < len(self.camactions):
             self.onCameraSelect(index)
-            for ind, action in enumerate(self.camactions):
-                if ind != self.index:
-                    action.setChecked(False)
 
     def onCameraSelect(self, index):
         if index < 0:
@@ -2026,7 +2028,7 @@ class GraphicUserInterface(QMainWindow):
                 QMessageBox.Ok,
                 QMessageBox.Ok,
             )
-            self.ui.comboBoxCamera.setCurrentIndex(self.index)
+            self.normalize_selectors()
             return
         self.clear()
         sCameraPv = str(self.lCameraList[index])
@@ -2041,8 +2043,6 @@ class GraphicUserInterface(QMainWindow):
         self.activeSet()
 
         self.ctrlBase = str(self.lCtrlList[index])
-
-        self.setCameraMenu(index)
 
         sLensPv = self.lLensList[index]
         sEvrPv = self.lEvrList[index]
@@ -2109,7 +2109,7 @@ class GraphicUserInterface(QMainWindow):
                 )
         self.setupSpecific()
         self.setupDrags()
-        self.ui.comboBoxCamera.setCurrentIndex(self.index)
+        self.normalize_selectors()
 
     def onExpertMode(self):
         if self.ui.showexpert.isChecked():
