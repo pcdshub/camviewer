@@ -329,9 +329,10 @@ static void _pyCopyToQImage(ImageBuffer* imageBuffer, int doFC)
 PyObject* pyRecolorImageBuffer(PyObject* pyImageBuffer)
 {
     ImageBuffer* imageBuffer = (ImageBuffer*) PyCapsule_GetPointer(pyImageBuffer, PYC_IB);
-    /* If the image is supposed to be color or if we're averaging, skip it! */
-    if ((imageBuffer->isColor && !imageBuffer->useGray) || imageBuffer->iAverage != 1)
-	_pyCopyToQImage(imageBuffer, 1);
+    // Skip color images, which causes a black image flash
+    if (!imageBuffer->isColor || imageBuffer->useGray) {
+	    _pyCopyToQImage(imageBuffer, 1);
+    }
     Py_RETURN_NONE;
 }
 
