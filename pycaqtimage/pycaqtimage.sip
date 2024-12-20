@@ -159,6 +159,7 @@ struct ImageBuffer
     int       imgwidth, imgheight;
     int       size;
     int       iRoiW, iRoiH;
+    uint32_t  max_px, min_px;
 
     int32_t  iProjXmin, iProjXmax;
     int32_t  iProjYmin, iProjYmax;
@@ -271,6 +272,8 @@ PyObject* pyCreateImageBuffer(QImage* imageDisp, PyObject *px_, PyObject *py_, P
     memset(imageBuffer->projSumY, 0, leny * sizeof(double) );
     memset(imageBuffer->imageData, 0, imageBuffer->size * sizeof(uint32_t) );
     memset(imageBuffer->imageDataF, 0, imageBuffer->size * sizeof(float) );
+    imageBuffer->max_px = 0;
+    imageBuffer->min_px = 0;
 
     PyObject* pyImageBuffer = PyCapsule_New(imageBuffer, PYC_IB, _pyFreeImageBuffer);
     return pyImageBuffer;
@@ -506,6 +509,8 @@ static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi, bool bPro
     double*   projSumY  = imageBuffer->projSumY;
     int       width     = imageBuffer->imgwidth;
     int       height    = imageBuffer->imgheight;
+    uint32_t  max_px    = 0;
+    uint32_t  min_px    = 4294967295;
 
     for (int iX = 0; iX < width;  projSumX[iX++] = 0);
     for (int iY = 0; iY < height; projSumY[iY++] = 0);
@@ -557,8 +562,13 @@ static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi, bool bPro
 	    u64PixelSum   += iValue;
 	    /* Sigh... if iValue > 49000 or so, the square of an int will be negative! */
 	    u64PixelSqSum += iValue*(uint64_t) iValue;
+        max_px = std::max(iValue, max_px);
+        min_px = std::min(iValue, min_px);
 	}
     }
+
+    imageBuffer->max_px = max_px;
+    imageBuffer->min_px = min_px;
 
     imageBuffer->iRoiW = x2 - x1 + 1;
     imageBuffer->iRoiH = y2 - y1 + 1;
@@ -641,8 +651,17 @@ PyObject* pyUpdateProj(PyObject* pyImageBuffer, bool bProjAutoRange,
         imageBuffer->iProjYmax = uMax;
     }
 
-    return Py_BuildValue("ffiiii", imageBuffer->fRoiPixelMean, imageBuffer->fRoiPixelVar,
-                         imageBuffer->iProjXmin, imageBuffer->iProjXmax, imageBuffer->iProjYmin, imageBuffer->iProjYmax);
+    return Py_BuildValue(
+        "ffiiiiii",
+        imageBuffer->fRoiPixelMean,
+        imageBuffer->fRoiPixelVar,
+        imageBuffer->iProjXmin,
+        imageBuffer->iProjXmax,
+        imageBuffer->iProjYmin,
+        imageBuffer->iProjYmax,
+        imageBuffer->max_px,
+        imageBuffer->min_px
+    );
 }
 
 /*

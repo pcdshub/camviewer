@@ -405,6 +405,9 @@ class GraphicUserInterface(QMainWindow):
         self.updateRoiText()
         self.updateMarkerText(True, True, 0, 15)
 
+        self.max_px = 0
+        self.min_px = 0
+
         sizeProjX = QSize(self.viewwidth, self.projsize)
         self.ui.projH.doResize(sizeProjX)
 
@@ -1378,6 +1381,8 @@ class GraphicUserInterface(QMainWindow):
                 projXmax,
                 projYmin,
                 projYmax,
+                self.max_px,
+                self.min_px,
             ) = pycaqtimage.pyUpdateProj(
                 self.imageBuffer,
                 self.ui.checkBoxProjAutoRange.isChecked(),
@@ -1385,6 +1390,7 @@ class GraphicUserInterface(QMainWindow):
                 self.iRangeMax,
                 self.ui.display_image.rectRoi.oriented(),
             )
+            print(self.min_px, self.max_px)
             (projXmin, projXmax) = self.ui.projH.makeImage(
                 projXmin, projXmax, projYmin, projYmax
             )
