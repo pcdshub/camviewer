@@ -482,7 +482,7 @@ Vmin\</string>
         </property>
         <layout class="QGridLayout" name="gridLayout_5">
          <item row="3" column="1">
-          <widget class="QLabel" name="label_dataRate">
+          <widget class="QLabel" name="label_cam_rate">
            <property name="minimumSize">
             <size>
              <width>45</width>
@@ -491,6 +491,9 @@ Vmin\</string>
            </property>
            <property name="text">
             <string>-</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
            </property>
           </widget>
          </item>
@@ -602,7 +605,7 @@ Vmin\</string>
             </sizepolicy>
            </property>
            <property name="text">
-            <string>Data Rate</string>
+            <string>Cam Rate</string>
            </property>
           </widget>
          </item>
@@ -696,6 +699,9 @@ Vmin\</string>
            </property>
            <property name="text">
             <string>-</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
            </property>
           </widget>
          </item>
@@ -1022,21 +1028,7 @@ Vmin\</string>
            </property>
           </widget>
          </item>
-         <item row="2" column="0">
-          <widget class="QRadioButton" name="rem_avg">
-           <property name="text">
-            <string>Average (at BR / #)</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="0">
-          <widget class="QRadioButton" name="local_avg">
-           <property name="text">
-            <string>Local Average (# images)</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="1">
+         <item row="2" column="1">
           <widget class="QLineEdit" name="average">
            <property name="minimumSize">
             <size>
@@ -1052,19 +1044,10 @@ Vmin\</string>
            </property>
           </widget>
          </item>
-         <item row="2" column="1">
-          <widget class="QLineEdit" name="remote_average">
-           <property name="minimumSize">
-            <size>
-             <width>0</width>
-             <height>25</height>
-            </size>
-           </property>
-           <property name="toolTip">
-            <string>The number of frames to average on the IOC. This is a global value for all users of this camera.</string>
-           </property>
+         <item row="2" column="0">
+          <widget class="QRadioButton" name="local_avg">
            <property name="text">
-            <string>1</string>
+            <string>Local Average (# images)</string>
            </property>
           </widget>
          </item>
