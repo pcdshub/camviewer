@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1119</width>
-    <height>1075</height>
+    <width>1106</width>
+    <height>1070</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -798,38 +798,6 @@ Vmin\</string>
          <string>Color Map</string>
         </property>
         <layout class="QGridLayout" name="gridLayout_4">
-         <item row="0" column="0" colspan="2">
-          <widget class="QComboBox" name="comboBoxColor">
-           <property name="currentIndex">
-            <number>1</number>
-           </property>
-           <item>
-            <property name="text">
-             <string>HSV</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Hot</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Jet</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Cool</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Gray</string>
-            </property>
-           </item>
-          </widget>
-         </item>
          <item row="0" column="3">
           <widget class="QComboBox" name="comboBoxScale">
            <item>
@@ -869,6 +837,38 @@ Vmin\</string>
            </item>
           </widget>
          </item>
+         <item row="0" column="0" colspan="2">
+          <widget class="QComboBox" name="comboBoxColor">
+           <property name="currentIndex">
+            <number>1</number>
+           </property>
+           <item>
+            <property name="text">
+             <string>HSV</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Hot</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Jet</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Cool</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Gray</string>
+            </property>
+           </item>
+          </widget>
+         </item>
          <item row="1" column="0">
           <widget class="QLabel" name="labelRangeMin">
            <property name="text">
@@ -895,6 +895,30 @@ Vmin\</string>
            </property>
            <property name="tickInterval">
             <number>256</number>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="3">
+          <widget class="QLineEdit" name="lineEditRangeMax">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <horstretch>1</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>100</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="font">
+            <font>
+             <pointsize>8</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>1023</string>
            </property>
           </widget>
          </item>
@@ -960,34 +984,24 @@ Vmin\</string>
            </property>
           </widget>
          </item>
-         <item row="2" column="3">
-          <widget class="QLineEdit" name="lineEditRangeMax">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-             <horstretch>1</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="minimumSize">
-            <size>
-             <width>100</width>
-             <height>0</height>
-            </size>
-           </property>
-           <property name="font">
-            <font>
-             <pointsize>8</pointsize>
-            </font>
-           </property>
-           <property name="text">
-            <string>1023</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="0" colspan="4">
+         <item row="4" column="0" colspan="4">
           <widget class="QCheckBox" name="grayScale">
            <property name="text">
             <string>Force Color Image to Grayscale</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="3">
+          <widget class="QPushButton" name="pushbutton_auto_range">
+           <property name="text">
+            <string>Auto Once</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0" colspan="2">
+          <widget class="QCheckBox" name="checkbox_auto_range">
+           <property name="text">
+            <string>Auto every frame</string>
            </property>
           </widget>
          </item>
@@ -2242,7 +2256,7 @@ Vmin\</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1119</width>
+     <width>1106</width>
      <height>20</height>
     </rect>
    </property>

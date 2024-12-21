@@ -422,14 +422,16 @@ class GraphicUserInterface(QMainWindow):
 
         self.ui.checkBoxProjAutoRange.stateChanged.connect(self.onCheckProjUpdate)
 
-        self.ui.horizontalSliderRangeMin.valueChanged.connect(
-            self.onSliderRangeMinChanged
+        self.ui.horizontalSliderRangeMin.sliderReleased.connect(
+            self.onSliderRangeMinReleased
         )
-        self.ui.horizontalSliderRangeMax.valueChanged.connect(
-            self.onSliderRangeMaxChanged
+        self.ui.horizontalSliderRangeMax.sliderReleased.connect(
+            self.onSliderRangeMaxReleased
         )
         self.ui.lineEditRangeMin.returnPressed.connect(self.onRangeMinTextEnter)
         self.ui.lineEditRangeMax.returnPressed.connect(self.onRangeMaxTextEnter)
+        self.ui.pushbutton_auto_range.pressed.connect(self.set_auto_range)
+        self.ui.checkbox_auto_range.stateChanged.connect(self.set_auto_range)
 
         self.ui.horizontalSliderLens.sliderReleased.connect(self.onSliderLensReleased)
         self.ui.horizontalSliderLens.valueChanged.connect(self.onSliderLensChanged)
@@ -1390,25 +1392,28 @@ class GraphicUserInterface(QMainWindow):
                 self.iRangeMax,
                 self.ui.display_image.rectRoi.oriented(),
             )
-            print(self.min_px, self.max_px)
             (projXmin, projXmax) = self.ui.projH.makeImage(
                 projXmin, projXmax, projYmin, projYmax
             )
             (projYmin, projYmax) = self.ui.projV.makeImage(
                 projXmin, projXmax, projYmin, projYmax
             )
-
+            if self.ui.checkbox_auto_range.isChecked():
+                self.set_new_max_pixel(self.max_px)
+                self.set_new_min_pixel(self.min_px)
             if roiMean == 0:
                 roiVarByMean = 0
             else:
                 roiVarByMean = roiVar / roiMean
             roi = self.ui.display_image.rectRoi.oriented()
             self.ui.labelRoiInfo.setText(
-                "ROI Mean %-7.2f Std %-7.2f Var/Mean %-7.2f (%d,%d) W %d H %d"
+                "ROI Mean %-7.2f Std %-7.2f Var/Mean %-7.2f Min %d Max %d (%d,%d) W %d H %d"
                 % (
                     roiMean,
                     math.sqrt(roiVar),
                     roiVarByMean,
+                    self.min_px,
+                    self.max_px,
                     roi.x(),
                     roi.y(),
                     roi.width(),
@@ -2390,23 +2395,40 @@ class GraphicUserInterface(QMainWindow):
         # Not handling other errors for now
         subprocess.run([script])
 
-    def onSliderRangeMinChanged(self, newSliderValue):
-        self.ui.lineEditRangeMin.setText(str(newSliderValue))
-        self.iRangeMin = newSliderValue
-        if newSliderValue > self.iRangeMax:
-            self.ui.horizontalSliderRangeMax.setValue(newSliderValue)
+    def set_new_min_pixel(self, value: int):
+        value = max(0, value)
+        value = min(self.maxcolor, value)
+        self.iRangeMin = value
+        if value > self.iRangeMax:
+            self.iRangeMax = value
+        self.update_visible_pixel_ranges()
+
+    def set_new_max_pixel(self, value: int):
+        value = max(0, value)
+        value = min(self.maxcolor, value)
+        self.iRangeMax = value
+        if value < self.iRangeMin:
+            self.iRangeMin = value
+        self.update_visible_pixel_ranges()
+
+    def after_new_min_or_max_pixel(self):
         self.setColorMap()
         self.updateProj()
         self.updateMiscInfo()
 
-    def onSliderRangeMaxChanged(self, newSliderValue):
-        self.ui.lineEditRangeMax.setText(str(newSliderValue))
-        self.iRangeMax = newSliderValue
-        if newSliderValue < self.iRangeMin:
-            self.ui.horizontalSliderRangeMin.setValue(newSliderValue)
-        self.setColorMap()
-        self.updateProj()
-        self.updateMiscInfo()
+    def update_visible_pixel_ranges(self):
+        self.ui.horizontalSliderRangeMax.setValue(self.iRangeMax)
+        self.ui.horizontalSliderRangeMin.setValue(self.iRangeMin)
+        self.ui.lineEditRangeMax.setText(str(self.iRangeMax))
+        self.ui.lineEditRangeMin.setText(str(self.iRangeMin))
+
+    def onSliderRangeMinReleased(self):
+        self.set_new_min_pixel(self.ui.horizontalSliderRangeMin.value())
+        self.after_new_min_or_max_pixel()
+
+    def onSliderRangeMaxReleased(self):
+        self.set_new_min_pixel(self.ui.horizontalSliderRangeMax.value())
+        self.after_new_min_or_max_pixel()
 
     def onSliderLensChanged(self, newSliderValue):
         self.ui.lineEditLens.setText(str(newSliderValue))
@@ -2430,24 +2452,22 @@ class GraphicUserInterface(QMainWindow):
             value = int(self.ui.lineEditRangeMin.text())
         except Exception:
             value = 0
-
-        if value < 0:
-            value = 0
-        if value > self.maxcolor:
-            value = self.maxcolor
-        self.ui.horizontalSliderRangeMin.setValue(value)
+        self.set_new_min_pixel(value)
+        self.after_new_min_or_max_pixel()
 
     def onRangeMaxTextEnter(self):
         try:
             value = int(self.ui.lineEditRangeMax.text())
         except Exception:
             value = 0
+        self.set_new_max_pixel(value)
+        self.after_new_min_or_max_pixel()
 
-        if value < 0:
-            value = 0
-        if value > self.maxcolor:
-            value = self.maxcolor
-        self.ui.horizontalSliderRangeMax.setValue(value)
+    def set_auto_range(self, checked: None | Qt.CheckState = None):
+        if checked in (None, Qt.Checked):
+            self.set_new_max_pixel(self.max_px)
+            self.set_new_min_pixel(self.min_px)
+            self.after_new_min_or_max_pixel()
 
     def onLensEnter(self):
         try:
