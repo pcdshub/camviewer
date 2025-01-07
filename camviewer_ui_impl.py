@@ -2396,6 +2396,30 @@ class GraphicUserInterface(QMainWindow):
         subprocess.run([script])
 
     def set_new_min_pixel(self, value: int):
+        """
+        Sets the minimum pixel threshold for monochrome colormap scaling.
+
+        This cannot be set to be higher than the max pixel threshold.
+        If this is done, the max pixel threshold will be increased to
+        match this new value.
+
+        Pixels whose values are below this number will all render as the
+        same color after we apply the color map. Pixels whose values are
+        above this number, up to the max pixel value, will be assigned
+        colors from the color map based on the other settings.
+
+        Internally, this does the following:
+        - Sets an attribute that will be applied the next time the image
+          is rendered
+        - Updates the sliders and text boxes appropriately to match
+          the new value
+
+        If you would like to render a new image immediately instead of
+        waiting for the next frame, you need to call
+        ``self.after_new_min_or_max_pixel()`` afterwards.
+        This is kept separate so we can set this value during
+        a re-render if we need to.
+        """
         value = max(0, value)
         value = min(self.maxcolor, value)
         self.iRangeMin = value
@@ -2404,6 +2428,30 @@ class GraphicUserInterface(QMainWindow):
         self.update_visible_pixel_ranges()
 
     def set_new_max_pixel(self, value: int):
+        """
+        Sets the maximum pixel threshold for monochrome colormap scaling.
+
+        This cannot be set to be lower than the min pixel threshold.
+        If this is done, the min pixel threshold will be decreased to
+        match this new value.
+
+        Pixels whose values are above this number will all render as the
+        same color after we apply the color map. Pixels whose values are
+        below this number, down to the min pixel value, will be assigned
+        colors from the color map based on the other settings.
+
+        Internally, this does the following:
+        - Sets an attribute that will be applied the next time the image
+          is rendered
+        - Updates the sliders and text boxes appropriately to match
+          the new value
+
+        If you would like to render a new image immediately instead of
+        waiting for the next frame, you need to call
+        ``self.after_new_min_or_max_pixel()`` afterwards.
+        This is kept separate so we can set this value during
+        a re-render if we need to.
+        """
         value = max(0, value)
         value = min(self.maxcolor, value)
         self.iRangeMax = value
@@ -2412,21 +2460,36 @@ class GraphicUserInterface(QMainWindow):
         self.update_visible_pixel_ranges()
 
     def after_new_min_or_max_pixel(self):
+        """
+        Updates the rendered image to reflect new color map scaling.
+        """
         self.setColorMap()
         self.updateProj()
         self.updateMiscInfo()
 
     def update_visible_pixel_ranges(self):
+        """
+        Sets the visual state of the pixel range widgets correctly.
+
+        This is so we can move the slider or type into the text box and
+        update the other widget with the new value.
+        """
         self.ui.horizontalSliderRangeMax.setValue(self.iRangeMax)
         self.ui.horizontalSliderRangeMin.setValue(self.iRangeMin)
         self.ui.lineEditRangeMax.setText(str(self.iRangeMax))
         self.ui.lineEditRangeMin.setText(str(self.iRangeMin))
 
     def onSliderRangeMinReleased(self):
+        """
+        When the user lets go of the slider, update the value and rerender.
+        """
         self.set_new_min_pixel(self.ui.horizontalSliderRangeMin.value())
         self.after_new_min_or_max_pixel()
 
     def onSliderRangeMaxReleased(self):
+        """
+        When the user lets go of the slider, update the value and rerender.
+        """
         self.set_new_min_pixel(self.ui.horizontalSliderRangeMax.value())
         self.after_new_min_or_max_pixel()
 
@@ -2448,6 +2511,9 @@ class GraphicUserInterface(QMainWindow):
                 print("channel access exception: %s" % (e))
 
     def onRangeMinTextEnter(self):
+        """
+        When the user presses enter on the pixel text boxes, update the value and rerender.
+        """
         try:
             value = int(self.ui.lineEditRangeMin.text())
         except Exception:
@@ -2456,6 +2522,9 @@ class GraphicUserInterface(QMainWindow):
         self.after_new_min_or_max_pixel()
 
     def onRangeMaxTextEnter(self):
+        """
+        When the user presses enter on the pixel text boxes, update the value and rerender.
+        """
         try:
             value = int(self.ui.lineEditRangeMax.text())
         except Exception:
@@ -2464,6 +2533,24 @@ class GraphicUserInterface(QMainWindow):
         self.after_new_min_or_max_pixel()
 
     def set_auto_range(self, checked: None | Qt.CheckState = None):
+        """
+        Apply an automatic pixel range to the image and rerender.
+
+        This takes the current maximum and minimum pixel values
+        from the last collected image and sets them as the maximum
+        and minimum pixel thresholds for the colormap.
+
+        This is intended to be called as a callback from clicking a
+        QPushButton or from checking a QCheckbox.
+
+        If the QPushButton is clicked or the QCheckbox is checked,
+        immediately apply an automatic range to the live image.
+
+        This allows the user to set an automatic range on demand
+        by clicking a button, and it allows the "auto every frame"
+        checkbox to immediately apply auto scaling instead of waiting
+        for the next frame.
+        """
         if checked in (None, Qt.Checked):
             self.set_new_max_pixel(self.max_px)
             self.set_new_min_pixel(self.min_px)
