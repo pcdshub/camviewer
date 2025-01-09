@@ -510,7 +510,7 @@ static void _computeRoiProj(ImageBuffer* imageBuffer, QRectF* rectRoi, bool bPro
     int       width     = imageBuffer->imgwidth;
     int       height    = imageBuffer->imgheight;
     uint32_t  max_px    = 0;
-    uint32_t  min_px    = 4294967295;
+    uint32_t  min_px    = std::numeric_limits<uint32_t>::max();
 
     for (int iX = 0; iX < width;  projSumX[iX++] = 0);
     for (int iY = 0; iY < height; projSumY[iY++] = 0);
