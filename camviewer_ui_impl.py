@@ -2967,10 +2967,11 @@ class GraphicUserInterface(QMainWindow):
             self.cfg.colorscale[0] + " " + self.cfg.colorscale[1]
         )
         self.ui.comboBoxScale.setCurrentIndex(self.iScaleIndex)
-        self.ui.lineEditRangeMin.setText(self.cfg.colormin)
-        self.on_range_min_text_enter_pressed()
-        self.ui.lineEditRangeMax.setText(self.cfg.colormax)
-        self.on_range_max_text_enter_pressed()
+        try:
+            self.set_new_min_pixel(int(self.cfg.colormin))
+            self.set_new_max_pixel(int(self.cfg.colormax))
+        except Exception:
+            print("Failed to load min or max pixel value from config file.")
         try:
             self.ui.grayScale.setChecked(int(self.cfg.grayscale))
             self.onCheckGrayUpdate(int(self.cfg.grayscale))
