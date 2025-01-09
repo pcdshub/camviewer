@@ -2540,8 +2540,8 @@ class GraphicUserInterface(QMainWindow):
         from the last collected image and sets them as the maximum
         and minimum pixel thresholds for the colormap.
 
-        This is intended to be called as a callback from clicking a
-        QPushButton or from checking a QCheckbox.
+        This is intended to be called as a slot from signals emitted
+        from clicking a QPushButton or from checking a QCheckbox.
 
         If the QPushButton is clicked or the QCheckbox is checked,
         immediately apply an automatic range to the live image.
