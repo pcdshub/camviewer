@@ -2509,7 +2509,7 @@ class GraphicUserInterface(QMainWindow):
         """
         When the user lets go of the slider, update the value and rerender.
         """
-        self.set_new_min_pixel(self.ui.horizontalSliderRangeMax.value())
+        self.set_new_max_pixel(self.ui.horizontalSliderRangeMax.value())
         self.after_new_min_or_max_pixel()
 
     def onSliderLensChanged(self, newSliderValue):
