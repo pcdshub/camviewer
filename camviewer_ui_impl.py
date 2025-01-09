@@ -423,13 +423,17 @@ class GraphicUserInterface(QMainWindow):
         self.ui.checkBoxProjAutoRange.stateChanged.connect(self.onCheckProjUpdate)
 
         self.ui.horizontalSliderRangeMin.sliderReleased.connect(
-            self.onSliderRangeMinReleased
+            self.on_slider_range_min_released
         )
         self.ui.horizontalSliderRangeMax.sliderReleased.connect(
-            self.onSliderRangeMaxReleased
+            self.on_slider_range_max_released
         )
-        self.ui.lineEditRangeMin.returnPressed.connect(self.onRangeMinTextEnter)
-        self.ui.lineEditRangeMax.returnPressed.connect(self.onRangeMaxTextEnter)
+        self.ui.lineEditRangeMin.returnPressed.connect(
+            self.on_range_min_text_enter_pressed
+        )
+        self.ui.lineEditRangeMax.returnPressed.connect(
+            self.on_range_max_text_enter_pressed
+        )
         self.ui.pushbutton_auto_range.pressed.connect(self.set_auto_range)
         self.ui.checkbox_auto_range.stateChanged.connect(self.set_auto_range)
 
@@ -2498,14 +2502,14 @@ class GraphicUserInterface(QMainWindow):
         self.ui.lineEditRangeMax.setText(str(self.iRangeMax))
         self.ui.lineEditRangeMin.setText(str(self.iRangeMin))
 
-    def onSliderRangeMinReleased(self):
+    def on_slider_range_min_released(self):
         """
         When the user lets go of the slider, update the value and rerender.
         """
         self.set_new_min_pixel(self.ui.horizontalSliderRangeMin.value())
         self.after_new_min_or_max_pixel()
 
-    def onSliderRangeMaxReleased(self):
+    def on_slider_range_max_released(self):
         """
         When the user lets go of the slider, update the value and rerender.
         """
@@ -2529,7 +2533,7 @@ class GraphicUserInterface(QMainWindow):
             except pyca.caexc as e:
                 print("channel access exception: %s" % (e))
 
-    def onRangeMinTextEnter(self):
+    def on_range_min_text_enter_pressed(self):
         """
         When the user presses enter on the pixel text boxes, update the value and rerender.
         """
@@ -2540,7 +2544,7 @@ class GraphicUserInterface(QMainWindow):
         self.set_new_min_pixel(value)
         self.after_new_min_or_max_pixel()
 
-    def onRangeMaxTextEnter(self):
+    def on_range_max_text_enter_pressed(self):
         """
         When the user presses enter on the pixel text boxes, update the value and rerender.
         """
@@ -2964,9 +2968,9 @@ class GraphicUserInterface(QMainWindow):
         )
         self.ui.comboBoxScale.setCurrentIndex(self.iScaleIndex)
         self.ui.lineEditRangeMin.setText(self.cfg.colormin)
-        self.onRangeMinTextEnter()
+        self.on_range_min_text_enter_pressed()
         self.ui.lineEditRangeMax.setText(self.cfg.colormax)
-        self.onRangeMaxTextEnter()
+        self.on_range_max_text_enter_pressed()
         try:
             self.ui.grayScale.setChecked(int(self.cfg.grayscale))
             self.onCheckGrayUpdate(int(self.cfg.grayscale))
