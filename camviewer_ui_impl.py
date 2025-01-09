@@ -1430,17 +1430,14 @@ class GraphicUserInterface(QMainWindow):
                 roiVarByMean = roiVar / roiMean
             roi = self.ui.display_image.rectRoi.oriented()
             self.ui.labelRoiInfo.setText(
-                "ROI Mean %-7.2f Std %-7.2f Var/Mean %-7.2f Min %d Max %d (%d,%d) W %d H %d"
-                % (
-                    roiMean,
-                    math.sqrt(roiVar),
-                    roiVarByMean,
-                    self.min_px,
-                    self.max_px,
-                    roi.x(),
-                    roi.y(),
-                    roi.width(),
-                    roi.height(),
+                (
+                    f"ROI Mean {roiMean:<-7.2f} "
+                    f"Std {math.sqrt(roiVar):<-7.2f} "
+                    f"Var/Mean {roiVarByMean:<-7.2f} "
+                    f"Min {self.min_px:<4d} "
+                    f"Max {self.max_px:<4d} "
+                    f"({roi.x()},{roi.y()}) "
+                    f"W {roi.width()} H {roi.height()}"
                 )
             )
             self.ui.labelProjHmax.setText("%d -" % projXmax)
