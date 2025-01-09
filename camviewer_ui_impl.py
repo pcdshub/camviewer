@@ -659,6 +659,7 @@ class GraphicUserInterface(QMainWindow):
         self.efilter = FilterObject(self.app, self)
 
     def closeEvent(self, event):
+        self.end_monitors()
         if self.cameraBase != "":
             self.activeClear()
         if self.haveforce and self.forcedialog is not None:
@@ -669,6 +670,24 @@ class GraphicUserInterface(QMainWindow):
         if self.cfg is None:
             self.dumpConfig()
         QMainWindow.closeEvent(self, event)
+
+    def end_monitors(self):
+        all_mons = []
+        all_mons.extend(self.camconn_pvs)
+        all_mons.extend(self.globmarkpvs)
+        all_mons.extend(self.globmarkpvs2)
+        all_mons.extend(self.otherpvs)
+        all_mons.append(self.notify)
+        all_mons.append(self.rowPv)
+        all_mons.append(self.colPv)
+        all_mons.append(self.launch_gui_pv)
+        all_mons.append(self.launch_edm_pv)
+        all_mons.append(self.lensPv)
+        all_mons.append(self.calibPV)
+        for pv in all_mons:
+            if pv is not None:
+                pv.monitor_stop()
+        pyca.flush_io()
 
     def setImageSize(self, newx, newy, reset=True):
         if newx == 0 or newy == 0:
