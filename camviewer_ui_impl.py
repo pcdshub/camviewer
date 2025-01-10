@@ -405,6 +405,9 @@ class GraphicUserInterface(QMainWindow):
         self.updateRoiText()
         self.updateMarkerText(True, True, 0, 15)
 
+        self.max_px = 0
+        self.min_px = 0
+
         sizeProjX = QSize(self.viewwidth, self.projsize)
         self.ui.projH.doResize(sizeProjX)
 
@@ -419,14 +422,20 @@ class GraphicUserInterface(QMainWindow):
 
         self.ui.checkBoxProjAutoRange.stateChanged.connect(self.onCheckProjUpdate)
 
-        self.ui.horizontalSliderRangeMin.valueChanged.connect(
-            self.onSliderRangeMinChanged
+        self.ui.horizontalSliderRangeMin.sliderReleased.connect(
+            self.on_slider_range_min_released
         )
-        self.ui.horizontalSliderRangeMax.valueChanged.connect(
-            self.onSliderRangeMaxChanged
+        self.ui.horizontalSliderRangeMax.sliderReleased.connect(
+            self.on_slider_range_max_released
         )
-        self.ui.lineEditRangeMin.returnPressed.connect(self.onRangeMinTextEnter)
-        self.ui.lineEditRangeMax.returnPressed.connect(self.onRangeMaxTextEnter)
+        self.ui.lineEditRangeMin.returnPressed.connect(
+            self.on_range_min_text_enter_pressed
+        )
+        self.ui.lineEditRangeMax.returnPressed.connect(
+            self.on_range_max_text_enter_pressed
+        )
+        self.ui.pushbutton_auto_range.pressed.connect(self.set_auto_range)
+        self.ui.checkbox_auto_range.stateChanged.connect(self.set_auto_range)
 
         self.ui.horizontalSliderLens.sliderReleased.connect(self.onSliderLensReleased)
         self.ui.horizontalSliderLens.valueChanged.connect(self.onSliderLensChanged)
@@ -1397,6 +1406,8 @@ class GraphicUserInterface(QMainWindow):
                 projXmax,
                 projYmin,
                 projYmax,
+                self.max_px,
+                self.min_px,
             ) = pycaqtimage.pyUpdateProj(
                 self.imageBuffer,
                 self.ui.checkBoxProjAutoRange.isChecked(),
@@ -1410,22 +1421,23 @@ class GraphicUserInterface(QMainWindow):
             (projYmin, projYmax) = self.ui.projV.makeImage(
                 projXmin, projXmax, projYmin, projYmax
             )
-
+            if self.ui.checkbox_auto_range.isChecked():
+                self.set_new_max_pixel(self.max_px)
+                self.set_new_min_pixel(self.min_px)
             if roiMean == 0:
                 roiVarByMean = 0
             else:
                 roiVarByMean = roiVar / roiMean
             roi = self.ui.display_image.rectRoi.oriented()
             self.ui.labelRoiInfo.setText(
-                "ROI Mean %-7.2f Std %-7.2f Var/Mean %-7.2f (%d,%d) W %d H %d"
-                % (
-                    roiMean,
-                    math.sqrt(roiVar),
-                    roiVarByMean,
-                    roi.x(),
-                    roi.y(),
-                    roi.width(),
-                    roi.height(),
+                (
+                    f"ROI Mean {roiMean:<-7.2f} "
+                    f"Std {math.sqrt(roiVar):<-7.2f} "
+                    f"Var/Mean {roiVarByMean:<-7.2f} "
+                    f"Min {self.min_px:<4d} "
+                    f"Max {self.max_px:<4d} "
+                    f"({roi.x()},{roi.y()}) "
+                    f"W {roi.width()} H {roi.height()}"
                 )
             )
             self.ui.labelProjHmax.setText("%d -" % projXmax)
@@ -2403,23 +2415,103 @@ class GraphicUserInterface(QMainWindow):
         # Not handling other errors for now
         subprocess.run([script])
 
-    def onSliderRangeMinChanged(self, newSliderValue):
-        self.ui.lineEditRangeMin.setText(str(newSliderValue))
-        self.iRangeMin = newSliderValue
-        if newSliderValue > self.iRangeMax:
-            self.ui.horizontalSliderRangeMax.setValue(newSliderValue)
+    def set_new_min_pixel(self, value: int):
+        """
+        Sets the minimum pixel threshold for monochrome colormap scaling.
+
+        This cannot be set to be higher than the max pixel threshold.
+        If this is done, the max pixel threshold will be increased to
+        match this new value.
+
+        Pixels whose values are below this number will all render as the
+        same color after we apply the color map. Pixels whose values are
+        above this number, up to the max pixel value, will be assigned
+        colors from the color map based on the other settings.
+
+        Internally, this does the following:
+        - Sets an attribute that will be applied the next time the image
+          is rendered
+        - Updates the sliders and text boxes appropriately to match
+          the new value
+
+        If you would like to render a new image immediately instead of
+        waiting for the next frame, you need to call
+        ``self.after_new_min_or_max_pixel()`` afterwards.
+        This is kept separate so we can set this value during
+        a re-render if we need to.
+        """
+        value = max(0, value)
+        value = min(self.maxcolor, value)
+        self.iRangeMin = value
+        if value > self.iRangeMax:
+            self.iRangeMax = value
+        self.update_visible_pixel_ranges()
+
+    def set_new_max_pixel(self, value: int):
+        """
+        Sets the maximum pixel threshold for monochrome colormap scaling.
+
+        This cannot be set to be lower than the min pixel threshold.
+        If this is done, the min pixel threshold will be decreased to
+        match this new value.
+
+        Pixels whose values are above this number will all render as the
+        same color after we apply the color map. Pixels whose values are
+        below this number, down to the min pixel value, will be assigned
+        colors from the color map based on the other settings.
+
+        Internally, this does the following:
+        - Sets an attribute that will be applied the next time the image
+          is rendered
+        - Updates the sliders and text boxes appropriately to match
+          the new value
+
+        If you would like to render a new image immediately instead of
+        waiting for the next frame, you need to call
+        ``self.after_new_min_or_max_pixel()`` afterwards.
+        This is kept separate so we can set this value during
+        a re-render if we need to.
+        """
+        value = max(0, value)
+        value = min(self.maxcolor, value)
+        self.iRangeMax = value
+        if value < self.iRangeMin:
+            self.iRangeMin = value
+        self.update_visible_pixel_ranges()
+
+    def after_new_min_or_max_pixel(self):
+        """
+        Updates the rendered image to reflect new color map scaling.
+        """
         self.setColorMap()
         self.updateProj()
         self.updateMiscInfo()
 
-    def onSliderRangeMaxChanged(self, newSliderValue):
-        self.ui.lineEditRangeMax.setText(str(newSliderValue))
-        self.iRangeMax = newSliderValue
-        if newSliderValue < self.iRangeMin:
-            self.ui.horizontalSliderRangeMin.setValue(newSliderValue)
-        self.setColorMap()
-        self.updateProj()
-        self.updateMiscInfo()
+    def update_visible_pixel_ranges(self):
+        """
+        Sets the visual state of the pixel range widgets correctly.
+
+        This is so we can move the slider or type into the text box and
+        update the other widget with the new value.
+        """
+        self.ui.horizontalSliderRangeMax.setValue(self.iRangeMax)
+        self.ui.horizontalSliderRangeMin.setValue(self.iRangeMin)
+        self.ui.lineEditRangeMax.setText(str(self.iRangeMax))
+        self.ui.lineEditRangeMin.setText(str(self.iRangeMin))
+
+    def on_slider_range_min_released(self):
+        """
+        When the user lets go of the slider, update the value and rerender.
+        """
+        self.set_new_min_pixel(self.ui.horizontalSliderRangeMin.value())
+        self.after_new_min_or_max_pixel()
+
+    def on_slider_range_max_released(self):
+        """
+        When the user lets go of the slider, update the value and rerender.
+        """
+        self.set_new_max_pixel(self.ui.horizontalSliderRangeMax.value())
+        self.after_new_min_or_max_pixel()
 
     def onSliderLensChanged(self, newSliderValue):
         self.ui.lineEditLens.setText(str(newSliderValue))
@@ -2438,29 +2530,51 @@ class GraphicUserInterface(QMainWindow):
             except pyca.caexc as e:
                 print("channel access exception: %s" % (e))
 
-    def onRangeMinTextEnter(self):
+    def on_range_min_text_enter_pressed(self):
+        """
+        When the user presses enter on the pixel text boxes, update the value and rerender.
+        """
         try:
             value = int(self.ui.lineEditRangeMin.text())
         except Exception:
             value = 0
+        self.set_new_min_pixel(value)
+        self.after_new_min_or_max_pixel()
 
-        if value < 0:
-            value = 0
-        if value > self.maxcolor:
-            value = self.maxcolor
-        self.ui.horizontalSliderRangeMin.setValue(value)
-
-    def onRangeMaxTextEnter(self):
+    def on_range_max_text_enter_pressed(self):
+        """
+        When the user presses enter on the pixel text boxes, update the value and rerender.
+        """
         try:
             value = int(self.ui.lineEditRangeMax.text())
         except Exception:
             value = 0
+        self.set_new_max_pixel(value)
+        self.after_new_min_or_max_pixel()
 
-        if value < 0:
-            value = 0
-        if value > self.maxcolor:
-            value = self.maxcolor
-        self.ui.horizontalSliderRangeMax.setValue(value)
+    def set_auto_range(self, checked: None | Qt.CheckState = None):
+        """
+        Apply an automatic pixel range to the image and rerender.
+
+        This takes the current maximum and minimum pixel values
+        from the last collected image and sets them as the maximum
+        and minimum pixel thresholds for the colormap.
+
+        This is intended to be called as a slot from signals emitted
+        from clicking a QPushButton or from checking a QCheckbox.
+
+        If the QPushButton is clicked or the QCheckbox is checked,
+        immediately apply an automatic range to the live image.
+
+        This allows the user to set an automatic range on demand
+        by clicking a button, and it allows the "auto every frame"
+        checkbox to immediately apply auto scaling instead of waiting
+        for the next frame.
+        """
+        if checked in (None, Qt.Checked):
+            self.set_new_max_pixel(self.max_px)
+            self.set_new_min_pixel(self.min_px)
+            self.after_new_min_or_max_pixel()
 
     def onLensEnter(self):
         try:
@@ -2850,10 +2964,11 @@ class GraphicUserInterface(QMainWindow):
             self.cfg.colorscale[0] + " " + self.cfg.colorscale[1]
         )
         self.ui.comboBoxScale.setCurrentIndex(self.iScaleIndex)
-        self.ui.lineEditRangeMin.setText(self.cfg.colormin)
-        self.onRangeMinTextEnter()
-        self.ui.lineEditRangeMax.setText(self.cfg.colormax)
-        self.onRangeMaxTextEnter()
+        try:
+            self.set_new_min_pixel(int(self.cfg.colormin))
+            self.set_new_max_pixel(int(self.cfg.colormax))
+        except Exception:
+            print("Failed to load min or max pixel value from config file.")
         try:
             self.ui.grayScale.setChecked(int(self.cfg.grayscale))
             self.onCheckGrayUpdate(int(self.cfg.grayscale))
