@@ -10,13 +10,15 @@ inside of a stock QGroupBox in the main screen.
 from __future__ import annotations
 
 from functools import partial
+from threading import Lock
 
 from psp.Pv import Pv
 from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import QFormLayout, QLabel, QPushButton, QHBoxLayout, QSpinBox
 
 
-# groupBoxControls
+STOP_TEXT = "Stopped"
+START_TEXT = "Started"
 
 
 class ModelScreenGenerator(QObject):
@@ -32,27 +34,35 @@ class ModelScreenGenerator(QObject):
     manuf_ready = pyqtSignal()
     model_ready = pyqtSignal()
 
-    def __init__(self, base_pv: str):
-        self.form = QFormLayout()
+    def __init__(self, base_pv: str, form: QFormLayout, parent: QObject | None = None):
+        super().__init__(parent=parent)
+        self.form = form
         self.base_pv = base_pv
         self.manufacturer = ""
         self.model = ""
-        self.pvs: list[Pv] = []
+        self.full_name = ""
+        self.pvs_to_clean_up: list[Pv] = []
+        self.sigs_to_clean_up: list[pyqtSignal] = [
+            self.final_name,
+            self.manuf_ready,
+            self.model_ready,
+        ]
+        self.finish_ran = False
+        self.finish_lock = Lock()
 
         # Put in the form elements that always should be there
-        self.acq_label = QLabel("Disconnected")
+        self.acq_label = QLabel(STOP_TEXT)
+        self.acq_label.setMinimumWidth(80)
         start_button = QPushButton("Start")
         stop_button = QPushButton("Stop")
         acq_layout = QHBoxLayout()
-        acq_layout.addWidget(self.acq_label)
         acq_layout.addWidget(start_button)
         acq_layout.addWidget(stop_button)
-        self.form.addRow("Acquire", acq_layout)
+        self.form.addRow(self.acq_label, acq_layout)
 
         # If we don't have PVs, stop here.
-        # This is used to display something before we select a camera.
         if not base_pv:
-            self.final_name.emit("Disconnected")
+            self.full_name = "Generic"
             return
 
         # If we have PVs, we can make the widgets work properly
@@ -63,57 +73,71 @@ class ModelScreenGenerator(QObject):
             monitor=self.new_acq_value,
             initialize=True,
         )
-        self.pvs.append(self.acq_status_pv)
+        self.pvs_to_clean_up.append(self.acq_status_pv)
         self.acq_set_pv = Pv(f"{base_pv}:Acquire")
         self.acq_set_pv.connect()
-        self.pvs.append(self.acq_set_pv)
+        self.pvs_to_clean_up.append(self.acq_set_pv)
         start_button.clicked.connect(partial(self.set_acq_value, 1))
         stop_button.clicked.connect(partial(self.set_acq_value, 0))
 
         # Create a callback to finish the form later, given the model
-        self.manuf_pv = Pv(f"{base_pv}:Manufacturer_RBV")
-        self.pvs.append(self.manuf_pv)
-        self.manuf_cid = self.manuf_pv.add_connection_callback(self.manuf_ready)
-        self.manuf_pv.connect()
-        self.model_pv = Pv(f"{base_pv}:Model_RBV")
-        self.pvs.append(self.model_pv)
-        self.model_cid = self.model_pv.add_connection_callback(self.model_ready)
-        self.model_pv.connect()
+        self.manuf_pv = Pv(
+            f"{base_pv}:Manufacturer_RBV",
+            monitor=self.manuf_monitor,
+            initialize=True,
+        )
+        self.pvs_to_clean_up.append(self.manuf_pv)
+        self.model_pv = Pv(
+            f"{base_pv}:Model_RBV",
+            monitor=self.model_monitor,
+            initialize=True,
+        )
+        self.pvs_to_clean_up.append(self.model_pv)
 
     def get_layout(self) -> QFormLayout:
         return self.form
 
-    def manuf_read(self, is_connected: bool) -> None:
-        if is_connected:
-            self.manuf_pv.del_connection_callback(self.manuf_cid)
+    def manuf_monitor(self, error: Exception | None) -> None:
+        if error is None:
             self.manufacturer = self.manuf_pv.value
-            self.manuf_pv.disconnect()
             self.manuf_ready.emit()
 
-    def model_read(self, is_connected: bool) -> None:
-        if is_connected:
-            self.model_pv.del_connection_callback(self.model_cid)
+    def model_monitor(self, error: Exception | None) -> None:
+        if error is None:
             self.model = self.model_pv.value
-            self.model_pv.disconnect()
             self.model_ready.emit()
 
     def finish_form(self) -> QFormLayout:
         if not self.manufacturer or not self.model:
             return
-        full_name = f"{self.manufacturer} {self.model}"
-        self.final_name.emit(full_name)
+        with self.finish_lock:
+            if self.finish_ran:
+                return
+            self.finish_ran = True
+        self.manuf_pv.disconnect()
+        self.model_pv.disconnect()
+        self.pvs_to_clean_up.remove(self.manuf_pv)
+        self.pvs_to_clean_up.remove(self.model_pv)
+        self.full_name = f"{self.manufacturer} {self.model}"
+        self.final_name.emit(self.full_name)
         try:
-            finisher = form_finishers[full_name]
+            finisher = form_finishers[self.full_name]
         except KeyError:
-            print(f"Using basic controls for {full_name}")
+            print(f"Using basic controls for {self.full_name}")
             return
         else:
-            print(f"Loading special screen for {full_name}")
-        self.pvs.extend(finisher(self.form, self.base_pv))
+            print(f"Loading special screen for {self.full_name}")
+        finisher_pvs, finisher_sigs = finisher(self.form, self.base_pv)
+        self.pvs_to_clean_up.extend(finisher_pvs)
+        self.sigs_to_clean_up.extend(finisher_sigs)
 
     def new_acq_value(self, error: Exception | None) -> None:
         if error is None:
-            self.acq_label.setText(self.acq_status_pv.value)
+            if self.acq_status_pv.value:
+                text = START_TEXT
+            else:
+                text = STOP_TEXT
+            self.acq_label.setText(text)
 
     def set_acq_value(self, value: int) -> None:
         try:
@@ -122,8 +146,15 @@ class ModelScreenGenerator(QObject):
             ...
 
     def cleanup(self) -> None:
-        for pv in self.pvs:
+        for pv in self.pvs_to_clean_up:
             pv.disconnect()
+        for sig in self.sigs_to_clean_up:
+            try:
+                sig.disconnect()
+            except TypeError:
+                ...
+        for _ in range(self.form.rowCount()):
+            self.form.removeRow(0)
 
 
 def em_gain_andor(form: QFormLayout, base_pv: str) -> list[Pv]:
@@ -132,6 +163,7 @@ def em_gain_andor(form: QFormLayout, base_pv: str) -> list[Pv]:
     Return the list of Pvs so we can clean up later.
     """
     pvs = []
+    sigs = []
 
     gain_label = QLabel()
 
@@ -158,12 +190,13 @@ def em_gain_andor(form: QFormLayout, base_pv: str) -> list[Pv]:
 
     gain_spinbox = QSpinBox()
     gain_spinbox.valueChanged.connect(set_gain_value)
+    sigs.append(gain_spinbox.valueChanged)
 
     gain_layout = QHBoxLayout()
     gain_layout.addWidget(gain_label)
     gain_layout.addWidget(gain_spinbox)
     form.addRow("EM Gain", gain_layout)
-    return pvs
+    return pvs, sigs
 
 
 form_finishers = {
