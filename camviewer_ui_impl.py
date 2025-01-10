@@ -428,11 +428,11 @@ class GraphicUserInterface(QMainWindow):
         self.ui.horizontalSliderRangeMax.sliderReleased.connect(
             self.on_slider_range_max_released
         )
-        self.ui.lineEditRangeMin.returnPressed.connect(
-            self.on_range_min_text_enter_pressed
+        self.ui.spinbox_range_min.editingFinished.connect(
+            self.on_range_min_text_edit_finished
         )
-        self.ui.lineEditRangeMax.returnPressed.connect(
-            self.on_range_max_text_enter_pressed
+        self.ui.spinbox_range_max.editingFinished.connect(
+            self.on_range_max_text_edit_finised
         )
         self.ui.pushbutton_auto_range.pressed.connect(self.set_auto_range)
         self.ui.checkbox_auto_range.stateChanged.connect(self.set_auto_range)
@@ -1958,6 +1958,8 @@ class GraphicUserInterface(QMainWindow):
         self.ui.horizontalSliderRangeMin.setTickInterval((1 << self.bits) / 4)
         self.ui.horizontalSliderRangeMax.setMaximum(self.maxcolor)
         self.ui.horizontalSliderRangeMax.setTickInterval((1 << self.bits) / 4)
+        self.ui.spinbox_range_max.setMaximum(self.maxcolor)
+        self.ui.spinbox_range_min.setMaximum(self.maxcolor)
 
         # See if we've connected to a camera with valid height and width
         if (
@@ -2496,8 +2498,8 @@ class GraphicUserInterface(QMainWindow):
         """
         self.ui.horizontalSliderRangeMax.setValue(self.iRangeMax)
         self.ui.horizontalSliderRangeMin.setValue(self.iRangeMin)
-        self.ui.lineEditRangeMax.setText(str(self.iRangeMax))
-        self.ui.lineEditRangeMin.setText(str(self.iRangeMin))
+        self.ui.spinbox_range_max.setValue(self.iRangeMax)
+        self.ui.spinbox_range_min.setValue(self.iRangeMin)
 
     def on_slider_range_min_released(self):
         """
@@ -2530,26 +2532,18 @@ class GraphicUserInterface(QMainWindow):
             except pyca.caexc as e:
                 print("channel access exception: %s" % (e))
 
-    def on_range_min_text_enter_pressed(self):
+    def on_range_min_text_edit_finished(self):
         """
         When the user presses enter on the pixel text boxes, update the value and rerender.
         """
-        try:
-            value = int(self.ui.lineEditRangeMin.text())
-        except Exception:
-            value = 0
-        self.set_new_min_pixel(value)
+        self.set_new_min_pixel(self.ui.spinbox_range_min.value())
         self.after_new_min_or_max_pixel()
 
-    def on_range_max_text_enter_pressed(self):
+    def on_range_max_text_edit_finised(self):
         """
         When the user presses enter on the pixel text boxes, update the value and rerender.
         """
-        try:
-            value = int(self.ui.lineEditRangeMax.text())
-        except Exception:
-            value = 0
-        self.set_new_max_pixel(value)
+        self.set_new_max_pixel(self.ui.spinbox_range_max.value())
         self.after_new_min_or_max_pixel()
 
     def set_auto_range(self, checked: None | Qt.CheckState = None):
@@ -3104,8 +3098,8 @@ def write_camera_config(gui: GraphicUserInterface) -> None:
         )
         fd.write("colormap    " + str(gui.ui.comboBoxColor.currentText()) + "\n")
         fd.write("colorscale  " + str(gui.ui.comboBoxScale.currentText()) + "\n")
-        fd.write("colormin    " + gui.ui.lineEditRangeMin.text() + "\n")
-        fd.write("colormax    " + gui.ui.lineEditRangeMax.text() + "\n")
+        fd.write(f"colormin    {gui.ui.spinbox_range_min.value()}\n")
+        fd.write(f"colormax    {gui.ui.spinbox_range_max.value()}\n")
         fd.write("grayscale   " + str(int(gui.ui.grayScale.isChecked())) + "\n")
         roi = gui.ui.display_image.rectRoi.abs()
         fd.write(
