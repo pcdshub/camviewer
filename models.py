@@ -157,7 +157,7 @@ class ModelScreenGenerator(QObject):
             self.form.removeRow(0)
 
 
-def em_gain_andor(form: QFormLayout, base_pv: str) -> list[Pv]:
+def em_gain_andor(form: QFormLayout, base_pv: str) -> tuple[list[Pv], list[pyqtSignal]]:
     """
     Update the basic form layout to include the andor em gain.
     Return the list of Pvs so we can clean up later.
@@ -182,15 +182,16 @@ def em_gain_andor(form: QFormLayout, base_pv: str) -> list[Pv]:
     pvs.append(gain_set_pv)
     gain_set_pv.connect()
 
-    def set_gain_value(value: int):
+    def set_gain_value():
         try:
-            gain_set_pv.put(value)
+            gain_set_pv.put(gain_spinbox.value())
         except Exception:
             ...
 
     gain_spinbox = QSpinBox()
-    gain_spinbox.valueChanged.connect(set_gain_value)
-    sigs.append(gain_spinbox.valueChanged)
+    gain_spinbox.setMaximum(10000000)
+    gain_spinbox.editingFinished.connect(set_gain_value)
+    sigs.append(gain_spinbox.editingFinished)
 
     gain_layout = QHBoxLayout()
     gain_layout.addWidget(gain_label)
