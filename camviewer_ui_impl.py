@@ -672,6 +672,8 @@ class GraphicUserInterface(QMainWindow):
         self.end_monitors()
         if self.cameraBase != "":
             self.activeClear()
+        if self.model_screen_generator is not None:
+            self.model_screen_generator.cleanup()
         if self.haveforce and self.forcedialog is not None:
             self.forcedialog.close()
         self.advdialog.close()
