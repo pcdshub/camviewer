@@ -84,7 +84,7 @@ class CamTypeScreenGenerator(QObject):
         )
         self.pvs_to_clean_up.append(self.acq_status_pv)
         self.acq_set_pv = Pv(f"{base_pv}:Acquire")
-        self.acq_set_pv.add_rwaccess_callback(self.acq_rw_acc)
+        self.acq_set_pv.add_rwaccess_callback(self.acquire_rw_cb)
         self.acq_set_pv.do_initialize = True
         self.acq_set_pv.do_monitor = True
         self.acq_set_pv.connect()
@@ -201,7 +201,7 @@ class CamTypeScreenGenerator(QObject):
         except Exception:
             ...
 
-    def acq_rw_acc(self, _: bool, write_access: bool) -> None:
+    def acquire_rw_cb(self, _: bool, write_access: bool) -> None:
         """
         Read/write access callback for enabling/disabling the acquire buttons.
 
