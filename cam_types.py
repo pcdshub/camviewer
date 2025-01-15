@@ -60,18 +60,18 @@ class CamTypeScreenGenerator(QObject):
         # Put in the form elements that always should be there
         self.acq_label = QLabel(STOP_TEXT)
         self.acq_label.setMinimumWidth(80)
-        start_button = QPushButton("Start")
-        stop_button = QPushButton("Stop")
+        self.start_button = QPushButton("Start")
+        self.stop_button = QPushButton("Stop")
+        self.start_button.setEnabled(False)
+        self.stop_button.setEnabled(False)
         acq_layout = QHBoxLayout()
-        acq_layout.addWidget(start_button)
-        acq_layout.addWidget(stop_button)
+        acq_layout.addWidget(self.start_button)
+        acq_layout.addWidget(self.stop_button)
         self.form.addRow(self.acq_label, acq_layout)
 
         # If we don't have PVs, stop here.
         if not base_pv:
             self.full_name = "Disconnected"
-            start_button.setDisabled(True)
-            stop_button.setDisabled(True)
             return
 
         # If we have PVs, we can make the widgets work properly
@@ -84,10 +84,13 @@ class CamTypeScreenGenerator(QObject):
         )
         self.pvs_to_clean_up.append(self.acq_status_pv)
         self.acq_set_pv = Pv(f"{base_pv}:Acquire")
+        self.acq_set_pv.add_rwaccess_callback(self.acq_rw_acc)
+        self.acq_set_pv.do_initialize = True
+        self.acq_set_pv.do_monitor = True
         self.acq_set_pv.connect()
         self.pvs_to_clean_up.append(self.acq_set_pv)
-        start_button.clicked.connect(partial(self.set_acq_value, 1))
-        stop_button.clicked.connect(partial(self.set_acq_value, 0))
+        self.start_button.clicked.connect(partial(self.set_acq_value, 1))
+        self.stop_button.clicked.connect(partial(self.set_acq_value, 0))
 
         # Create a callback to finish the form later, given the model
         self.manuf_pv = Pv(
@@ -160,6 +163,10 @@ class CamTypeScreenGenerator(QObject):
             self.acq_set_pv.put(value)
         except Exception:
             ...
+
+    def acq_rw_acc(self, _: bool, write_access: bool) -> None:
+        self.start_button.setEnabled(write_access)
+        self.stop_button.setEnabled(write_access)
 
     def cleanup(self) -> None:
         for pv in self.pvs_to_clean_up:
