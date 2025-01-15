@@ -69,7 +69,9 @@ class CamTypeScreenGenerator(QObject):
 
         # If we don't have PVs, stop here.
         if not base_pv:
-            self.full_name = "Generic"
+            self.full_name = "Disconnected"
+            start_button.setDisabled(True)
+            stop_button.setDisabled(True)
             return
 
         # If we have PVs, we can make the widgets work properly

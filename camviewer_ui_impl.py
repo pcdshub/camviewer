@@ -1138,9 +1138,10 @@ class GraphicUserInterface(QMainWindow):
                 pv.disconnect()
             except Exception:
                 pass
-        if self.cam_type_screen_generator is not None:
-            self.cam_type_screen_generator.cleanup()
         self.otherpvs = []
+        self.cameraBase = ""
+        self.ctrlBase = ""
+        self.setup_model_specific()
 
     def shutdown(self):
         self.clear()
