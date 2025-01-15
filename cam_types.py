@@ -162,11 +162,13 @@ class CamTypeScreenGenerator(QObject):
     def cleanup(self) -> None:
         for pv in self.pvs_to_clean_up:
             pv.disconnect()
+        self.pvs_to_clean_up = []
         for sig in self.sigs_to_clean_up:
             try:
                 sig.disconnect()
             except TypeError:
                 ...
+        self.sigs_to_clean_up = []
         for _ in range(self.form.rowCount()):
             self.form.removeRow(0)
 
