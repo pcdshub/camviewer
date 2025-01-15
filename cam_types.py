@@ -167,36 +167,39 @@ def em_gain_andor(form: QFormLayout, base_pv: str) -> tuple[list[Pv], list[pyqtS
 
     gain_label = QLabel()
 
-    def update_gain_label(error: Exception | None):
-        if error is None:
-            gain_label.setText(str(gain_rbv_pv.value))
-
-    gain_rbv_pv = Pv(
-        f"{base_pv}:AndorEMGain_RBV",
-        monitor=update_gain_label,
-        initialize=True,
-    )
-    pvs.append(gain_rbv_pv)
-
-    gain_set_pv = Pv(f"{base_pv}:AndorEMGain")
-    pvs.append(gain_set_pv)
-    gain_set_pv.connect()
-
-    def set_gain_value():
-        try:
-            gain_set_pv.put(gain_spinbox.value())
-        except Exception:
-            ...
-
     gain_spinbox = QSpinBox()
     gain_spinbox.setMaximum(10000000)
-    gain_spinbox.editingFinished.connect(set_gain_value)
-    sigs.append(gain_spinbox.editingFinished)
 
     gain_layout = QHBoxLayout()
     gain_layout.addWidget(gain_label)
     gain_layout.addWidget(gain_spinbox)
+
     form.addRow("EM Gain", gain_layout)
+
+    def update_gain_widgets(error: Exception | None):
+        if error is None:
+            gain_label.setText(str(gain_rbv_pv.value))
+            gain_spinbox.setValue(int(gain_rbv_pv.value))
+
+    gain_rbv_pv = Pv(
+        f"{base_pv}:AndorEMGain_RBV",
+        monitor=update_gain_widgets,
+        initialize=True,
+    )
+    gain_set_pv = Pv(f"{base_pv}:AndorEMGain")
+    gain_set_pv.connect()
+    pvs.append(gain_rbv_pv)
+    pvs.append(gain_set_pv)
+
+    def set_gain_value():
+        try:
+            gain_set_pv.put(gain_spinbox.value())
+        except Exception as exc:
+            print(f"Error updating EM gain PV: {exc}")
+
+    gain_spinbox.editingFinished.connect(set_gain_value)
+    sigs.append(gain_spinbox.editingFinished)
+
     return pvs, sigs
 
 
