@@ -107,16 +107,47 @@ class CamTypeScreenGenerator(QObject):
         self.pvs_to_clean_up.append(self.model_pv)
 
     def manuf_monitor(self, error: Exception | None) -> None:
+        """
+        Monitor callback for new manufacturer value.
+
+        Each camera has a manufacturer and a model, which
+        together define if and which special widgets to
+        generate.
+        """
         if error is None:
             self.manufacturer = self.manuf_pv.value
             self.manuf_ready.emit()
 
     def model_monitor(self, error: Exception | None) -> None:
+        """
+        Monitor callback for a new model value.
+
+        Each camera has a manufacturer and a model, which
+        together define if and which special widgets to
+        generate.
+        """
         if error is None:
             self.model = self.model_pv.value
             self.model_ready.emit()
 
     def finish_form(self) -> QFormLayout:
+        """
+        Completes the layout, adding any cam-specific widgets.
+
+        The main part of this function is meant to be run exactly once.
+        We should not be able to move to the main body until
+        both the manufacturer and the model are known.
+
+        Cam-specific "finisher" functions should have the signature:
+
+        def finished(
+            form: QFormlayout,
+            base_pv: str,
+        ) -> tuple[list[Pv], list[pyqtSignal]]
+
+        Where the return values are the pvs and signals we need to clean
+        up at widget close.
+        """
         if not self.manufacturer or not self.model:
             return
         with self.finish_lock:
@@ -148,6 +179,12 @@ class CamTypeScreenGenerator(QObject):
         self.sigs_to_clean_up.extend(finisher_sigs)
 
     def new_acq_value(self, error: Exception | None) -> None:
+        """
+        Monitor callback for a new value of the Acquire_RBV PV.
+
+        This PV tells us whether the PV is or is not acquiring data.
+        As this value changes, we update a label for the display.
+        """
         if error is None:
             if self.acq_status_pv.value:
                 text = START_TEXT
@@ -156,16 +193,33 @@ class CamTypeScreenGenerator(QObject):
             self.acq_label.setText(text)
 
     def set_acq_value(self, value: int) -> None:
+        """
+        Slot to start or stop camera acquisition.
+        """
         try:
             self.acq_set_pv.put(value)
         except Exception:
             ...
 
     def acq_rw_acc(self, _: bool, write_access: bool) -> None:
+        """
+        Read/write access callback for enabling/disabling the acquire buttons.
+
+        We disable the buttons when there is no write access as an indicator
+        that the user can't change the setting.
+
+        Read access is passed in by pyca but is ignored here.
+        """
         self.start_button.setEnabled(write_access)
         self.stop_button.setEnabled(write_access)
 
     def cleanup(self) -> None:
+        """
+        Tidy up all the callbacks and widgets associated with the generated cam screen.
+
+        Disconnects all the PVs, disconnects all of the signals, and removes all
+        of the widgets from the layout.
+        """
         for pv in self.pvs_to_clean_up:
             pv.disconnect()
         self.pvs_to_clean_up = []
