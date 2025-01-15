@@ -106,9 +106,6 @@ class CamTypeScreenGenerator(QObject):
         )
         self.pvs_to_clean_up.append(self.model_pv)
 
-    def get_layout(self) -> QFormLayout:
-        return self.form
-
     def manuf_monitor(self, error: Exception | None) -> None:
         if error is None:
             self.manufacturer = self.manuf_pv.value
