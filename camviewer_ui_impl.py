@@ -522,7 +522,7 @@ class GraphicUserInterface(QMainWindow):
         self.refresh_timeout_display_timer.setInterval(1000 * 20)
         self.refresh_timeout_display_timer.start()
 
-        self.model_screen_generator = None
+        self.cam_type_screen_generator = None
         self.setup_model_specific()
 
         self.ui.average.returnPressed.connect(self.onAverageSet)
@@ -672,8 +672,8 @@ class GraphicUserInterface(QMainWindow):
         self.end_monitors()
         if self.cameraBase != "":
             self.activeClear()
-        if self.model_screen_generator is not None:
-            self.model_screen_generator.cleanup()
+        if self.cam_type_screen_generator is not None:
+            self.cam_type_screen_generator.cleanup()
         if self.haveforce and self.forcedialog is not None:
             self.forcedialog.close()
         self.advdialog.close()
@@ -1138,8 +1138,8 @@ class GraphicUserInterface(QMainWindow):
                 pv.disconnect()
             except Exception:
                 pass
-        if self.model_screen_generator is not None:
-            self.model_screen_generator.cleanup()
+        if self.cam_type_screen_generator is not None:
+            self.cam_type_screen_generator.cleanup()
         self.otherpvs = []
 
     def shutdown(self):
@@ -2038,16 +2038,16 @@ class GraphicUserInterface(QMainWindow):
         self.getConfig()
 
     def setup_model_specific(self):
-        if self.model_screen_generator is None:
+        if self.cam_type_screen_generator is None:
             form = QFormLayout()
             self.ui.groupBoxControls.setLayout(form)
         else:
-            self.model_screen_generator.cleanup()
+            self.cam_type_screen_generator.cleanup()
             form = self.ui.groupBoxControls.layout()
-        self.model_screen_generator = CamTypeScreenGenerator(self.ctrlBase, form)
-        self.model_screen_generator.final_name.connect(self.new_model_name)
-        if self.model_screen_generator.full_name:
-            self.new_model_name(self.model_screen_generator.full_name)
+        self.cam_type_screen_generator = CamTypeScreenGenerator(self.ctrlBase, form)
+        self.cam_type_screen_generator.final_name.connect(self.new_model_name)
+        if self.cam_type_screen_generator.full_name:
+            self.new_model_name(self.cam_type_screen_generator.full_name)
 
     def new_model_name(self, name: str):
         self.ui.groupBoxControls.setTitle(f"{name} Controls")
