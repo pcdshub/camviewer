@@ -14,7 +14,14 @@ from threading import Lock
 
 from psp.Pv import Pv
 from PyQt5.QtCore import QObject, pyqtSignal
-from PyQt5.QtWidgets import QFormLayout, QLabel, QPushButton, QHBoxLayout, QSpinBox
+from PyQt5.QtWidgets import (
+    QFormLayout,
+    QLabel,
+    QPushButton,
+    QHBoxLayout,
+    QSpinBox,
+    QMessageBox,
+)
 
 
 STOP_TEXT = "Stopped"
@@ -127,7 +134,14 @@ class CamTypeScreenGenerator(QObject):
             return
         else:
             print(f"Loading special screen for {self.full_name}")
-        finisher_pvs, finisher_sigs = finisher(self.form, self.base_pv)
+        try:
+            finisher_pvs, finisher_sigs = finisher(self.form, self.base_pv)
+        except Exception as exc:
+            QMessageBox.warning(
+                self.parent(),
+                "Internal error",
+                f"Error loading model-specific widgets for {self.full_name}: {exc}",
+            )
         self.pvs_to_clean_up.extend(finisher_pvs)
         self.sigs_to_clean_up.extend(finisher_sigs)
 
