@@ -1138,6 +1138,8 @@ class GraphicUserInterface(QMainWindow):
                 pv.disconnect()
             except Exception:
                 pass
+        if self.model_screen_generator is not None:
+            self.model_screen_generator.cleanup()
         self.otherpvs = []
 
     def shutdown(self):
