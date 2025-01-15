@@ -21,7 +21,7 @@ STOP_TEXT = "Stopped"
 START_TEXT = "Started"
 
 
-class ModelScreenGenerator(QObject):
+class CamTypeScreenGenerator(QObject):
     """
     This class creates a cam-specific QFormLayout to include in the main screen.
 

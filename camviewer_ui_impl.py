@@ -15,7 +15,7 @@ from dialogs import advdialog
 from dialogs import markerdialog
 from dialogs import specificdialog
 from dialogs import forcedialog
-from models import ModelScreenGenerator
+from cam_types import CamTypeScreenGenerator
 
 import sys
 import os
@@ -2042,7 +2042,7 @@ class GraphicUserInterface(QMainWindow):
         else:
             self.model_screen_generator.cleanup()
             form = self.ui.groupBoxControls.layout()
-        self.model_screen_generator = ModelScreenGenerator(self.ctrlBase, form)
+        self.model_screen_generator = CamTypeScreenGenerator(self.ctrlBase, form)
         self.model_screen_generator.final_name.connect(self.new_model_name)
         if self.model_screen_generator.full_name:
             self.new_model_name(self.model_screen_generator.full_name)
