@@ -194,6 +194,7 @@ def em_gain_andor(form: QFormLayout, base_pv: str) -> tuple[list[Pv], list[pyqtS
 
     gain_spinbox = QSpinBox()
     gain_spinbox.setMaximum(10000000)
+    gain_spinbox.setEnabled(False)
 
     gain_layout = QHBoxLayout()
     gain_layout.addWidget(gain_label)
@@ -206,12 +207,18 @@ def em_gain_andor(form: QFormLayout, base_pv: str) -> tuple[list[Pv], list[pyqtS
             gain_label.setText(str(gain_rbv_pv.value))
             gain_spinbox.setValue(int(gain_rbv_pv.value))
 
+    def gain_rw_cb(_: bool, write_access: bool):
+        gain_spinbox.setEnabled(write_access)
+
     gain_rbv_pv = Pv(
         f"{base_pv}:AndorEMGain_RBV",
         monitor=update_gain_widgets,
         initialize=True,
     )
     gain_set_pv = Pv(f"{base_pv}:AndorEMGain")
+    gain_set_pv.add_rwaccess_callback(gain_rw_cb)
+    gain_set_pv.do_initialize = True
+    gain_set_pv.do_monitor = True
     gain_set_pv.connect()
     pvs.append(gain_rbv_pv)
     pvs.append(gain_set_pv)
