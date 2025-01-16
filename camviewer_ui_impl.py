@@ -1919,6 +1919,22 @@ class GraphicUserInterface(QMainWindow):
         if self.lFlags[index] != "":
             self.cfgname += "," + self.lFlags[index]
 
+        # Connect to expert PVs first
+        # In event of a connection failure in a later step,
+        # having these PVs available is helpful for debug.
+        self.launch_gui_pv = Pv(
+            self.ctrlBase + ":LAUNCH_GUI",
+            initialize=True,
+            monitor=self.new_launch_gui_script,
+            use_numpy=True,
+        )
+        self.launch_edm_pv = Pv(
+            self.ctrlBase + ":LAUNCH_EDM",
+            initialize=True,
+            monitor=self.new_launch_edm_script,
+            use_numpy=True,
+        )
+
         # Try to connect to the camera
         try:
             self.nordPv = self.connectPv(sCameraPv + ".NORD")
@@ -2017,18 +2033,6 @@ class GraphicUserInterface(QMainWindow):
         pyca.flush_io()
         # Deliberately after flush_io so we don't wait for them
         self.setup_model_specific()
-        self.launch_gui_pv = Pv(
-            self.ctrlBase + ":LAUNCH_GUI",
-            initialize=True,
-            monitor=self.new_launch_gui_script,
-            use_numpy=True,
-        )
-        self.launch_edm_pv = Pv(
-            self.ctrlBase + ":LAUNCH_EDM",
-            initialize=True,
-            monitor=self.new_launch_edm_script,
-            use_numpy=True,
-        )
         self.sWindowTitle = "Camera: " + self.lCameraDesc[index]
         self.setWindowTitle("MainWindow")
         self.advdialog.setWindowTitle(self.sWindowTitle + " Advanced Mode")
