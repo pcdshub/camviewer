@@ -141,6 +141,7 @@ class CamTypeScreenGenerator(QObject):
         Cam-specific "finisher" functions should have the signature:
 
         def finished(
+            generator: CamTypeScreenGenerator,
             form: QFormlayout,
             base_pv: str,
         ) -> tuple[list[Pv], list[pyqtSignal]]
@@ -168,7 +169,7 @@ class CamTypeScreenGenerator(QObject):
         else:
             print(f"Loading special screen for {self.full_name}")
         try:
-            finisher_pvs, finisher_sigs = finisher(self.form, self.base_pv)
+            finisher_pvs, finisher_sigs = finisher(self, self.form, self.base_pv)
         except Exception as exc:
             QMessageBox.warning(
                 self.parent(),
@@ -233,7 +234,11 @@ class CamTypeScreenGenerator(QObject):
             self.form.removeRow(0)
 
 
-def em_gain_andor(form: QFormLayout, base_pv: str) -> tuple[list[Pv], list[pyqtSignal]]:
+def em_gain_andor(
+    generator: CamTypeScreenGenerator,
+    form: QFormLayout,
+    base_pv: str,
+) -> tuple[list[Pv], list[pyqtSignal]]:
     """
     Update the basic form layout to include the andor em gain.
     Return the list of Pvs so we can clean up later.
@@ -254,12 +259,38 @@ def em_gain_andor(form: QFormLayout, base_pv: str) -> tuple[list[Pv], list[pyqtS
     form.addRow("EM Gain", gain_layout)
 
     def update_gain_widgets(error: Exception | None):
+        """
+        When a new gain value is read, update the label and spinbox.
+        """
         if error is None:
             gain_label.setText(str(gain_rbv_pv.value))
             gain_spinbox.setValue(int(gain_rbv_pv.value))
 
-    def gain_rw_cb(_: bool, write_access: bool):
-        gain_spinbox.setEnabled(write_access)
+    def gain_rw_cb(*args, **kwargs):
+        """
+        When our write access changes, update spinbox enable state.
+        """
+        update_spinbox_enable()
+
+    def acquire_monitor_cb(error: Exception | None):
+        """
+        When our acquire value changes, update spinbox enable state.
+        """
+        if error is None:
+            update_spinbox_enable()
+
+    def update_spinbox_enable():
+        """
+        The spinbox should be disabled unless it is possible and safe to use.
+
+        It can only be enabled when we have write access and the camera is stopped.
+        """
+        # Value may not be ready yet, write access defaults to False if not ready
+        try:
+            value = generator.acq_status_pv.value
+        except AttributeError:
+            return
+        gain_spinbox.setEnabled(gain_set_pv.write_access and not value)
 
     gain_rbv_pv = Pv(
         f"{base_pv}:AndorEMGain_RBV",
@@ -273,8 +304,13 @@ def em_gain_andor(form: QFormLayout, base_pv: str) -> tuple[list[Pv], list[pyqtS
     gain_set_pv.connect()
     pvs.append(gain_rbv_pv)
     pvs.append(gain_set_pv)
+    generator.acq_status_pv.add_monitor_callback(acquire_monitor_cb)
+    update_spinbox_enable()
 
     def set_gain_value():
+        """
+        Update the gain value when the user finishes editing the spinbox.
+        """
         try:
             gain_set_pv.put(gain_spinbox.value())
         except Exception as exc:
