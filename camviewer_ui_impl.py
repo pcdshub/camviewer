@@ -2038,6 +2038,24 @@ class GraphicUserInterface(QMainWindow):
         # Get camera configuration
         self.getConfig()
 
+        # Check the expected size against the count to generate warnings
+        first_image_count = len(self.camera.value)
+        expected_count = self.rowPv.value * self.colPv.value
+        if self.isColor:
+            expected_count *= 3
+        if first_image_count != expected_count:
+            QMessageBox.warning(
+                None,
+                "Warning",
+                (
+                    "IOC misconfiguration likely!\n"
+                    f"Received {first_image_count} pixels, expected {expected_count} "
+                    f"for {self.rowPv.value} x {self.colPv.value}."
+                ),
+                QMessageBox.Ok,
+                QMessageBox.Ok,
+            )
+
     def setup_model_specific(self):
         if self.cam_type_screen_generator is None:
             form = QFormLayout()

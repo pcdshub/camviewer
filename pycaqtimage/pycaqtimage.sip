@@ -413,8 +413,12 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
                        colIncK[orientation];
     int iNewAverage  = imageBuffer->iNumAveraged + 1;
 
-    UNUSED(count);
     UNUSED(size);
+
+    if (count != imageBuffer->size * 3) {
+        // Wrong data size, unsafe to continue
+        return;
+    }
 
     /* If we're using the color image, don't average, just copy and we're done! */
     if (!imageBuffer->useGray) {
@@ -460,7 +464,11 @@ static void _pyImagePvCallback(void* cadata, long count, size_t size, void* usr)
 {
   ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
 
-  UNUSED(count);
+  if (count != imageBuffer->size) {
+    // Wrong data size, unsafe to continue
+    return;
+  }
+
   switch (size) {
     case 4:
 	_pyDoAvg(imageBuffer, reinterpret_cast<uint32_t*>(cadata));
