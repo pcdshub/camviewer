@@ -567,6 +567,7 @@ class GraphicUserInterface(QMainWindow):
         self.ui.showspecific.triggered.connect(self.doShowSpecific)
         self.ui.actionGlobalMarkers.triggered.connect(self.onGlobMarks)
         self.advdialog.ui.showexpert.clicked.connect(self.on_open_expert)
+        self.ui.show_expert_button.clicked.connect(self.on_open_expert)
         self.onExpertMode()
 
         self.ui.checkBoxProjRoi.stateChanged.connect(self.onGenericConfigChange)
@@ -763,6 +764,8 @@ class GraphicUserInterface(QMainWindow):
         self.ui.groupBoxColor.setVisible(v)
         self.ui.groupBoxZoom.setVisible(v)
         self.ui.groupBoxROI.setVisible(v)
+        self.ui.groupBoxControls.setVisible(v)
+        self.ui.groupBoxExpert.setVisible(v)
         self.ui.RightPanel.invalidate()
         if self.cfg is None:
             # print("done doShowConf")
@@ -1919,6 +1922,12 @@ class GraphicUserInterface(QMainWindow):
         if self.lFlags[index] != "":
             self.cfgname += "," + self.lFlags[index]
 
+        try:
+            self.ui.expert_pvname_label.setText(f"Showing {sCameraPv.split(':')[-2]}")
+        except Exception:
+            self.ui.expert_pvname_label.setText(sCameraPv)
+        self.ui.show_expert_button.setEnabled(False)
+
         # Connect to expert PVs first
         # In event of a connection failure in a later step,
         # having these PVs available is helpful for debug.
@@ -2427,6 +2436,7 @@ class GraphicUserInterface(QMainWindow):
                 self.launch_gui_script = decode_char_waveform(
                     self.launch_gui_pv.data["value"]
                 )
+                self.ui.show_expert_button.setEnabled(True)
         except Exception as exc:
             print(f"Error receiving new launch gui script: {exc}")
 
@@ -2442,6 +2452,7 @@ class GraphicUserInterface(QMainWindow):
                 self.launch_edm_script = decode_char_waveform(
                     self.launch_edm_pv.data["value"]
                 )
+                self.ui.show_expert_button.setEnabled(True)
         except Exception as exc:
             print(f"Error receiving new launch edm script: {exc}")
 
