@@ -15,6 +15,7 @@ from dialogs import advdialog
 from dialogs import markerdialog
 from dialogs import specificdialog
 from dialogs import forcedialog
+from cam_types import CamTypeScreenGenerator
 
 import sys
 import os
@@ -42,6 +43,7 @@ from PyQt5.QtWidgets import (
     QAction,
     QDialogButtonBox,
     QApplication,
+    QFormLayout,
 )
 from PyQt5.QtGui import (
     QClipboard,
@@ -246,6 +248,7 @@ class GraphicUserInterface(QMainWindow):
         self.average = 1
         param.orientation = param.ORIENT0
         self.connected = False
+        self.ctrlBase = ""
         self.cameraBase = ""
         self.camera = None
         self.notify = None
@@ -519,6 +522,9 @@ class GraphicUserInterface(QMainWindow):
         self.refresh_timeout_display_timer.setInterval(1000 * 20)
         self.refresh_timeout_display_timer.start()
 
+        self.cam_type_screen_generator = None
+        self.setup_model_specific()
+
         self.ui.average.returnPressed.connect(self.onAverageSet)
         self.ui.comboBoxOrientation.currentIndexChanged.connect(
             self.onOrientationSelect
@@ -666,6 +672,8 @@ class GraphicUserInterface(QMainWindow):
         self.end_monitors()
         if self.cameraBase != "":
             self.activeClear()
+        if self.cam_type_screen_generator is not None:
+            self.cam_type_screen_generator.cleanup()
         if self.haveforce and self.forcedialog is not None:
             self.forcedialog.close()
         self.advdialog.close()
@@ -1131,6 +1139,9 @@ class GraphicUserInterface(QMainWindow):
             except Exception:
                 pass
         self.otherpvs = []
+        self.cameraBase = ""
+        self.ctrlBase = ""
+        self.setup_model_specific()
 
     def shutdown(self):
         self.clear()
@@ -2005,6 +2016,7 @@ class GraphicUserInterface(QMainWindow):
         self.colPv.monitor(pyca.DBE_VALUE)
         pyca.flush_io()
         # Deliberately after flush_io so we don't wait for them
+        self.setup_model_specific()
         self.launch_gui_pv = Pv(
             self.ctrlBase + ":LAUNCH_GUI",
             initialize=True,
@@ -2025,6 +2037,21 @@ class GraphicUserInterface(QMainWindow):
 
         # Get camera configuration
         self.getConfig()
+
+    def setup_model_specific(self):
+        if self.cam_type_screen_generator is None:
+            form = QFormLayout()
+            self.ui.groupBoxControls.setLayout(form)
+        else:
+            self.cam_type_screen_generator.cleanup()
+            form = self.ui.groupBoxControls.layout()
+        self.cam_type_screen_generator = CamTypeScreenGenerator(self.ctrlBase, form)
+        self.cam_type_screen_generator.final_name.connect(self.new_model_name)
+        if self.cam_type_screen_generator.full_name:
+            self.new_model_name(self.cam_type_screen_generator.full_name)
+
+    def new_model_name(self, name: str):
+        self.ui.groupBoxControls.setTitle(f"{name} Controls")
 
     def normalize_selectors(self):
         """
