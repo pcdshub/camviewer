@@ -219,7 +219,7 @@ class ProjWidget(QWidget):
         """
         Load these later instead of in init in case they aren't created yet
         """
-        self.lineout_cbs = [
+        return [
             self.gui.ui.checkBoxM1Lineout,
             self.gui.ui.checkBoxM2Lineout,
             self.gui.ui.checkBoxM3Lineout,
