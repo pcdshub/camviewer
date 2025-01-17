@@ -2051,7 +2051,7 @@ class GraphicUserInterface(QMainWindow):
         ):
             # Clear the image so that we don't have a stale image from the previous cam
             self.ui.display_image.image.fill(0)
-            self.after_new_min_or_max_pixel()
+            self.ui.display_image.repaint()
             # Report which issue we had
             if self.rowPv is None or self.colPv is None:
                 self.ui.label_status.setText("IOC timeout in setup")
