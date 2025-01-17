@@ -272,6 +272,7 @@ class GraphicUserInterface(QMainWindow):
         self.average = 1
         param.orientation = param.ORIENT0
         self.connected = False
+        self.selected_cam_ready = False
         self.ctrlBase = ""
         self.cameraBase = ""
         self.camera = None
@@ -1136,7 +1137,7 @@ class GraphicUserInterface(QMainWindow):
 
     def clear(self):
         self.ui.label_dispRate.setText("-")
-        self.ui.label_connected.setText("NO")
+        self.ui.label_status.setText("-")
         if self.camera is not None:
             try:
                 self.camera.disconnect()
@@ -1676,7 +1677,22 @@ class GraphicUserInterface(QMainWindow):
         all the others and call for an update of the action text.
         """
         self.camconn[index] = is_connected
+        if index == self.index:
+            self.update_cam_status_connected()
         self.update_cam_action_text(index=index)
+
+    def update_cam_status_connected(self):
+        """
+        Update the status label to match the active cam's connected status.
+
+        This should only be called when the camera is ready.
+        """
+        if not self.selected_cam_ready:
+            return
+        if self.camconn[self.index]:
+            self.ui.label_status.setText("IOC Connected")
+        else:
+            self.ui.label_status.setText("IOC Offline")
 
     def cam_combo_rate(self, exception=None, index: int = 0):
         """
@@ -1929,6 +1945,8 @@ class GraphicUserInterface(QMainWindow):
             self.ui.lineEditLens.readpvname = None
 
     def connectCamera(self, sCameraPv, index, sNotifyPv=None):
+        self.selected_cam_ready = False
+        self.ui.label_status.setText("Cleaning up...")
         self.camera = self.disconnectPv(self.camera)
         self.notify = self.disconnectPv(self.notify)
         self.nordPv = self.disconnectPv(self.nordPv)
@@ -1942,6 +1960,8 @@ class GraphicUserInterface(QMainWindow):
         self.launch_edm_script = ""
         self.calibPVName = ""
         self.displayFormat = "%12.8g"
+
+        self.ui.label_status.setText("Initializing...")
 
         self.cfgname = self.cameraBase + ",GE"
         if self.lFlags[index] != "":
@@ -1986,9 +2006,9 @@ class GraphicUserInterface(QMainWindow):
             self.count = self.maxcount
         self.camera = self.connectPv(sCameraPv, count=self.count)
         if self.camera is None:
-            self.ui.label_connected.setText("NO")
+            self.ui.label_status.setText("IOC timeout in setup")
+            print("IOC timeout in setup (main camera PV)")
             return
-        print("Connected!")
 
         # Try to get the camera size!
         self.scale = 1
@@ -2024,8 +2044,7 @@ class GraphicUserInterface(QMainWindow):
 
         # See if we've connected to a camera with valid height and width
         if (
-            self.camera is None
-            or self.rowPv is None
+            self.rowPv is None
             or self.rowPv.value == 0
             or self.colPv is None
             or self.colPv.value == 0
@@ -2033,7 +2052,13 @@ class GraphicUserInterface(QMainWindow):
             # Clear the image so that we don't have a stale image from the previous cam
             self.ui.display_image.image.fill(0)
             self.after_new_min_or_max_pixel()
-            self.ui.label_connected.setText("NO")
+            # Report which issue we had
+            if self.rowPv is None or self.colPv is None:
+                self.ui.label_status.setText("IOC timeout in setup")
+                print("IOC timeout in setup (rows/cols)")
+            else:
+                self.ui.label_status.setText("Zero pixels in image")
+                print("Zero pixels in image (no width/height)")
             return
 
         if sNotifyPv is None:
@@ -2042,7 +2067,6 @@ class GraphicUserInterface(QMainWindow):
             self.notify = self.connectPv(sNotifyPv, count=1)
         self.haveNewImage = False
         self.lastGetDone = True
-        self.ui.label_connected.setText("YES")
         if self.isColor:
             self.camera.processor = pycaqtimage.pyCreateColorImagePvCallbackFunc(
                 self.imageBuffer
@@ -2096,6 +2120,9 @@ class GraphicUserInterface(QMainWindow):
                 QMessageBox.Ok,
                 QMessageBox.Ok,
             )
+
+        self.selected_cam_ready = True
+        self.update_cam_status_connected()
 
     def setup_model_specific(self):
         if self.cam_type_screen_generator is None:
