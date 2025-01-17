@@ -176,6 +176,30 @@ class FilterObject(QObject):
         return False
 
 
+class ScrollSizeFilter(QObject):
+    """
+    Adjust the width of the scroll area when the scrollbar is shown or hidden.
+
+    This improves the UX by avoiding having the scrollbar overlapping any
+    other ui components.
+    """
+
+    def __init__(self, gui: GraphicUserInterface):
+        super().__init__(parent=gui)
+        self.base_size = gui.ui.rightPanelWidget.width()
+        self.scroll_area = gui.ui.rightScrollArea
+        self.scroll_area.verticalScrollBar().installEventFilter(self)
+
+    def eventFilter(self, _, event):
+        if event.type() == QEvent.Show:
+            self.scroll_area.setFixedWidth(
+                self.base_size + self.scroll_area.verticalScrollBar().width()
+            )
+        elif event.type() == QEvent.Hide:
+            self.scroll_area.setFixedWidth(self.base_size)
+        return False
+
+
 SINGLE_FRAME = 0
 LOCAL_AVERAGE = 2
 
@@ -248,6 +272,7 @@ class GraphicUserInterface(QMainWindow):
         self.average = 1
         param.orientation = param.ORIENT0
         self.connected = False
+        self.selected_cam_ready = False
         self.ctrlBase = ""
         self.cameraBase = ""
         self.camera = None
@@ -567,6 +592,7 @@ class GraphicUserInterface(QMainWindow):
         self.ui.showspecific.triggered.connect(self.doShowSpecific)
         self.ui.actionGlobalMarkers.triggered.connect(self.onGlobMarks)
         self.advdialog.ui.showexpert.clicked.connect(self.on_open_expert)
+        self.ui.show_expert_button.clicked.connect(self.on_open_expert)
         self.onExpertMode()
 
         self.ui.checkBoxProjRoi.stateChanged.connect(self.onGenericConfigChange)
@@ -667,6 +693,7 @@ class GraphicUserInterface(QMainWindow):
         except Exception:
             pass
         self.efilter = FilterObject(self.app, self)
+        self.scroll_size_filter = ScrollSizeFilter(self)
 
     def closeEvent(self, event):
         self.end_monitors()
@@ -763,6 +790,8 @@ class GraphicUserInterface(QMainWindow):
         self.ui.groupBoxColor.setVisible(v)
         self.ui.groupBoxZoom.setVisible(v)
         self.ui.groupBoxROI.setVisible(v)
+        self.ui.groupBoxControls.setVisible(v)
+        self.ui.groupBoxExpert.setVisible(v)
         self.ui.RightPanel.invalidate()
         if self.cfg is None:
             # print("done doShowConf")
@@ -1108,7 +1137,7 @@ class GraphicUserInterface(QMainWindow):
 
     def clear(self):
         self.ui.label_dispRate.setText("-")
-        self.ui.label_connected.setText("NO")
+        self.ui.label_status.setText("-")
         if self.camera is not None:
             try:
                 self.camera.disconnect()
@@ -1648,7 +1677,22 @@ class GraphicUserInterface(QMainWindow):
         all the others and call for an update of the action text.
         """
         self.camconn[index] = is_connected
+        if index == self.index:
+            self.update_cam_status_connected()
         self.update_cam_action_text(index=index)
+
+    def update_cam_status_connected(self):
+        """
+        Update the status label to match the active cam's connected status.
+
+        This should only be called when the camera is ready.
+        """
+        if not self.selected_cam_ready:
+            return
+        if self.camconn[self.index]:
+            self.ui.label_status.setText("IOC Connected")
+        else:
+            self.ui.label_status.setText("IOC Offline")
 
     def cam_combo_rate(self, exception=None, index: int = 0):
         """
@@ -1901,6 +1945,8 @@ class GraphicUserInterface(QMainWindow):
             self.ui.lineEditLens.readpvname = None
 
     def connectCamera(self, sCameraPv, index, sNotifyPv=None):
+        self.selected_cam_ready = False
+        self.ui.label_status.setText("Cleaning up...")
         self.camera = self.disconnectPv(self.camera)
         self.notify = self.disconnectPv(self.notify)
         self.nordPv = self.disconnectPv(self.nordPv)
@@ -1915,9 +1961,33 @@ class GraphicUserInterface(QMainWindow):
         self.calibPVName = ""
         self.displayFormat = "%12.8g"
 
+        self.ui.label_status.setText("Initializing...")
+
         self.cfgname = self.cameraBase + ",GE"
         if self.lFlags[index] != "":
             self.cfgname += "," + self.lFlags[index]
+
+        try:
+            self.ui.expert_pvname_label.setText(f"Showing {sCameraPv.split(':')[-2]}")
+        except Exception:
+            self.ui.expert_pvname_label.setText(sCameraPv)
+        self.ui.show_expert_button.setEnabled(False)
+
+        # Connect to expert PVs first
+        # In event of a connection failure in a later step,
+        # having these PVs available is helpful for debug.
+        self.launch_gui_pv = Pv(
+            self.ctrlBase + ":LAUNCH_GUI",
+            initialize=True,
+            monitor=self.new_launch_gui_script,
+            use_numpy=True,
+        )
+        self.launch_edm_pv = Pv(
+            self.ctrlBase + ":LAUNCH_EDM",
+            initialize=True,
+            monitor=self.new_launch_edm_script,
+            use_numpy=True,
+        )
 
         # Try to connect to the camera
         try:
@@ -1936,9 +2006,9 @@ class GraphicUserInterface(QMainWindow):
             self.count = self.maxcount
         self.camera = self.connectPv(sCameraPv, count=self.count)
         if self.camera is None:
-            self.ui.label_connected.setText("NO")
+            self.ui.label_status.setText("IOC timeout in setup")
+            print("IOC timeout in setup (main camera PV)")
             return
-        print("Connected!")
 
         # Try to get the camera size!
         self.scale = 1
@@ -1974,13 +2044,21 @@ class GraphicUserInterface(QMainWindow):
 
         # See if we've connected to a camera with valid height and width
         if (
-            self.camera is None
-            or self.rowPv is None
+            self.rowPv is None
             or self.rowPv.value == 0
             or self.colPv is None
             or self.colPv.value == 0
         ):
-            self.ui.label_connected.setText("NO")
+            # Clear the image so that we don't have a stale image from the previous cam
+            self.ui.display_image.image.fill(0)
+            self.after_new_min_or_max_pixel()
+            # Report which issue we had
+            if self.rowPv is None or self.colPv is None:
+                self.ui.label_status.setText("IOC timeout in setup")
+                print("IOC timeout in setup (rows/cols)")
+            else:
+                self.ui.label_status.setText("Zero pixels in image")
+                print("Zero pixels in image (no width/height)")
             return
 
         if sNotifyPv is None:
@@ -1989,7 +2067,6 @@ class GraphicUserInterface(QMainWindow):
             self.notify = self.connectPv(sNotifyPv, count=1)
         self.haveNewImage = False
         self.lastGetDone = True
-        self.ui.label_connected.setText("YES")
         if self.isColor:
             self.camera.processor = pycaqtimage.pyCreateColorImagePvCallbackFunc(
                 self.imageBuffer
@@ -2017,18 +2094,6 @@ class GraphicUserInterface(QMainWindow):
         pyca.flush_io()
         # Deliberately after flush_io so we don't wait for them
         self.setup_model_specific()
-        self.launch_gui_pv = Pv(
-            self.ctrlBase + ":LAUNCH_GUI",
-            initialize=True,
-            monitor=self.new_launch_gui_script,
-            use_numpy=True,
-        )
-        self.launch_edm_pv = Pv(
-            self.ctrlBase + ":LAUNCH_EDM",
-            initialize=True,
-            monitor=self.new_launch_edm_script,
-            use_numpy=True,
-        )
         self.sWindowTitle = "Camera: " + self.lCameraDesc[index]
         self.setWindowTitle("MainWindow")
         self.advdialog.setWindowTitle(self.sWindowTitle + " Advanced Mode")
@@ -2055,6 +2120,9 @@ class GraphicUserInterface(QMainWindow):
                 QMessageBox.Ok,
                 QMessageBox.Ok,
             )
+
+        self.selected_cam_ready = True
+        self.update_cam_status_connected()
 
     def setup_model_specific(self):
         if self.cam_type_screen_generator is None:
@@ -2423,6 +2491,7 @@ class GraphicUserInterface(QMainWindow):
                 self.launch_gui_script = decode_char_waveform(
                     self.launch_gui_pv.data["value"]
                 )
+                self.ui.show_expert_button.setEnabled(True)
         except Exception as exc:
             print(f"Error receiving new launch gui script: {exc}")
 
@@ -2438,6 +2507,7 @@ class GraphicUserInterface(QMainWindow):
                 self.launch_edm_script = decode_char_waveform(
                     self.launch_edm_pv.data["value"]
                 )
+                self.ui.show_expert_button.setEnabled(True)
         except Exception as exc:
             print(f"Error receiving new launch edm script: {exc}")
 

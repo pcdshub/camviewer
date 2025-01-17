@@ -210,15 +210,21 @@ class ProjWidget(QWidget):
             gui = x
             x = gui.parentWidget()
         self.gui = gui
-        self.lineout_cbs = [
+        self.hint = self.size()
+        self.is_x = True
+        self.image = None
+
+    @property
+    def lineout_cbs(self):
+        """
+        Load these later instead of in init in case they aren't created yet
+        """
+        return [
             self.gui.ui.checkBoxM1Lineout,
             self.gui.ui.checkBoxM2Lineout,
             self.gui.ui.checkBoxM3Lineout,
             self.gui.ui.checkBoxM4Lineout,
         ]
-        self.hint = self.size()
-        self.is_x = True
-        self.image = None
 
     def set_x(self):
         self.is_x = True
