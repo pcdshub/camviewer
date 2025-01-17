@@ -2030,6 +2030,9 @@ class GraphicUserInterface(QMainWindow):
             or self.colPv is None
             or self.colPv.value == 0
         ):
+            # Clear the image so that we don't have a stale image from the previous cam
+            self.ui.display_image.image.fill(0)
+            self.after_new_min_or_max_pixel()
             self.ui.label_connected.setText("NO")
             return
 
