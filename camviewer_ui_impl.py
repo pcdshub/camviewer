@@ -176,6 +176,30 @@ class FilterObject(QObject):
         return False
 
 
+class ScrollSizeFilter(QObject):
+    """
+    Adjust the width of the scroll area when the scrollbar is shown or hidden.
+
+    This improves the UX by avoiding having the scrollbar overlapping any
+    other ui components.
+    """
+
+    def __init__(self, gui: GraphicUserInterface):
+        super().__init__(parent=gui)
+        self.base_size = gui.ui.rightPanelWidget.width()
+        self.scroll_area = gui.ui.rightScrollArea
+        self.scroll_area.verticalScrollBar().installEventFilter(self)
+
+    def eventFilter(self, _, event):
+        if event.type() == QEvent.Show:
+            self.scroll_area.setFixedWidth(
+                self.base_size + self.scroll_area.verticalScrollBar().width()
+            )
+        elif event.type() == QEvent.Hide:
+            self.scroll_area.setFixedWidth(self.base_size)
+        return False
+
+
 SINGLE_FRAME = 0
 LOCAL_AVERAGE = 2
 
@@ -668,6 +692,7 @@ class GraphicUserInterface(QMainWindow):
         except Exception:
             pass
         self.efilter = FilterObject(self.app, self)
+        self.scroll_size_filter = ScrollSizeFilter(self)
 
     def closeEvent(self, event):
         self.end_monitors()
