@@ -762,7 +762,7 @@
            <item row="3" column="3">
             <widget class="QPushButton" name="pushbutton_auto_range">
              <property name="text">
-              <string>Auto Once</string>
+              <string>Auto Scale</string>
              </property>
             </widget>
            </item>
