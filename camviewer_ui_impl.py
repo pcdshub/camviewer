@@ -50,6 +50,7 @@ from PyQt5.QtGui import (
     QPixmap,
     QDrag,
     QImageWriter,
+    QFontMetricsF,
 )
 from PyQt5.QtCore import (
     QTimer,
@@ -692,6 +693,16 @@ class GraphicUserInterface(QMainWindow):
             self.onCameraSelect(int(cameraIndex))
         except Exception:
             pass
+
+        # Set the right hand area's width based on font sizes
+        font = self.ui.labelCamera.font()
+        fm = QFontMetricsF(font)
+        charwidth = fm.averageCharWidth()
+        # We want to make it wide enough for 50 average chars
+        width = 50 * charwidth
+        self.ui.rightScrollArea.setFixedWidth(width)
+        self.ui.rightPanelWidget.setFixedWidth(width)
+
         self.efilter = FilterObject(self.app, self)
         self.scroll_size_filter = ScrollSizeFilter(self)
 
