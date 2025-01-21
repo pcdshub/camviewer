@@ -50,6 +50,7 @@ from PyQt5.QtGui import (
     QPixmap,
     QDrag,
     QImageWriter,
+    QFontMetricsF,
 )
 from PyQt5.QtCore import (
     QTimer,
@@ -189,14 +190,25 @@ class ScrollSizeFilter(QObject):
         self.base_size = gui.ui.rightPanelWidget.width()
         self.scroll_area = gui.ui.rightScrollArea
         self.scroll_area.verticalScrollBar().installEventFilter(self)
+        # Start in the correct state
+        if self.scroll_area.verticalScrollBar().isVisible():
+            self.set_yes_scroll_size()
+        else:
+            self.set_no_scroll_size()
+
+    def set_yes_scroll_size(self):
+        self.scroll_area.setFixedWidth(
+            self.base_size + self.scroll_area.verticalScrollBar().width()
+        )
+
+    def set_no_scroll_size(self):
+        self.scroll_area.setFixedWidth(self.base_size)
 
     def eventFilter(self, _, event):
         if event.type() == QEvent.Show:
-            self.scroll_area.setFixedWidth(
-                self.base_size + self.scroll_area.verticalScrollBar().width()
-            )
+            self.set_yes_scroll_size()
         elif event.type() == QEvent.Hide:
-            self.scroll_area.setFixedWidth(self.base_size)
+            self.set_no_scroll_size()
         return False
 
 
@@ -694,7 +706,28 @@ class GraphicUserInterface(QMainWindow):
             self.onCameraSelect(int(cameraIndex))
         except Exception:
             pass
+
+        # Set the right hand area's width based on font sizes
+        font = self.ui.labelCamera.font()
+        fm = QFontMetricsF(font)
+        charwidth = fm.averageCharWidth()
+        # We want to make it wide enough for 50 average chars
+        width = 50 * charwidth
+        self.ui.rightScrollArea.setFixedWidth(width)
+        self.ui.rightPanelWidget.setFixedWidth(width)
+
         self.efilter = FilterObject(self.app, self)
+
+        # Timer with 0 delay = end of event queue
+        # i.e. immediately after all the queued initial rendering
+        self.late_init_timer = QTimer(self)
+        self.late_init_timer.singleShot(0, self.late_init)
+
+    def late_init(self):
+        """
+        Init routines to be done immediately after the initial render
+        """
+        # Avoid weird sizing race conditions from doing this in __init__
         self.scroll_size_filter = ScrollSizeFilter(self)
 
     def closeEvent(self, event):
