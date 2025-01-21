@@ -476,6 +476,7 @@ class GraphicUserInterface(QMainWindow):
         )
         self.ui.pushbutton_auto_range.pressed.connect(self.set_auto_range)
         self.ui.checkbox_auto_range.stateChanged.connect(self.set_auto_range)
+        self.set_color_scaling_enabled(False)
 
         self.ui.horizontalSliderLens.sliderReleased.connect(self.onSliderLensReleased)
         self.ui.horizontalSliderLens.valueChanged.connect(self.onSliderLensChanged)
@@ -483,6 +484,7 @@ class GraphicUserInterface(QMainWindow):
 
         self.ui.singleframe.toggled.connect(self.onCheckDisplayUpdate)
         self.ui.grayScale.stateChanged.connect(self.onCheckGrayUpdate)
+        self.ui.grayScale.setVisible(False)
         self.ui.local_avg.toggled.connect(self.onCheckDisplayUpdate)
 
         self.ui.comboBoxColor.currentIndexChanged.connect(
@@ -1001,6 +1003,8 @@ class GraphicUserInterface(QMainWindow):
 
     def onCheckGrayUpdate(self, newval):
         pycaqtimage.pySetImageBufferGray(self.imageBuffer, newval)
+        if self.isColor:
+            self.set_color_scaling_enabled(newval)
         if self.cfg is None:
             self.dumpConfig()
 
@@ -1980,6 +1984,7 @@ class GraphicUserInterface(QMainWindow):
     def connectCamera(self, sCameraPv, index, sNotifyPv=None):
         self.selected_cam_ready = False
         self.ui.label_status.setText("Cleaning up...")
+        self.set_color_scaling_enabled(False)
         self.camera = self.disconnectPv(self.camera)
         self.notify = self.disconnectPv(self.notify)
         self.nordPv = self.disconnectPv(self.nordPv)
@@ -2084,7 +2089,7 @@ class GraphicUserInterface(QMainWindow):
         ):
             # Clear the image so that we don't have a stale image from the previous cam
             self.ui.display_image.image.fill(0)
-            self.after_new_min_or_max_pixel()
+            self.ui.display_image.repaint()
             # Report which issue we had
             if self.rowPv is None or self.colPv is None:
                 self.ui.label_status.setText("IOC timeout in setup")
@@ -2104,11 +2109,13 @@ class GraphicUserInterface(QMainWindow):
             self.camera.processor = pycaqtimage.pyCreateColorImagePvCallbackFunc(
                 self.imageBuffer
             )
+            self.set_color_scaling_enabled(self.ui.grayScale.isChecked())
             self.ui.grayScale.setVisible(True)
         else:
             self.camera.processor = pycaqtimage.pyCreateImagePvCallbackFunc(
                 self.imageBuffer
             )
+            self.set_color_scaling_enabled(True)
             self.ui.grayScale.setVisible(False)
         self.notify.add_monitor_callback(self.haveImageCallback)
         self.camera.getevt_cb = self.imagePvUpdateCallback
@@ -2717,6 +2724,28 @@ class GraphicUserInterface(QMainWindow):
             self.set_new_max_pixel(self.max_px)
             self.set_new_min_pixel(self.min_px)
             self.after_new_min_or_max_pixel()
+
+    def set_color_scaling_enabled(self, enabled: bool):
+        """
+        Set the color scaling to enabled or disabled.
+
+        This enables or disables all the color scaling widgets.
+        Color scaling is only functional when there is a
+        properly configured camera in b/w mode.
+
+        If disabling, we also uncheck the auto range checkbox
+        to prevent auto scaling on garbage data.
+        """
+        self.ui.comboBoxColor.setEnabled(enabled)
+        self.ui.comboBoxScale.setEnabled(enabled)
+        self.ui.horizontalSliderRangeMin.setEnabled(enabled)
+        self.ui.horizontalSliderRangeMax.setEnabled(enabled)
+        self.ui.spinbox_range_min.setEnabled(enabled)
+        self.ui.spinbox_range_max.setEnabled(enabled)
+        self.ui.checkbox_auto_range.setEnabled(enabled)
+        self.ui.pushbutton_auto_range.setEnabled(enabled)
+        if not enabled:
+            self.ui.checkbox_auto_range.setChecked(False)
 
     def onLensEnter(self):
         try:
