@@ -314,10 +314,8 @@ class GraphicUserInterface(QMainWindow):
         self.iRangeMax = 1023
         self.camactions = []
         self.lastwidth = 0
-        self.useglobmarks = False
-        self.useglobmarks2 = False
-        self.globmarkpvs = []
-        self.globmarkpvs2 = []
+        self.useglobmarks = True
+        self.globmarkpvs = {}
         self.lastimagetime = [0, 0]
         self.dispspec = 0
         self.otherpvs = []
@@ -605,6 +603,8 @@ class GraphicUserInterface(QMainWindow):
         self.ui.showexpert.triggered.connect(self.onExpertMode)
         self.ui.showspecific.triggered.connect(self.doShowSpecific)
         self.ui.actionGlobalMarkers.triggered.connect(self.onGlobMarks)
+        self.ui.global_button.clicked.connect(self.global_clicked)
+        self.ui.local_button.clicked.connect(self.local_clicked)
         self.advdialog.ui.showexpert.clicked.connect(self.on_open_expert)
         self.ui.show_expert_button.clicked.connect(self.on_open_expert)
         self.onExpertMode()
@@ -748,8 +748,7 @@ class GraphicUserInterface(QMainWindow):
     def end_monitors(self):
         all_mons = []
         all_mons.extend(self.camconn_pvs)
-        all_mons.extend(self.globmarkpvs)
-        all_mons.extend(self.globmarkpvs2)
+        all_mons.extend(list(self.globmarkpvs.values()))
         all_mons.extend(self.otherpvs)
         all_mons.append(self.notify)
         all_mons.append(self.rowPv)
@@ -886,30 +885,29 @@ class GraphicUserInterface(QMainWindow):
         caput(self.cameraBase + ":ROI_WIDTH2", box[2])
         caput(self.cameraBase + ":ROI_HEIGHT2", box[3])
 
+    def global_clicked(self):
+        """When the global marker radio button is clicked, go to global mode."""
+        self.ui.actionGlobalMarkers.setChecked(True)
+        self.onGlobMarks()
+
+    def local_clicked(self):
+        """When the local marker radio button is clicked, go to local mode."""
+        self.ui.actionGlobalMarkers.setChecked(False)
+        self.onGlobMarks()
+
     def onGlobMarks(self):
-        self.setUseGlobalMarkers(self.ui.actionGlobalMarkers.isChecked())
+        """Apply global or local mode based on the UI state"""
+        use_global = self.ui.actionGlobalMarkers.isChecked()
+        self.ui.global_button.setChecked(use_global)
+        self.ui.local_button.setChecked(not use_global)
+        self.setUseGlobalMarkers(use_global)
 
     def setUseGlobalMarkers(self, ugm):
         if ugm != self.useglobmarks:  # If something has changed...
             if ugm:
                 self.useglobmarks = self.connectMarkerPVs()
-                if self.useglobmarks:
-                    self.onCrossUpdate(0)
-                    self.onCrossUpdate(1)
             else:
                 self.useglobmarks = self.disconnectMarkerPVs()
-            if self.cfg is None:
-                self.dumpConfig()
-
-    def setUseGlobalMarkers2(self, ugm):
-        if ugm != self.useglobmarks2:  # If something has changed...
-            if ugm:
-                self.useglobmarks2 = self.connectMarkerPVs2()
-                if self.useglobmarks2:
-                    self.onCrossUpdate(2)
-                    self.onCrossUpdate(3)
-            else:
-                self.useglobmarks2 = self.disconnectMarkerPVs2()
             if self.cfg is None:
                 self.dumpConfig()
 
@@ -917,10 +915,7 @@ class GraphicUserInterface(QMainWindow):
         self.ui.display_image.lMarker[n].setRel(
             float(self.ui.xmark[n].text()), float(self.ui.ymark[n].text())
         )
-        if n <= 1:
-            self.updateMarkerText(False, True, 1 << n, 1 << n)
-        else:
-            self.updateMarkerText(False, True, 0, 1 << n)
+        self.updateMarkerText(False, True, 1 << n, 1 << n)
         self.updateMarkerValue()
         self.updateall()
         if self.cfg is None:
@@ -931,10 +926,7 @@ class GraphicUserInterface(QMainWindow):
             float(self.markerdialog.xmark[n].text()),
             float(self.markerdialog.ymark[n].text()),
         )
-        if n <= 1:
-            self.updateMarkerText(False, True, 1 << n, 1 << n)
-        else:
-            self.updateMarkerText(False, True, 0, 1 << n)
+        self.updateMarkerText(False, True, 1 << n, 1 << n)
         self.updateMarkerValue()
         self.updateall()
         if self.cfg is None:
@@ -954,13 +946,27 @@ class GraphicUserInterface(QMainWindow):
                     self.markerdialog.xmark[i].setText("%.0f" % pt.x())
                     self.markerdialog.ymark[i].setText("%.0f" % pt.y())
         if self.useglobmarks:
-            for i in range(2):
+            for i in range(4):
                 if pvmask & (1 << i):
                     pt = self.ui.display_image.lMarker[i].abs()
                     newx = int(pt.x())
                     newy = int(pt.y())
-                    self.globmarkpvs[2 * i + 0].put(newx)
-                    self.globmarkpvs[2 * i + 1].put(newy)
+                    cross_x_pv = self.globmarkpvs[f"cross_{i+1}x"]
+                    cross_y_pv = self.globmarkpvs[f"cross_{i+1}y"]
+                    if cross_x_pv.isinitialized and cross_y_pv.isinitialized:
+                        try:
+                            cross_x_pv.put(newx)
+                            cross_y_pv.put(newy)
+                        except Exception as exc:
+                            # Move it back...
+                            self.onCrossUpdate(i)
+                            QMessageBox.warning(
+                                None,
+                                "Error",
+                                ("Unable to write to Marker PV!\n" f"{exc}"),
+                                QMessageBox.Ok,
+                                QMessageBox.Ok,
+                            )
         self.updateMarkerValue()
 
     def updateMarkerValue(self):
@@ -1455,8 +1461,6 @@ class GraphicUserInterface(QMainWindow):
             return
         try:
             self.dispUpdates += 1
-            if self.useglobmarks2:
-                self.updateCross3and4()
             self.updateMarkerValue()
             self.updateMiscInfo()
             self.updateall()
@@ -1811,51 +1815,24 @@ class GraphicUserInterface(QMainWindow):
             return None
 
     def onCrossUpdate(self, n):
-        if n >= 2:
-            if (
-                self.globmarkpvs2[2 * n - 4].nsec != self.camera.nsec
-                or self.globmarkpvs2[2 * n - 3].nsec != self.camera.nsec
-                or self.globmarkpvs2[2 * n - 4].secs != self.camera.secs
-                or self.globmarkpvs2[2 * n - 3].secs != self.camera.secs
-            ):
-                return
-            self.ui.display_image.lMarker[n].setAbs(
-                self.globmarkpvs2[2 * n - 4].value, self.globmarkpvs2[2 * n - 3].value
-            )
-        else:
-            self.ui.display_image.lMarker[n].setAbs(
-                self.globmarkpvs[2 * n + 0].value, self.globmarkpvs[2 * n + 1].value
-            )
+        cross_x_pv = self.globmarkpvs[f"cross_{n + 1}x"]
+        cross_y_pv = self.globmarkpvs[f"cross_{n + 1}y"]
+        if not (cross_x_pv.isinitialized and cross_y_pv.isinitialized):
+            return
+
+        status_label = getattr(self.ui, f"cross{n + 1}_status")
+        status_label.setText("G")
+
+        newx = cross_x_pv.value
+        newy = cross_y_pv.value
+        point = self.ui.display_image.lMarker[n]
+        if point.x == newx and point.y == newy:
+            return
+
+        point.setAbs(newx, newy)
         self.updateMarkerText(True, True, 0, 1 << n)
         self.updateMarkerValue()
         self.updateall()
-        if self.cfg is None:
-            self.dumpConfig()
-
-    def updateCross3and4(self):
-        try:
-            fid = self.camera.nsec & 0x1FFFF
-            secs = self.camera.secs
-            if self.markhash[fid][0] == secs and self.markhash[fid][1] == secs:
-                self.ui.display_image.lMarker[2].setAbs(
-                    self.markhash[fid][4], self.markhash[fid][5]
-                )
-            if self.markhash[fid][2] == secs and self.markhash[fid][3] == secs:
-                self.ui.display_image.lMarker[3].setAbs(
-                    self.markhash[fid][6], self.markhash[fid][7]
-                )
-            self.updateMarkerText(True, True, 0, 12)
-        except Exception as e:
-            print("updateCross3and4 exception: %s" % e)
-
-    def addmarkhash(self, pv, idx):
-        fid = pv.nsec & 0x1FFFF
-        secs = pv.secs
-        if self.markhash[fid][idx] == secs:
-            return False
-        self.markhash[fid][idx] = secs
-        self.markhash[fid][idx + 4] = pv.value
-        return True
 
     def cross1mon(self, exception=None):
         if exception is None:
@@ -1865,108 +1842,38 @@ class GraphicUserInterface(QMainWindow):
         if exception is None:
             self.cross2Update.emit()
 
-    def cross3Xmon(self, exception=None):
+    def cross3mon(self, exception=None):
         if exception is None:
-            if self.addmarkhash(self.globmarkpvs2[0], 0):
-                self.cross3Update.emit()
+            self.cross3Update.emit()
 
-    def cross3Ymon(self, exception=None):
+    def cross4mon(self, exception=None):
         if exception is None:
-            if self.addmarkhash(self.globmarkpvs2[1], 1):
-                self.cross3Update.emit()
-
-    def cross4Xmon(self, exception=None):
-        if exception is None:
-            if self.addmarkhash(self.globmarkpvs2[2], 2):
-                self.cross4Update.emit()
-
-    def cross4Ymon(self, exception=None):
-        if exception is None:
-            if self.addmarkhash(self.globmarkpvs2[3], 3):
-                self.cross4Update.emit()
+            self.cross4Update.emit()
 
     def connectMarkerPVs(self):
-        self.globmarkpvs = [
-            self.connectPv(self.ctrlBase + ":Cross1X"),
-            self.connectPv(self.ctrlBase + ":Cross1Y"),
-            self.connectPv(self.ctrlBase + ":Cross2X"),
-            self.connectPv(self.ctrlBase + ":Cross2Y"),
-        ]
-        if None in self.globmarkpvs:
-            return self.disconnectMarkerPVs()
-        self.globmarkpvs[0].monitor_cb = self.cross1mon
-        self.globmarkpvs[1].monitor_cb = self.cross1mon
-        self.globmarkpvs[2].monitor_cb = self.cross2mon
-        self.globmarkpvs[3].monitor_cb = self.cross2mon
-        for i in self.globmarkpvs:
-            i.monitor(pyca.DBE_VALUE)
-        self.ui.Disp_Xmark1.readpvname = self.globmarkpvs[0].name
-        self.markerdialog.ui.Disp_Xmark1.readpvname = self.globmarkpvs[0].name
-        self.ui.Disp_Ymark1.readpvname = self.globmarkpvs[1].name
-        self.markerdialog.ui.Disp_Ymark1.readpvname = self.globmarkpvs[1].name
-        self.ui.Disp_Xmark2.readpvname = self.globmarkpvs[2].name
-        self.markerdialog.ui.Disp_Xmark2.readpvname = self.globmarkpvs[2].name
-        self.ui.Disp_Ymark2.readpvname = self.globmarkpvs[3].name
-        self.markerdialog.ui.Disp_Ymark2.readpvname = self.globmarkpvs[3].name
-        return True
-
-    def connectMarkerPVs2(self):
-        self.globmarkpvs2 = [
-            self.connectPv(self.ctrlBase + ":DX1_SLOW"),
-            self.connectPv(self.ctrlBase + ":DY1_SLOW"),
-            self.connectPv(self.ctrlBase + ":DX2_SLOW"),
-            self.connectPv(self.ctrlBase + ":DY2_SLOW"),
-        ]
-        if None in self.globmarkpvs2:
-            return self.disconnectMarkerPVs2()
-        self.globmarkpvs2[0].add_monitor_callback(self.cross3Xmon)
-        self.globmarkpvs2[1].add_monitor_callback(self.cross3Ymon)
-        self.globmarkpvs2[2].add_monitor_callback(self.cross4Xmon)
-        self.globmarkpvs2[3].add_monitor_callback(self.cross4Ymon)
-        for i in self.globmarkpvs2:
-            i.monitor(pyca.DBE_VALUE)
-        self.ui.Disp_Xmark3.readpvname = self.globmarkpvs2[0].name
-        self.markerdialog.ui.Disp_Xmark3.readpvname = self.globmarkpvs2[0].name
-        self.ui.Disp_Ymark3.readpvname = self.globmarkpvs2[1].name
-        self.markerdialog.ui.Disp_Ymark3.readpvname = self.globmarkpvs2[1].name
-        self.ui.Disp_Xmark4.readpvname = self.globmarkpvs2[2].name
-        self.markerdialog.ui.Disp_Xmark4.readpvname = self.globmarkpvs2[2].name
-        self.ui.Disp_Ymark4.readpvname = self.globmarkpvs2[3].name
-        self.markerdialog.ui.Disp_Ymark4.readpvname = self.globmarkpvs2[3].name
+        # Dict containing e.g. cross_1x: Pv object for cross 1 xpos
+        self.globmarkpvs = {
+            f"cross_{num + 1}{axis}": Pv(
+                self.ctrlBase + f":Cross{num + 1}{axis.upper()}",
+                monitor=getattr(self, f"cross{num + 1}mon"),
+                initialize=True,
+            )
+            for num in range(4)
+            for axis in ("x", "y")
+        }
         return True
 
     def disconnectMarkerPVs(self):
-        self.ui.Disp_Xmark1.readpvname = None
-        self.markerdialog.ui.Disp_Xmark1.readpvname = None
-        self.ui.Disp_Ymark1.readpvname = None
-        self.markerdialog.ui.Disp_Ymark1.readpvname = None
-        self.ui.Disp_Xmark2.readpvname = None
-        self.markerdialog.ui.Disp_Xmark2.readpvname = None
-        self.ui.Disp_Ymark2.readpvname = None
-        self.markerdialog.ui.Disp_Ymark2.readpvname = None
-        for i in self.globmarkpvs:
+        for pv in self.globmarkpvs.values():
             try:
-                i.disconnect()
+                pv.disconnect()
             except Exception:
                 pass
-        self.globmarkpvs = []
-        return False
-
-    def disconnectMarkerPVs2(self):
-        self.ui.Disp_Xmark3.readpvname = None
-        self.markerdialog.ui.Disp_Xmark3.readpvname = None
-        self.ui.Disp_Ymark3.readpvname = None
-        self.markerdialog.ui.Disp_Ymark3.readpvname = None
-        self.ui.Disp_Xmark4.readpvname = None
-        self.markerdialog.ui.Disp_Xmark4.readpvname = None
-        self.ui.Disp_Ymark4.readpvname = None
-        self.markerdialog.ui.Disp_Ymark4.readpvname = None
-        for i in self.globmarkpvs2:
-            try:
-                i.disconnect()
-            except Exception:
-                pass
-        self.globmarkpvs2 = []
+        self.globmarkpvs = {}
+        self.ui.cross1_status.setText("L")
+        self.ui.cross2_status.setText("L")
+        self.ui.cross3_status.setText("L")
+        self.ui.cross4_status.setText("L")
         return False
 
     def setupDrags(self):
@@ -3146,55 +3053,43 @@ class GraphicUserInterface(QMainWindow):
         except Exception:
             pass
         self.setColorMap()
+
+        # Always start by loading the values from file
+        if use_abs == 1:
+            self.ui.display_image.lMarker[0].setAbs(
+                int(self.cfg.m1[0]), int(self.cfg.m1[1])
+            )
+            self.ui.display_image.lMarker[1].setAbs(
+                int(self.cfg.m2[0]), int(self.cfg.m2[1])
+            )
+            self.ui.display_image.lMarker[2].setAbs(
+                int(self.cfg.m3[0]), int(self.cfg.m3[1])
+            )
+            self.ui.display_image.lMarker[3].setAbs(
+                int(self.cfg.m4[0]), int(self.cfg.m4[1])
+            )
+        else:
+            self.ui.display_image.lMarker[0].setRel(
+                int(self.cfg.m1[0]), int(self.cfg.m1[1])
+            )
+            self.ui.display_image.lMarker[1].setRel(
+                int(self.cfg.m2[0]), int(self.cfg.m2[1])
+            )
+            self.ui.display_image.lMarker[2].setRel(
+                int(self.cfg.m3[0]), int(self.cfg.m3[1])
+            )
+            self.ui.display_image.lMarker[3].setRel(
+                int(self.cfg.m4[0]), int(self.cfg.m4[1])
+            )
+        # Switch to global values next, for the global marks that exist
         try:
             self.useglobmarks = bool(int(self.cfg.globmarks))
         except Exception:
-            self.useglobmarks = False
+            self.useglobmarks = True
         if self.useglobmarks:
             self.useglobmarks = self.connectMarkerPVs()
         self.ui.actionGlobalMarkers.setChecked(self.useglobmarks)
-        try:
-            self.useglobmarks2 = bool(int(self.cfg.globmarks2))
-        except Exception:
-            self.useglobmarks2 = False
-        if self.useglobmarks2:
-            self.useglobmarks2 = self.connectMarkerPVs2()
-        if self.useglobmarks:
-            self.onCrossUpdate(0)
-            self.onCrossUpdate(1)
-        else:
-            if use_abs == 1:
-                self.ui.display_image.lMarker[0].setAbs(
-                    int(self.cfg.m1[0]), int(self.cfg.m1[1])
-                )
-                self.ui.display_image.lMarker[1].setAbs(
-                    int(self.cfg.m2[0]), int(self.cfg.m2[1])
-                )
-            else:
-                self.ui.display_image.lMarker[0].setRel(
-                    int(self.cfg.m1[0]), int(self.cfg.m1[1])
-                )
-                self.ui.display_image.lMarker[1].setRel(
-                    int(self.cfg.m2[0]), int(self.cfg.m2[1])
-                )
-        if self.useglobmarks2:
-            self.onCrossUpdate(2)
-            self.onCrossUpdate(3)
-        else:
-            if use_abs == 1:
-                self.ui.display_image.lMarker[2].setAbs(
-                    int(self.cfg.m3[0]), int(self.cfg.m3[1])
-                )
-                self.ui.display_image.lMarker[3].setAbs(
-                    int(self.cfg.m4[0]), int(self.cfg.m4[1])
-                )
-            else:
-                self.ui.display_image.lMarker[2].setRel(
-                    int(self.cfg.m3[0]), int(self.cfg.m3[1])
-                )
-                self.ui.display_image.lMarker[3].setRel(
-                    int(self.cfg.m4[0]), int(self.cfg.m4[1])
-                )
+
         self.updateMarkerText()
         self.changeSize(int(newwidth), int(newheight), int(newproj), False)
         try:
@@ -3283,7 +3178,6 @@ def write_camera_config(gui: GraphicUserInterface) -> None:
             "ROI         %d %d %d %d\n" % (roi.x(), roi.y(), roi.width(), roi.height())
         )
         fd.write("globmarks   " + str(int(gui.useglobmarks)) + "\n")
-        fd.write("globmarks2  " + str(int(gui.useglobmarks2)) + "\n")
         lMarker = gui.ui.display_image.lMarker
         for i in range(4):
             fd.write(
