@@ -2322,6 +2322,9 @@ class GraphicUserInterface(QMainWindow):
 
     def setupSpecific(self):
         self.ui.actionGlobalMarkers.setChecked(self.useglobmarks)
+        self.ui.global_button.setChecked(self.useglobmarks)
+        self.ui.local_button.setChecked(not self.useglobmarks)
+
         self.setupComboMonitor(
             ":TriggerMode_RBV", self.specificdialog.ui.cameramodeG, ":TriggerMode"
         )
