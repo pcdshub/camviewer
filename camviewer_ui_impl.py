@@ -1903,6 +1903,7 @@ class GraphicUserInterface(QMainWindow):
         self.launch_edm_pv = self.disconnectPv(self.launch_edm_pv)
         self.launch_gui_script = ""
         self.launch_edm_script = ""
+        self.disconnectMarkerPVs()
         self.calibPVName = ""
         self.displayFormat = "%12.8g"
 
