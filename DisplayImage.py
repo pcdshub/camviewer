@@ -33,12 +33,7 @@ class DisplayImage(QWidget):
         self.sWindowTitle = "Camera: None"
 
         # set marker data
-        self.lMarker = [
-            param.Point(-100, -100),  # image
-            param.Point(param.x + 100, -100),
-            param.Point(param.x + 100, param.y + 100),
-            param.Point(-100, param.y + 100),
-        ]
+        self.lMarker = default_markers()
         self.lPenColor = [
             (0 / 255.0, 128 / 255.0, 255 / 255.0),  # matplotlib colors!!
             (255 / 255.0, 0 / 255.0, 0 / 255.0),
@@ -118,12 +113,7 @@ class DisplayImage(QWidget):
         self.gui.updateRoiText()
         self.gui.updateMiscInfo()
         if reset:
-            self.lMarker = [
-                param.Point(-100, -100),  # image
-                param.Point(param.x + 100, -100),
-                param.Point(param.x + 100, param.y + 100),
-                param.Point(-100, param.y + 100),
-            ]
+            reset_markers(self.lMarker)
 
     def pWidth(self):
         if param.orientation & 2:
@@ -466,3 +456,19 @@ class DisplayImage(QWidget):
         self.update()
         if self.gui.cfg is None:
             self.gui.dumpConfig()
+
+    def set_markers(self, markers: list[param.Point]):
+        self.lMarker = markers
+
+
+def default_markers() -> list[param.Point]:
+    pts = [param.Point(0, 0), param.Point(0, 0), param.Point(0, 0), param.Point(0, 0)]
+    reset_markers(pts)
+    return pts
+
+
+def reset_markers(markers: list[param.Point]) -> None:
+    markers[0].setAbs(-100, 100)
+    markers[1].setAbs(param.x + 100, -100)
+    markers[2].setAbs(param.x + 100, param.y + 100)
+    markers[3].setAbs(-100, param.y + 100)

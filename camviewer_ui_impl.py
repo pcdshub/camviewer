@@ -16,6 +16,7 @@ from dialogs import markerdialog
 from dialogs import specificdialog
 from dialogs import forcedialog
 from cam_types import CamTypeScreenGenerator
+from DisplayImage import default_markers, reset_markers
 
 import sys
 import os
@@ -390,6 +391,8 @@ class GraphicUserInterface(QMainWindow):
             None,
         ]
         self.markerdialog.hide()
+        self.local_marker_points = default_markers()
+        self.global_marker_points = default_markers()
 
         self.specificdialog = specificdialog(self)
         self.specificdialog.hide()
@@ -441,7 +444,6 @@ class GraphicUserInterface(QMainWindow):
         )
 
         self.updateRoiText()
-        self.updateMarkerText(True, True, 0, 15)
 
         self.max_px = 0
         self.min_px = 0
@@ -895,19 +897,23 @@ class GraphicUserInterface(QMainWindow):
         self.ui.actionGlobalMarkers.setChecked(False)
         self.onGlobMarks()
 
-    def onGlobMarks(self):
+    def onGlobMarks(self, on_init=False):
         """Apply global or local mode based on the UI state"""
         use_global = self.ui.actionGlobalMarkers.isChecked()
         self.ui.global_button.setChecked(use_global)
         self.ui.local_button.setChecked(not use_global)
-        self.setUseGlobalMarkers(use_global)
+        self.setUseGlobalMarkers(use_global, on_init=on_init)
 
-    def setUseGlobalMarkers(self, ugm):
-        if ugm != self.useglobmarks:  # If something has changed...
+    def setUseGlobalMarkers(self, ugm, on_init=False):
+        if ugm != self.useglobmarks or on_init:
+            self.useglobmarks = ugm
             if ugm:
-                self.useglobmarks = self.connectMarkerPVs()
+                self.ui.display_image.set_markers(self.global_marker_points)
+                self.connectMarkerPVs()
             else:
-                self.useglobmarks = self.disconnectMarkerPVs()
+                self.ui.display_image.set_markers(self.local_marker_points)
+                self.disconnectMarkerPVs()
+            self.updateMarkerText(do_puts=False)
             if self.cfg is None:
                 self.dumpConfig()
 
@@ -932,7 +938,9 @@ class GraphicUserInterface(QMainWindow):
         if self.cfg is None:
             self.dumpConfig()
 
-    def updateMarkerText(self, do_main=True, do_dialog=True, pvmask=0, change=15):
+    def updateMarkerText(
+        self, do_main=True, do_dialog=True, pvmask=0, change=15, do_puts=True
+    ):
         if do_main:
             for i in range(4):
                 if change & (1 << i):
@@ -945,7 +953,7 @@ class GraphicUserInterface(QMainWindow):
                     pt = self.ui.display_image.lMarker[i].oriented()
                     self.markerdialog.xmark[i].setText("%.0f" % pt.x())
                     self.markerdialog.ymark[i].setText("%.0f" % pt.y())
-        if self.useglobmarks:
+        if self.useglobmarks and do_puts:
             for i in range(4):
                 if pvmask & (1 << i):
                     pt = self.ui.display_image.lMarker[i].abs()
@@ -1815,8 +1823,11 @@ class GraphicUserInterface(QMainWindow):
             return None
 
     def onCrossUpdate(self, n):
-        cross_x_pv = self.globmarkpvs[f"cross_{n + 1}x"]
-        cross_y_pv = self.globmarkpvs[f"cross_{n + 1}y"]
+        try:
+            cross_x_pv = self.globmarkpvs[f"cross_{n + 1}x"]
+            cross_y_pv = self.globmarkpvs[f"cross_{n + 1}y"]
+        except KeyError:
+            return
         if not (cross_x_pv.isinitialized and cross_y_pv.isinitialized):
             return
 
@@ -1825,12 +1836,12 @@ class GraphicUserInterface(QMainWindow):
 
         newx = cross_x_pv.value
         newy = cross_y_pv.value
-        point = self.ui.display_image.lMarker[n]
+        point = self.global_marker_points[n]
         if point.x == newx and point.y == newy:
             return
 
         point.setAbs(newx, newy)
-        self.updateMarkerText(True, True, 0, 1 << n)
+        self.updateMarkerText(True, True, 0, 1 << n, do_puts=False)
         self.updateMarkerValue()
         self.updateall()
 
@@ -1851,6 +1862,7 @@ class GraphicUserInterface(QMainWindow):
             self.cross4Update.emit()
 
     def connectMarkerPVs(self):
+        self.disconnectMarkerPVs()
         # Dict containing e.g. cross_1x: Pv object for cross 1 xpos
         self.globmarkpvs = {
             f"cross_{num + 1}{axis}": Pv(
@@ -3058,43 +3070,28 @@ class GraphicUserInterface(QMainWindow):
             pass
         self.setColorMap()
 
-        # Always start by loading the values from file
+        # Reset markers
+        reset_markers(self.local_marker_points)
+        reset_markers(self.global_marker_points)
+        # Always load the local marker values in case we need them
         if use_abs == 1:
-            self.ui.display_image.lMarker[0].setAbs(
-                int(self.cfg.m1[0]), int(self.cfg.m1[1])
-            )
-            self.ui.display_image.lMarker[1].setAbs(
-                int(self.cfg.m2[0]), int(self.cfg.m2[1])
-            )
-            self.ui.display_image.lMarker[2].setAbs(
-                int(self.cfg.m3[0]), int(self.cfg.m3[1])
-            )
-            self.ui.display_image.lMarker[3].setAbs(
-                int(self.cfg.m4[0]), int(self.cfg.m4[1])
-            )
+            self.local_marker_points[0].setAbs(int(self.cfg.m1[0]), int(self.cfg.m1[1]))
+            self.local_marker_points[1].setAbs(int(self.cfg.m2[0]), int(self.cfg.m2[1]))
+            self.local_marker_points[2].setAbs(int(self.cfg.m3[0]), int(self.cfg.m3[1]))
+            self.local_marker_points[3].setAbs(int(self.cfg.m4[0]), int(self.cfg.m4[1]))
         else:
-            self.ui.display_image.lMarker[0].setRel(
-                int(self.cfg.m1[0]), int(self.cfg.m1[1])
-            )
-            self.ui.display_image.lMarker[1].setRel(
-                int(self.cfg.m2[0]), int(self.cfg.m2[1])
-            )
-            self.ui.display_image.lMarker[2].setRel(
-                int(self.cfg.m3[0]), int(self.cfg.m3[1])
-            )
-            self.ui.display_image.lMarker[3].setRel(
-                int(self.cfg.m4[0]), int(self.cfg.m4[1])
-            )
-        # Switch to global values next, for the global marks that exist
+            self.local_marker_points[0].setRel(int(self.cfg.m1[0]), int(self.cfg.m1[1]))
+            self.local_marker_points[1].setRel(int(self.cfg.m2[0]), int(self.cfg.m2[1]))
+            self.local_marker_points[2].setRel(int(self.cfg.m3[0]), int(self.cfg.m3[1]))
+            self.local_marker_points[3].setRel(int(self.cfg.m4[0]), int(self.cfg.m4[1]))
+        # Pick between local and global
         try:
             self.useglobmarks = bool(int(self.cfg.globmarks))
         except Exception:
             self.useglobmarks = True
-        if self.useglobmarks:
-            self.useglobmarks = self.connectMarkerPVs()
         self.ui.actionGlobalMarkers.setChecked(self.useglobmarks)
+        self.onGlobMarks(on_init=True)
 
-        self.updateMarkerText()
         self.changeSize(int(newwidth), int(newheight), int(newproj), False)
         try:
             # OK, see if we've delayed the command line orientation setting until now.
@@ -3182,7 +3179,7 @@ def write_camera_config(gui: GraphicUserInterface) -> None:
             "ROI         %d %d %d %d\n" % (roi.x(), roi.y(), roi.width(), roi.height())
         )
         fd.write("globmarks   " + str(int(gui.useglobmarks)) + "\n")
-        lMarker = gui.ui.display_image.lMarker
+        lMarker = gui.local_marker_points
         for i in range(4):
             fd.write(
                 "m%d          %d %d\n"
