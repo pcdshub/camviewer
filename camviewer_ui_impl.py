@@ -887,14 +887,39 @@ class GraphicUserInterface(QMainWindow):
         self.ui.actionGlobalMarkers.setChecked(False)
         self.onGlobMarks()
 
-    def onGlobMarks(self, on_init=False):
-        """Apply global or local mode based on the UI state"""
+    def onGlobMarks(self, on_init: bool = False):
+        """
+        Apply global or local mode based on the UI state.
+
+        Parameters
+        ----------
+        on_init : bool
+            If False (the default) assume we're not initalizing a camera.
+            Therefore, we only need to take further action if the mode
+            is changing. Set this to True while initializing a camera
+            to ensure that the new camera's markers replace the
+            previous camera's markers.
+        """
         use_global = self.ui.actionGlobalMarkers.isChecked()
         self.ui.global_button.setChecked(use_global)
         self.ui.local_button.setChecked(not use_global)
         self.setUseGlobalMarkers(use_global, on_init=on_init)
 
-    def setUseGlobalMarkers(self, ugm, on_init=False):
+    def setUseGlobalMarkers(self, ugm: bool, on_init: bool =False):
+        """
+        Apply global or local mode.
+
+        Parameters
+        ----------
+        ugm: bool
+            True to apply global markers, False to apply local markers.
+        on_init : bool
+            If False (the default) assume we're not initalizing a camera.
+            Therefore, we only need to take further action if the mode
+            is changing. Set this to True while initializing a camera
+            to ensure that the new camera's markers replace the
+            previous camera's markers.        
+        """
         if ugm != self.useglobmarks or on_init:
             self.useglobmarks = ugm
             if ugm:
