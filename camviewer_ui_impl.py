@@ -112,12 +112,6 @@ class cfginfo:
     def add(self, attr, val):
         self.dict[attr] = val
 
-    def get(self, attr, default):
-        try:
-            return self.dict[attr]
-        except KeyError:
-            return default
-
     def __getattr__(self, name):
         if name in self.dict.keys():
             return self.dict[name]
