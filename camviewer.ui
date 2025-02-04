@@ -2702,7 +2702,7 @@ Vmin\</string>
   </action>
   <action name="actionResetMarkers">
    <property name="text">
-    <string>Reset All Markers</string>
+    <string>Reset Local Markers</string>
    </property>
   </action>
   <action name="actionMS">
