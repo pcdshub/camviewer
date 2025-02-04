@@ -112,6 +112,12 @@ class cfginfo:
     def add(self, attr, val):
         self.dict[attr] = val
 
+    def get(self, attr, default):
+        try:
+            return self.dict[attr]
+        except KeyError:
+            return default
+
     def __getattr__(self, name):
         if name in self.dict.keys():
             return self.dict[name]
@@ -2887,15 +2893,12 @@ class GraphicUserInterface(QMainWindow):
             return
         self.cfg = cfginfo()
         # Global defaults.
-        self.cfg.add("config", "0")
-        self.cfg.add("projection", "0")
+        self.cfg.add("config", "1")
+        self.cfg.add("projection", "1")
         self.cfg.add("markers", "0")
         self.cfg.add("dispspec", "0")
-        if not self.cfg.read(self.cfgdir + "GLOBAL"):
-            self.cfg.add("config", "1")
-            self.cfg.add("projection", "1")
-            self.cfg.add("markers", "1")
-            self.cfg.add("dispspec", "0")
+        self.cfg.read(self.cfgdir + "GLOBAL")
+
         if self.options is not None:
             # Let the command line options override the config file!
             if self.options.config is not None:
@@ -2918,39 +2921,8 @@ class GraphicUserInterface(QMainWindow):
         else:
             # OK, didn't work, look for a new one!
             self.oldcfg = False
-            if not self.cfg.read(self.cfgdir + self.cameraBase):
-                # Bail if we can't find it
-                # But first, let's immediately process the command line options, if any.
-                mk = int(self.cfg.markers)
-                self.ui.showmarker.setChecked(mk)
-                self.doShowMarker()
-                dc = int(self.cfg.dispspec)
-                self.setDispSpec(dc)
-                self.ui.showconf.setChecked(int(self.cfg.config))
-                self.doShowConf()
-                self.ui.showproj.setChecked(int(self.cfg.projection))
-                self.doShowProj()
-                if self.options is not None:
-                    if self.options.orientation is not None:
-                        self.setOrientation(int(self.options.orientation))
-                    elif self.options.lportrait is not None:
-                        if int(self.options.lportrait):
-                            self.setOrientation(param.ORIENT90)
-                        else:
-                            self.setOrientation(param.ORIENT0)
-                    if self.options.cmap is not None:
-                        self.ui.comboBoxColor.setCurrentIndex(
-                            self.ui.comboBoxColor.findText(self.options.cmap)
-                        )
-                        self.colorMap = self.options.cmap.lower()
-                        self.ui.grayScale.setChecked(
-                            True
-                        )  # If we want a color map, force gray scale!
-                        self.setColorMap()
-                    self.options = None
-                self.dumpConfig()
-                self.cfg = None
-                return
+            self.cfg.read(self.cfgdir + self.cameraBase)
+            # No need to check anything. If it didn't work we'll use defaults later.
 
         # Let command line options override local config file
         if self.options is not None:
@@ -2965,10 +2937,9 @@ class GraphicUserInterface(QMainWindow):
                 self.cfg.add("colormap", self.options.cmap)
             self.options = None
 
-        try:
-            use_abs = int(self.cfg.use_abs)
-        except Exception:
-            use_abs = 0
+        # use_abs may be missing if there was no camera config
+        # but actually, only a value of 1 is supported now
+        use_abs = 1
 
         # Set the window size
         settings = QSettings("SLAC", "CamViewer")
@@ -2981,40 +2952,70 @@ class GraphicUserInterface(QMainWindow):
         if v is not None:
             self.restoreState(v)
 
-        # I think we're going to assume that since we've written this file, it's correct.
-        # Do, or do not.  There is no try.
-        newwidth = self.cfg.viewwidth
-        newheight = self.cfg.viewheight
-        if int(newwidth) < self.minwidth:
-            newwidth = str(self.minwidth)
-        if int(newheight) < self.minheight:
-            newheight = str(self.minheight)
-        newproj = self.cfg.projsize
-        self.advdialog.ui.viewWidth.setText(newwidth)
-        self.advdialog.ui.viewHeight.setText(newheight)
-        self.advdialog.ui.projSize.setText(newproj)
+        # viewwidth may be missing if there was no camera config
+        try:
+            newwidth = self.cfg.viewwidth
+        except AttributeError:
+            # Skip resize display if missing
+            ...
+        else:
+            if int(newwidth) < self.minwidth:
+                newwidth = str(self.minwidth)
+            self.advdialog.ui.viewWidth.setText(newwidth)
+
+        # viewheight may be missing if there was no camera config
+        try:
+            newheight = self.cfg.viewheight
+        except AttributeError:
+            # Skip resize display if missing
+            ...
+        else:
+            if int(newheight) < self.minheight:
+                newheight = str(self.minheight)
+            self.advdialog.ui.viewHeight.setText(newheight)
+
+        # projsize may be missing if there was no camera config
+        try:
+            newproj = self.cfg.projsize
+        except AttributeError:
+            # Skip changing projsize text if missing
+            ...
+        else:
+            self.advdialog.ui.projSize.setText(newproj)
+
+        # config is guaranteed to be present due to global defaults
         self.ui.showconf.setChecked(int(self.cfg.config))
         self.doShowConf()
+
+        # projection is guaranteed to be present due to global defaults
         self.ui.showproj.setChecked(int(self.cfg.projection))
         self.doShowProj()
-        # These are new fields, so they might not be in old configs!
-        try:
-            mk = int(self.cfg.markers)
-        except Exception:
-            mk = 1
-        self.ui.showmarker.setChecked(mk)
+
+        # markers is guaranteed to be present due to global defaults
+        self.ui.showmarker.setChecked(int(self.cfg.markers))
         self.doShowMarker()
-        try:
-            dc = int(self.cfg.dispspec)
-        except Exception:
-            dc = 0
-        self.setDispSpec(dc)
+
+        # dispspec is guaranteed to be present due to global defaults
+        self.setDispSpec(int(self.cfg.dispspec))
+
+        # orientation may be missing if there was no camera config
         try:
             orientation = self.cfg.orientation
         except Exception:
+            # No rotation is a sensible default
             orientation = param.ORIENT0
         self.setOrientation(int(orientation))
-        self.ui.checkBoxProjAutoRange.setChecked(int(self.cfg.autorange))
+
+        # autorange may be missing if there was no camera config
+        try:
+            autorange = int(self.cfg.autorange)
+        except Exception:
+            # This checkbox defaults to the checked state in the ui file
+            autorange = 1
+        finally:
+            self.ui.checkBoxProjAutoRange.setChecked(autorange)
+
+        # rectzoom may be missing if there was no camera config
         try:
             self.ui.display_image.setRectZoom(
                 float(self.cfg.rectzoom[0]),
@@ -3023,7 +3024,10 @@ class GraphicUserInterface(QMainWindow):
                 float(self.cfg.rectzoom[3]),
             )
         except Exception:
-            pass
+            # Usually this is a full image view, which is a sensible default.
+            ...
+
+        # ROI may be missing if there was no camera config
         try:
             self.ui.display_image.roiSet(
                 float(self.cfg.ROI[0]),
@@ -3033,63 +3037,113 @@ class GraphicUserInterface(QMainWindow):
                 rel=(use_abs == 0),
             )
         except Exception:
-            pass
+            # Usually this is a full image view, which is a sensible default.
+            ...
         self.updateall()
-        self.ui.comboBoxColor.setCurrentIndex(
-            self.ui.comboBoxColor.findText(self.cfg.colormap)
-        )
-        self.colorMap = self.cfg.colormap.lower()
-        # OK, we're changing this to introduce more scales!  So,
-        # "Log Scale" --> "Log2 Scale" and "Exp Scale" --> "Exp2 Scale"
-        if self.cfg.colorscale[0] == "Log":
-            self.cfg.colorscale[0] = "Log2"
-        elif self.cfg.colorscale[0] == "Exp":
-            self.cfg.colorscale[0] = "Exp2"
-        self.iScaleIndex = self.ui.comboBoxScale.findText(
-            self.cfg.colorscale[0] + " " + self.cfg.colorscale[1]
-        )
-        self.ui.comboBoxScale.setCurrentIndex(self.iScaleIndex)
+
+        # colormap may be missing if there was no camera config
         try:
-            self.set_new_min_pixel(int(self.cfg.colormin))
-            self.set_new_max_pixel(int(self.cfg.colormax))
-        except Exception:
-            print("Failed to load min or max pixel value from config file.")
+            colormap = self.cfg.colormap
+        except AttributeError:
+            # Same default as the combobox in the UI file
+            colormap = "Hot"
+        finally:
+            self.ui.comboBoxColor.setCurrentIndex(
+                self.ui.comboBoxColor.findText(colormap)
+            )
+            self.colorMap = colormap.lower()
+
+        # colorscale may be missing if there was no camera config
         try:
-            self.ui.grayScale.setChecked(int(self.cfg.grayscale))
-            self.onCheckGrayUpdate(int(self.cfg.grayscale))
+            colorscale = self.cfg.colorscale
         except Exception:
-            pass
+            # Same default as the combobox in the UI file
+            colorscale = ["Linear", "Scale"]
+        finally:
+            # Backcompat for really really really old names
+            if colorscale[0] == "Log":
+                colorscale[0] = "Log2"
+            elif colorscale[0] == "Exp":
+                colorscale[0] = "Exp2"
+            self.iScaleIndex = self.ui.comboBoxScale.findText(
+                colorscale[0] + " " + colorscale[1]
+            )
+            self.ui.comboBoxScale.setCurrentIndex(self.iScaleIndex)
+
+        # colormin may be missing if there was no camera config
+        try:
+            colormin = int(self.cfg.colormin)
+        except Exception:
+            # This is always the lowest the slider can go
+            colormin = 0
+        finally:
+            self.set_new_min_pixel(colormin)
+
+        # colormax may be missing if there was no camera config
+        try:
+            colormax = int(self.cfg.colormax)
+        except Exception:
+            # This updates to match the last successfully loaded cam
+            colormax = self.maxcolor
+        finally:
+            self.set_new_max_pixel(colormax)
+
+        # grayscale may be missing if there was no camera config
+        try:
+            grayscale = int(self.cfg.grayscale)
+        except Exception:
+            # Same default as checkbox in UI file
+            grayscale = 0
+        finally:
+            self.ui.grayScale.setChecked(grayscale)
+            self.onCheckGrayUpdate(grayscale)
+
         self.setColorMap()
 
         # Reset markers
         reset_markers(self.local_marker_points)
         reset_markers(self.global_marker_points)
         # Always load the local marker values in case we need them
-        if use_abs == 1:
-            self.local_marker_points[0].setAbs(int(self.cfg.m1[0]), int(self.cfg.m1[1]))
-            self.local_marker_points[1].setAbs(int(self.cfg.m2[0]), int(self.cfg.m2[1]))
-            self.local_marker_points[2].setAbs(int(self.cfg.m3[0]), int(self.cfg.m3[1]))
-            self.local_marker_points[3].setAbs(int(self.cfg.m4[0]), int(self.cfg.m4[1]))
+        # Any of m1, m2, m3, m4 may be missing if there was no camera config.
+        try:
+            m1, m2, m3, m4 = self.cfg.m1, self.cfg.m2, self.cfg.m3, self.cfg.m4
+        except AttributeError:
+            # If these are missing, just use the values from the reset
+            ...
         else:
-            self.local_marker_points[0].setRel(int(self.cfg.m1[0]), int(self.cfg.m1[1]))
-            self.local_marker_points[1].setRel(int(self.cfg.m2[0]), int(self.cfg.m2[1]))
-            self.local_marker_points[2].setRel(int(self.cfg.m3[0]), int(self.cfg.m3[1]))
-            self.local_marker_points[3].setRel(int(self.cfg.m4[0]), int(self.cfg.m4[1]))
+            if use_abs == 1:
+                self.local_marker_points[0].setAbs(int(m1[0]), int(m1[1]))
+                self.local_marker_points[1].setAbs(int(m2[0]), int(m2[1]))
+                self.local_marker_points[2].setAbs(int(m3[0]), int(m3[1]))
+                self.local_marker_points[3].setAbs(int(m4[0]), int(m4[1]))
+            else:
+                self.local_marker_points[0].setRel(int(m1[0]), int(m1[1]))
+                self.local_marker_points[1].setRel(int(m2[0]), int(m2[1]))
+                self.local_marker_points[2].setRel(int(m3[0]), int(m3[1]))
+                self.local_marker_points[3].setRel(int(m4[0]), int(m4[1]))
         # Pick between local and global
+        # globmarks may be missing if there was no camera config
         try:
             self.useglobmarks = bool(int(self.cfg.globmarks))
         except Exception:
+            # We typically want to use the shared markers in most cases
             self.useglobmarks = True
         self.ui.actionGlobalMarkers.setChecked(self.useglobmarks)
         self.onGlobMarks(on_init=True)
 
-        self.changeSize(int(newwidth), int(newheight), int(newproj), False)
+        try:
+            self.changeSize(int(newwidth), int(newheight), int(newproj), False)
+        except Exception:
+            # In case any of these wasn't loaded. Usually a NameError but can be others.
+            ...
+
         try:
             # OK, see if we've delayed the command line orientation setting until now.
             orientation = self.cfg.cmd_orientation
             self.setOrientation(int(orientation))
         except Exception:
             pass
+
         # Process projection settings, if any.
         try:
             self.ui.checkBoxProjRoi.setChecked(self.cfg.projroi == "1")
