@@ -9,63 +9,53 @@
 #
 from __future__ import annotations
 
-from camviewer_ui import Ui_MainWindow
-from psp.Pv import Pv
-from dialogs import advdialog
-from dialogs import markerdialog
-from dialogs import specificdialog
-from dialogs import forcedialog
-from cam_types import CamTypeScreenGenerator
-from DisplayImage import default_markers, reset_markers
-
-import sys
-import os
-from pycaqtimage import pycaqtimage
-import pyca
-import math
-import re
-import time
+import contextlib
 import functools
+import math
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import typing
+
 import numpy as np
 import numpy.typing as npt
-import tempfile
-import shutil
-import typing
-import contextlib
-import subprocess
-
+import pyca
+from psp.Pv import Pv
+from PyQt5.QtCore import (
+    QEvent,
+    QMimeData,
+    QObject,
+    QPoint,
+    QSettings,
+    QSize,
+    Qt,
+    QTimer,
+    pyqtSignal,
+)
+from PyQt5.QtGui import QClipboard, QDrag, QFontMetricsF, QImageWriter, QPixmap
 from PyQt5.QtWidgets import (
-    QSizePolicy,
+    QAction,
+    QApplication,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
     QLabel,
     QMainWindow,
-    QSpacerItem,
-    QFileDialog,
     QMessageBox,
-    QAction,
-    QDialogButtonBox,
-    QApplication,
-    QFormLayout,
-)
-from PyQt5.QtGui import (
-    QClipboard,
-    QPixmap,
-    QDrag,
-    QImageWriter,
-    QFontMetricsF,
-)
-from PyQt5.QtCore import (
-    QTimer,
-    QPoint,
-    QSize,
-    QObject,
-    QEvent,
-    Qt,
-    QMimeData,
-    QSettings,
-    pyqtSignal,
+    QSizePolicy,
+    QSpacerItem,
 )
 
 import param
+from cam_types import CamTypeScreenGenerator
+from camviewer_ui import Ui_MainWindow
+from dialogs import advdialog, forcedialog, markerdialog, specificdialog
+from DisplayImage import default_markers, reset_markers
+from pycaqtimage import pycaqtimage
 
 
 #
