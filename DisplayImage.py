@@ -457,8 +457,12 @@ class DisplayImage(QWidget):
         if self.gui.cfg is None:
             self.gui.dumpConfig()
 
+    def set_one_marker(self, index: int, marker: param.Point):
+        self.lMarker[index] = marker
+
     def set_markers(self, markers: list[param.Point]):
-        self.lMarker = markers
+        for index in range(4):
+            self.set_one_marker(index, markers[index])
 
 
 def default_markers() -> list[param.Point]:

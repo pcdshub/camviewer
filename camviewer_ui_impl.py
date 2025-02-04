@@ -908,10 +908,8 @@ class GraphicUserInterface(QMainWindow):
         if ugm != self.useglobmarks or on_init:
             self.useglobmarks = ugm
             if ugm:
-                self.ui.display_image.set_markers(self.global_marker_points)
                 self.connectMarkerPVs()
             else:
-                self.ui.display_image.set_markers(self.local_marker_points)
                 self.disconnectMarkerPVs()
             self.updateMarkerText(do_puts=False)
             if self.cfg is None:
@@ -1088,13 +1086,8 @@ class GraphicUserInterface(QMainWindow):
         self.ui.display_image.update()
 
     def onMarkerReset(self):
-        self.ui.display_image.lMarker = [
-            param.Point(-100, -100),
-            param.Point(param.x + 100, -100),
-            param.Point(param.x + 100, param.y + 100),
-            param.Point(-100, param.y + 100),
-        ]
-        self.updateMarkerText(True, True, 3, 15)
+        reset_markers(self.local_marker_points)
+        self.updateMarkerText(True, True, 3, 15, do_puts=False)
         self.updateall()
         if self.cfg is None:
             self.dumpConfig()
@@ -1834,13 +1827,17 @@ class GraphicUserInterface(QMainWindow):
         status_label = getattr(self.ui, f"cross{n + 1}_status")
         status_label.setText("G")
 
+        old_point = self.ui.display_image.lMarker[n]
+        new_point = self.global_marker_points[n]
+        self.ui.display_image.set_one_marker(n, new_point)
+
         newx = cross_x_pv.value
         newy = cross_y_pv.value
-        point = self.global_marker_points[n]
-        if point.x == newx and point.y == newy:
+        if old_point.x == newx and old_point.y == newy:
             return
 
-        point.setAbs(newx, newy)
+        new_point.setAbs(newx, newy)
+
         self.updateMarkerText(True, True, 0, 1 << n, do_puts=False)
         self.updateMarkerValue()
         self.updateall()
@@ -1886,6 +1883,7 @@ class GraphicUserInterface(QMainWindow):
         self.ui.cross2_status.setText("L")
         self.ui.cross3_status.setText("L")
         self.ui.cross4_status.setText("L")
+        self.ui.display_image.set_markers(self.local_marker_points)
         return False
 
     def setupDrags(self):
