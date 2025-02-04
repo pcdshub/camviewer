@@ -957,8 +957,11 @@ class GraphicUserInterface(QMainWindow):
                     pt = self.ui.display_image.lMarker[i].abs()
                     newx = int(pt.x())
                     newy = int(pt.y())
-                    cross_x_pv = self.globmarkpvs[f"cross_{i+1}x"]
-                    cross_y_pv = self.globmarkpvs[f"cross_{i+1}y"]
+                    try:
+                        cross_x_pv = self.globmarkpvs[f"cross_{i+1}x"]
+                        cross_y_pv = self.globmarkpvs[f"cross_{i+1}y"]
+                    except KeyError:
+                        return
                     if cross_x_pv.isinitialized and cross_y_pv.isinitialized:
                         try:
                             cross_x_pv.put(newx)
