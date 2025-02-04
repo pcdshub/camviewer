@@ -458,20 +458,63 @@ class DisplayImage(QWidget):
             self.gui.dumpConfig()
 
     def set_one_marker(self, index: int, marker: param.Point):
+        """
+        Replace any of the marker cross locations with a new Point object.
+
+        This allows us to swap marker locations in and out as necessary in
+        other parts of the application.
+
+        The Point object can be retained by the caller and its coordinates
+        can be changed to update the marker position here.
+
+        Parameters
+        ----------
+        index : int
+            Whether to replace marker 0, 1, 2, or 3
+            which correspond to markers 1, 2, 3, and 4 on the GUI.
+        marker : Point
+            An object that stores the x, y location of the associated marker.
+        """
         self.lMarker[index] = marker
 
     def set_markers(self, markers: list[param.Point]):
+        """
+        Replace all of the marker cross locations with a list of Point objects.
+
+        This is a shortcut for calling set_one_marker four times on each of the
+        valid marker indices.
+
+        Parameters
+        ----------
+        markers: list of Point
+            A list of 4 objects that store the x, y locations of their
+            associated markers.
+        """
         for index in range(4):
             self.set_one_marker(index, markers[index])
 
 
 def default_markers() -> list[param.Point]:
+    """
+    Return a list of 4 Points that represent the default marker positions.
+
+    The default marker positions are 100 points horizontally and 100 points
+    vertically away from each of the corners of the image, not on the image
+    itself but off of it.
+    """
     pts = [param.Point(0, 0), param.Point(0, 0), param.Point(0, 0), param.Point(0, 0)]
     reset_markers(pts)
     return pts
 
 
 def reset_markers(markers: list[param.Point]) -> None:
+    """
+    Given a list of 4 Points that represent marker positions, reset them to the defaults.
+
+    The default marker positions are 100 points horizontally and 100 points
+    vertically away from each of the corners of the image, not on the image
+    itself but off of it.
+    """
     markers[0].setAbs(-100, 100)
     markers[1].setAbs(param.x + 100, -100)
     markers[2].setAbs(param.x + 100, param.y + 100)
