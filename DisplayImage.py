@@ -515,7 +515,7 @@ def reset_markers(markers: list[param.Point]) -> None:
     vertically away from each of the corners of the image, not on the image
     itself but off of it.
     """
-    markers[0].setAbs(-100, 100)
+    markers[0].setAbs(-100, -100)
     markers[1].setAbs(param.x + 100, -100)
     markers[2].setAbs(param.x + 100, param.y + 100)
     markers[3].setAbs(-100, param.y + 100)
