@@ -323,6 +323,8 @@ class GraphicUserInterface(QMainWindow):
         self.acquire_image_timer = QTimer()
         self.rate_limit_timer = QTimer()
         self.refresh_timeout_display_timer = QTimer()
+        self.cam_changeable_restore = QTimer()
+        self.glob_changeable_restore = QTimer()
 
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
@@ -905,7 +907,17 @@ class GraphicUserInterface(QMainWindow):
         self.ui.local_button.setChecked(not use_global)
         self.setUseGlobalMarkers(use_global, on_init=on_init)
 
-    def setUseGlobalMarkers(self, ugm: bool, on_init: bool =False):
+    def allow_glob_changes(self, allow: bool = True):
+        """
+        Helper function to briefly disable all the global vs local widgets.
+        """
+        self.ui.actionGlobalMarkers.setEnabled(allow)
+        self.ui.global_button.setEnabled(allow)
+        self.ui.local_button.setEnabled(allow)
+        if not allow:
+            self.glob_changeable_restore.singleShot(1000, self.allow_glob_changes)
+
+    def setUseGlobalMarkers(self, ugm: bool, on_init: bool = False):
         """
         Apply global or local mode.
 
@@ -918,9 +930,10 @@ class GraphicUserInterface(QMainWindow):
             Therefore, we only need to take further action if the mode
             is changing. Set this to True while initializing a camera
             to ensure that the new camera's markers replace the
-            previous camera's markers.        
+            previous camera's markers.
         """
         if ugm != self.useglobmarks or on_init:
+            self.allow_glob_changes(False)
             self.useglobmarks = ugm
             if ugm:
                 self.connectMarkerPVs()
@@ -1200,35 +1213,20 @@ class GraphicUserInterface(QMainWindow):
     def clear(self):
         self.ui.label_dispRate.setText("-")
         self.ui.label_status.setText("-")
-        if self.camera is not None:
-            try:
-                self.camera.disconnect()
-            except Exception:
-                pass
-            self.camera = None
-        if self.notify is not None:
-            try:
-                self.notify.disconnect()
-            except Exception:
-                pass
-            self.notify = None
-        if self.lensPv is not None:
-            try:
-                self.lensPv.disconnect()
-            except Exception:
-                pass
-            self.lensPv = None
-        if self.putlensPv is not None:
-            try:
-                self.putlensPv.disconnect()
-            except Exception:
-                pass
-            self.putlensPv = None
+        self.camera = self.disconnectPv(self.camera)
+        self.notify = self.disconnectPv(self.notify)
+        self.nordPv = self.disconnectPv(self.nordPv)
+        self.nelmPv = self.disconnectPv(self.nelmPv)
+        self.rowPv = self.disconnectPv(self.rowPv)
+        self.colPv = self.disconnectPv(self.colPv)
+        self.calibPV = self.disconnectPv(self.calibPV)
+        self.launch_gui_pv = self.disconnectPv(self.launch_gui_pv)
+        self.launch_edm_pv = self.disconnectPv(self.launch_edm_pv)
+        self.lensPv = self.disconnectPv(self.lensPv)
+        self.putlensPv = self.disconnectPv(self.putlensPv)
+        self.disconnectMarkerPVs()
         for pv in self.otherpvs:
-            try:
-                pv.disconnect()
-            except Exception:
-                pass
+            self.disconnectPv(pv)
         self.otherpvs = []
         self.cameraBase = ""
         self.ctrlBase = ""
@@ -1800,6 +1798,7 @@ class GraphicUserInterface(QMainWindow):
     def disconnectPv(self, pv):
         if pv is not None:
             try:
+                pv.monitor_stop()
                 pv.disconnect()
                 pyca.flush_io()
             except Exception:
@@ -1858,7 +1857,6 @@ class GraphicUserInterface(QMainWindow):
 
         self.updateMarkerText(True, True, 0, 1 << n, do_puts=False)
         self.updateMarkerValue()
-        self.updateall()
 
     def cross1mon(self, exception=None):
         if exception is None:
@@ -1879,21 +1877,18 @@ class GraphicUserInterface(QMainWindow):
     def connectMarkerPVs(self):
         self.disconnectMarkerPVs()
         # Dict containing e.g. cross_1x: Pv object for cross 1 xpos
-        self.globmarkpvs = {
-            f"cross_{num + 1}{axis}": Pv(
-                self.ctrlBase + f":Cross{num + 1}{axis.upper()}",
-                monitor=getattr(self, f"cross{num + 1}mon"),
-                initialize=True,
-            )
-            for num in range(4)
-            for axis in ("x", "y")
-        }
+        self.globmarkpvs = {}
+        for axis in ("x", "y"):
+            for num in range(4):
+                pv = Pv(self.ctrlBase + f":Cross{num + 1}{axis.upper()}")
+                self.globmarkpvs[f"cross_{num + 1}{axis}"] = pv
+                monitor_on_connect(pv, getattr(self, f"cross{num + 1}mon"))
         return True
 
     def disconnectMarkerPVs(self):
         for pv in self.globmarkpvs.values():
             try:
-                pv.disconnect()
+                self.disconnectPv(pv)
             except Exception:
                 pass
         self.globmarkpvs = {}
@@ -1920,18 +1915,8 @@ class GraphicUserInterface(QMainWindow):
         self.selected_cam_ready = False
         self.ui.label_status.setText("Cleaning up...")
         self.set_color_scaling_enabled(False)
-        self.camera = self.disconnectPv(self.camera)
-        self.notify = self.disconnectPv(self.notify)
-        self.nordPv = self.disconnectPv(self.nordPv)
-        self.nelmPv = self.disconnectPv(self.nelmPv)
-        self.rowPv = self.disconnectPv(self.rowPv)
-        self.colPv = self.disconnectPv(self.colPv)
-        self.calibPV = self.disconnectPv(self.calibPV)
-        self.launch_gui_pv = self.disconnectPv(self.launch_gui_pv)
-        self.launch_edm_pv = self.disconnectPv(self.launch_edm_pv)
         self.launch_gui_script = ""
         self.launch_edm_script = ""
-        self.disconnectMarkerPVs()
         self.calibPVName = ""
         self.displayFormat = "%12.8g"
 
@@ -1950,18 +1935,10 @@ class GraphicUserInterface(QMainWindow):
         # Connect to expert PVs first
         # In event of a connection failure in a later step,
         # having these PVs available is helpful for debug.
-        self.launch_gui_pv = Pv(
-            self.ctrlBase + ":LAUNCH_GUI",
-            initialize=True,
-            monitor=self.new_launch_gui_script,
-            use_numpy=True,
-        )
-        self.launch_edm_pv = Pv(
-            self.ctrlBase + ":LAUNCH_EDM",
-            initialize=True,
-            monitor=self.new_launch_edm_script,
-            use_numpy=True,
-        )
+        self.launch_gui_pv = Pv(self.ctrlBase + ":LAUNCH_GUI", use_numpy=True)
+        monitor_on_connect(self.launch_gui_pv, self.new_launch_gui_script)
+        self.launch_edm_pv = Pv(self.ctrlBase + ":LAUNCH_EDM", use_numpy=True)
+        monitor_on_connect(self.launch_edm_pv, self.new_launch_edm_script)
 
         # Try to connect to the camera
         try:
@@ -2131,7 +2108,18 @@ class GraphicUserInterface(QMainWindow):
         if index >= 0 and index < len(self.camactions):
             self.onCameraSelect(index)
 
+    def allow_cam_changes(self, allow: bool = True):
+        """
+        Helper function to briefly disable switching cams.
+        """
+        for act in self.camactions:
+            act.setEnabled(allow)
+        self.ui.comboBoxCamera.setEnabled(allow)
+        if not allow:
+            self.cam_changeable_restore.singleShot(1000, self.allow_cam_changes)
+
     def onCameraSelect(self, index):
+        self.allow_cam_changes(False)
         if index < 0:
             return
         if index >= len(self.lCameraList):
@@ -2209,14 +2197,11 @@ class GraphicUserInterface(QMainWindow):
                     self.ui.horizontalSliderLens.setMaximum(100)
                 if len(lensName) > 1:
                     self.putlensPv = Pv(lensName[0], initialize=True)
-                    self.lensPv = Pv(
-                        lensName[1], initialize=True, monitor=self.lensPvUpdateCallback
-                    )
+                    self.lensPv = Pv(lensName[1])
                 else:
                     self.putlensPv = None
-                    self.lensPv = Pv(
-                        lensName[0], initialize=True, monitor=self.lensPvUpdateCallback
-                    )
+                    self.lensPv = Pv(lensName[0])
+                monitor_on_connect(self.lensPv, self.lensPvUpdateCallback)
                 self.lensPv.wait_ready(timeout)
                 if self.putlensPv is not None:
                     self.putlensPv.wait_ready(timeout)
@@ -3322,3 +3307,28 @@ def decode_char_waveform(waveform: npt.NDArray[np.int8]) -> str:
     if zeros.size > 0:
         waveform = waveform[: zeros[0]]
     return waveform.tobytes().decode(encoding="ascii", errors="ignore")
+
+
+def monitor_on_connect(pv: Pv, cb: typing.Callable[[Exception | None], None]):
+    """
+    More solid initializer for psp.Pv objects than the built-in options.
+
+    Ensures only 1 monitor gets created (unlike psp...)
+
+    Parameters
+    ----------
+    pv : psp.Pv
+        A Pv object that hasn't been connected, initialized, or had any callbacks
+        added yet.
+    cb : callable
+        A valid pyca monitor callback function
+    """
+
+    def inner(is_connected: bool):
+        if is_connected:
+            pv.del_connection_callback(cbid)
+            pv.monitor()
+
+    cbid = pv.add_connection_callback(inner)
+    pv.add_monitor_callback(cb)
+    pv.connect(None)
