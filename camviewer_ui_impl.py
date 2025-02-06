@@ -703,7 +703,15 @@ class GraphicUserInterface(QMainWindow):
             if cameraIndex < 0 or cameraIndex >= len(self.lCameraList):
                 print("Invalid camera index %d" % cameraIndex)
                 cameraIndex = 0
-            self.onCameraSelect(int(cameraIndex))
+            cameraIndex = int(cameraIndex)
+            # Camera select is gated by our camconn list of connected statuses
+            # We could wait on the pv connected status but that might let us through early
+            # Most robust is this simple sleep/wait loop
+            for _ in range(30):
+                if self.camconn[cameraIndex]:
+                    break
+                time.sleep(0.1)
+            self.onCameraSelect(cameraIndex)
         except Exception:
             pass
 
