@@ -294,12 +294,10 @@ class GraphicUserInterface(QMainWindow):
         self.wantNewImage = True
         self.lensPv = None
         self.putlensPv = None
-        self.nordPv = None
-        self.nelmPv = None
         self.count = None
-        self.maxcount = None
         self.rowPv = None
         self.colPv = None
+        self.bits_pv = None
         self.launch_gui_pv = None
         self.launch_edm_pv = None
         self.launch_gui_script = ""
@@ -1424,15 +1422,10 @@ class GraphicUserInterface(QMainWindow):
             and self.camera is not None
         ):
             try:
-                if self.nordPv:
-                    self.count = int(self.nordPv.value)
-                    if self.count == 0:
-                        sz = int(self.rowPv.value) * int(self.colPv.value)
-                        if sz > 0 and sz < self.maxcount:
-                            self.count = sz
-                        else:
-                            self.count = self.maxcount
-                self.camera.get(timeout=None)
+                self.count = self.rowPv.value * self.colPv.value
+                if self.isColor:
+                    self.count *= 3
+                self.camera.get(count=self.count, timeout=None)
                 pyca.flush_io()
             except Exception:
                 pass
@@ -1987,10 +1980,9 @@ class GraphicUserInterface(QMainWindow):
         self.set_color_scaling_enabled(False)
         self.camera = self.disconnectPv(self.camera)
         self.notify = self.disconnectPv(self.notify)
-        self.nordPv = self.disconnectPv(self.nordPv)
-        self.nelmPv = self.disconnectPv(self.nelmPv)
         self.rowPv = self.disconnectPv(self.rowPv)
         self.colPv = self.disconnectPv(self.colPv)
+        self.bits_pv = self.disconnectPv(self.bits_pv)
         self.calibPV = self.disconnectPv(self.calibPV)
         self.launch_gui_pv = self.disconnectPv(self.launch_gui_pv)
         self.launch_edm_pv = self.disconnectPv(self.launch_edm_pv)
@@ -2027,51 +2019,38 @@ class GraphicUserInterface(QMainWindow):
             use_numpy=True,
         )
 
-        # Try to connect to the camera
-        try:
-            self.nordPv = self.connectPv(sCameraPv + ".NORD")
-            self.count = int(self.nordPv.value)
-        except Exception:
-            self.nordPv = None
-            self.count = None
-        try:
-            self.nelmPv = self.connectPv(sCameraPv + ".NELM")
-            self.maxcount = int(self.nelmPv.value)
-        except Exception:
-            self.nelmPv = None
-            self.maxcount = None
-        if self.count is None or self.count == 0:
-            self.count = self.maxcount
-        self.camera = self.connectPv(sCameraPv, count=self.count)
-        if self.camera is None:
-            self.ui.label_status.setText("IOC timeout in setup")
-            print("IOC timeout in setup (main camera PV)")
-            return
-
         # Try to get the camera size!
         self.scale = 1
-        if caget(self.cameraBase + ":ArraySize0_RBV") == 3:
+        size0 = self.connectPv(self.cameraBase + ":ArraySize0_RBV")
+        size1 = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
+        size2 = self.connectPv(self.cameraBase + ":ArraySize2_RBV")
+        if None in (size0, size1, size2):
+            self.ui.label_status.setText("IOC timeout in setup")
+            print("IOC timeout in setup (image size PVs)")
+            return
+
+        if size0.value == 3:
             # It's a color camera!
-            self.rowPv = self.connectPv(self.cameraBase + ":ArraySize2_RBV")
-            self.colPv = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
+            self.rowPv = size2
+            self.colPv = size1
+            self.disconnectPv(size0)
             self.isColor = True
-            self.bits = caget(self.cameraBase + ":BIT_DEPTH")
-            if self.bits is None:
-                self.bits = 10
         else:
             # Just B/W!
-            self.rowPv = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
-            self.colPv = self.connectPv(self.cameraBase + ":ArraySize0_RBV")
+            self.rowPv = size1
+            self.colPv = size0
+            self.disconnectPv(size2)
             self.isColor = False
-            if self.lFlags[index] != "":
-                self.bits = int(self.lFlags[index])
-            else:
-                self.bits = caget(self.cameraBase + ":BitsPerPixel_RBV")
-                if self.bits is None:
-                    self.bits = caget(self.cameraBase + ":BIT_DEPTH")
-                    if self.bits is None:
-                        self.bits = 8
 
+        if self.lFlags[index] != "":
+            self.bits = int(self.lFlags[index])
+        else:
+            self.bits_pv = self.connectPv(self.cameraBase + ":BitsPerPixel_RBV")
+            if self.bits_pv is None:
+                self.ui.label_status.setText("IOC timeout in setup")
+                print("IOC timeout in setup (bits per pixel PV)")
+                return
+            self.bits = self.bits_pv.value
         self.maxcolor = (1 << self.bits) - 1
         self.ui.horizontalSliderRangeMin.setMaximum(self.maxcolor)
         self.ui.horizontalSliderRangeMin.setTickInterval((1 << self.bits) / 4)
@@ -2097,6 +2076,17 @@ class GraphicUserInterface(QMainWindow):
             else:
                 self.ui.label_status.setText("Zero pixels in image")
                 print("Zero pixels in image (no width/height)")
+            return
+        else:
+            self.count = self.rowPv.value * self.colPv.value
+            if self.isColor:
+                self.count *= 3
+
+        # Try to connect to the camera
+        self.camera = self.connectPv(sCameraPv, count=self.count)
+        if self.camera is None:
+            self.ui.label_status.setText("IOC timeout in setup")
+            print("IOC timeout in setup (main camera PV)")
             return
 
         if sNotifyPv is None:
