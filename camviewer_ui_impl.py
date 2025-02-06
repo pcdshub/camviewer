@@ -2042,23 +2042,6 @@ class GraphicUserInterface(QMainWindow):
             self.disconnectPv(size2)
             self.isColor = False
 
-        if self.lFlags[index] != "":
-            self.bits = int(self.lFlags[index])
-        else:
-            self.bits_pv = self.connectPv(self.cameraBase + ":BitsPerPixel_RBV")
-            if self.bits_pv is None:
-                self.ui.label_status.setText("IOC timeout in setup")
-                print("IOC timeout in setup (bits per pixel PV)")
-                return
-            self.bits = self.bits_pv.value
-        self.maxcolor = (1 << self.bits) - 1
-        self.ui.horizontalSliderRangeMin.setMaximum(self.maxcolor)
-        self.ui.horizontalSliderRangeMin.setTickInterval((1 << self.bits) / 4)
-        self.ui.horizontalSliderRangeMax.setMaximum(self.maxcolor)
-        self.ui.horizontalSliderRangeMax.setTickInterval((1 << self.bits) / 4)
-        self.ui.spinbox_range_max.setMaximum(self.maxcolor)
-        self.ui.spinbox_range_min.setMaximum(self.maxcolor)
-
         # See if we've connected to a camera with valid height and width
         if (
             self.rowPv is None
@@ -2081,6 +2064,23 @@ class GraphicUserInterface(QMainWindow):
             self.count = self.rowPv.value * self.colPv.value
             if self.isColor:
                 self.count *= 3
+
+        if self.lFlags[index] != "":
+            self.bits = int(self.lFlags[index])
+        else:
+            self.bits_pv = self.connectPv(self.cameraBase + ":BitsPerPixel_RBV")
+            if self.bits_pv is None:
+                self.ui.label_status.setText("IOC timeout in setup")
+                print("IOC timeout in setup (bits per pixel PV)")
+                return
+            self.bits = self.bits_pv.value
+        self.maxcolor = (1 << self.bits) - 1
+        self.ui.horizontalSliderRangeMin.setMaximum(self.maxcolor)
+        self.ui.horizontalSliderRangeMin.setTickInterval((1 << self.bits) / 4)
+        self.ui.horizontalSliderRangeMax.setMaximum(self.maxcolor)
+        self.ui.horizontalSliderRangeMax.setTickInterval((1 << self.bits) / 4)
+        self.ui.spinbox_range_max.setMaximum(self.maxcolor)
+        self.ui.spinbox_range_min.setMaximum(self.maxcolor)
 
         # Try to connect to the camera
         self.camera = self.connectPv(sCameraPv, count=self.count)
