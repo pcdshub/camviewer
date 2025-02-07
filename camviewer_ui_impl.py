@@ -302,7 +302,6 @@ class GraphicUserInterface(QMainWindow):
         self.launch_edm_pv = None
         self.launch_gui_script = ""
         self.launch_edm_script = ""
-        self.scale = 1
         self.fLensPrevValue = -1
         self.fLensValue = 0
         self.avgState = SINGLE_FRAME
@@ -1343,8 +1342,8 @@ class GraphicUserInterface(QMainWindow):
 
     def onSizeUpdate(self):
         try:
-            newx = self.colPv.value / self.scale
-            newy = self.rowPv.value / self.scale
+            newx = self.colPv.value
+            newy = self.rowPv.value
             if newx != param.x or newy != self.y:
                 self.setImageSize(newx, newy, False)
         except Exception:
@@ -2030,7 +2029,6 @@ class GraphicUserInterface(QMainWindow):
         )
 
         # Try to get the camera size!
-        self.scale = 1
         size0 = self.connectPv(self.cameraBase + ":ArraySize0_RBV")
         size1 = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
         size2 = self.connectPv(self.cameraBase + ":ArraySize2_RBV")
@@ -2122,9 +2120,7 @@ class GraphicUserInterface(QMainWindow):
         self.rowPv.add_monitor_callback(self.sizeCallback)
         self.colPv.add_monitor_callback(self.sizeCallback)
         # Now, before we monitor, update the camera size!
-        self.setImageSize(
-            self.colPv.value / self.scale, self.rowPv.value / self.scale, True
-        )
+        self.setImageSize(self.colPv.value, self.rowPv.value, True)
         self.updateMarkerText(True, True, 0, 15)
         self.notify.monitor(
             pyca.DBE_VALUE, False, 1
@@ -2462,9 +2458,7 @@ class GraphicUserInterface(QMainWindow):
                     self.ui.projectionFrame.setFixedSize(
                         QSize(self.projsize, self.projsize)
                     )
-            self.setImageSize(
-                self.colPv.value / self.scale, self.rowPv.value / self.scale, False
-            )
+            self.setImageSize(self.colPv.value, self.rowPv.value, False)
             if self.cfg is None:
                 self.dumpConfig()
 
