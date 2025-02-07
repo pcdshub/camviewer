@@ -1422,9 +1422,19 @@ class GraphicUserInterface(QMainWindow):
             and self.camera is not None
         ):
             try:
-                self.count = self.rowPv.value * self.colPv.value
-                if self.isColor:
-                    self.count *= 3
+                try:
+                    new_count = int(self.rowPv.value) * int(self.colPv.value)
+                except Exception:
+                    # Something went wrong with our row/col PVs
+                    # One of disconnected, bad data, etc.
+                    # Use the previous frame's count for now
+                    # If it's wrong, the frame will get dropped by pycaqtimage
+                    ...
+                else:
+                    # Our PVs are OK, let's make sure we get the right amount of data
+                    if self.isColor:
+                        new_count *= 3
+                    self.count = new_count
                 self.camera.get(count=self.count, timeout=None)
                 pyca.flush_io()
             except Exception:
