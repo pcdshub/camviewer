@@ -2032,23 +2032,29 @@ class GraphicUserInterface(QMainWindow):
         size0 = self.connectPv(self.cameraBase + ":ArraySize0_RBV")
         size1 = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
         size2 = self.connectPv(self.cameraBase + ":ArraySize2_RBV")
-        if None in (size0, size1, size2):
+        if None in (size0, size1):
+            # Note: allow B/W cams to not have a size2 PV
             self.ui.label_status.setText("IOC timeout in setup")
             print("IOC timeout in setup (image size PVs)")
             return
 
-        if size0.value == 3:
+        if size2 is None or size2.value == 0:
+            # Just B/W!
+            self.rowPv = size1
+            self.colPv = size0
+            self.disconnectPv(size2)
+            self.isColor = False
+        elif size0.value == 3:
             # It's a color camera!
             self.rowPv = size2
             self.colPv = size1
             self.disconnectPv(size0)
             self.isColor = True
         else:
-            # Just B/W!
-            self.rowPv = size1
-            self.colPv = size0
-            self.disconnectPv(size2)
-            self.isColor = False
+            # Something else? e.g. 100x100x100
+            self.ui.label_status.setText("Invalid cam dimemsions")
+            print("Invalid cam dimensions in setup (3d or more)")
+            return
 
         # See if we've connected to a camera with valid height and width
         if (
