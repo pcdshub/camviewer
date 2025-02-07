@@ -276,7 +276,7 @@ class GraphicUserInterface(QMainWindow):
         # Default to VGA!
         param.setImageSize(640, 480)
         self.isColor = False
-        self.bits = 10
+        self.bits = 12
         self.maxcolor = 1023
         self.lastUpdateTime = time.time()
         self.dispUpdates = 0
@@ -2083,11 +2083,15 @@ class GraphicUserInterface(QMainWindow):
             self.bits = int(self.lFlags[index])
         else:
             self.bits_pv = self.connectPv(self.cameraBase + ":BitsPerPixel_RBV")
-            if self.bits_pv is None:
-                self.ui.label_status.setText("IOC timeout in setup")
-                print("IOC timeout in setup (bits per pixel PV)")
-                return
-            self.bits = self.bits_pv.value
+            try:
+                self.bits = int(self.bits_pv.value)
+            except Exception:
+                self.bits = 12
+                print("Bits PV did not connect or had bad value, using default 12")
+
+        # Ensure positive bit depth no bigger than 32
+        # Negative bit depth and very large bit depths both break the app
+        self.bits = min(max(1, self.bits), 32)
         self.maxcolor = (1 << self.bits) - 1
         self.ui.horizontalSliderRangeMin.setMaximum(self.maxcolor)
         self.ui.horizontalSliderRangeMin.setTickInterval((1 << self.bits) / 4)
