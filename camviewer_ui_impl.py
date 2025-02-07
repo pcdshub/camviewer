@@ -2032,52 +2032,71 @@ class GraphicUserInterface(QMainWindow):
         size0 = self.connectPv(self.cameraBase + ":ArraySize0_RBV")
         size1 = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
         size2 = self.connectPv(self.cameraBase + ":ArraySize2_RBV")
-        if None in (size0, size1):
-            # Note: allow B/W cams to not have a size2 PV
-            self.ui.label_status.setText("IOC timeout in setup")
-            print("IOC timeout in setup (image size PVs)")
-            return
 
-        if size2 is None or size2.value == 0:
+        def get_size_val(pv_or_none: Pv | None) -> int | None:
+            """
+            Get the actual size given the Pv after connectPv.
+
+            Disconnected PVs will return None
+            Bad values will return 0
+            """
+            if pv_or_none is None:
+                return None
+            try:
+                val = int(pv_or_none.value)
+            except Exception:
+                val = 0
+            return max(0, val)
+
+        size0_val = get_size_val(size0)
+        size1_val = get_size_val(size1)
+        size2_val = get_size_val(size2)
+
+        def show_sizing_error(error_text: str):
+            self.disconnectPv(size0)
+            self.disconnectPv(size1)
+            self.disconnectPv(size2)
+            # Clear the image so that we don't have a stale image from the previous cam
+            self.ui.display_image.image.fill(0)
+            self.ui.display_image.repaint()
+            # Report which issue we had
+            self.ui.label_status.setText(error_text)
+            print(f"{error_text} (rows/cols)")
+
+        if None in (size0_val, size1_val):
+            # pvs must be connected
+            return show_sizing_error("IOC timeout")
+        elif 0 in (size0_val, size1_val):
+            # pvs must be nonzero
+            return show_sizing_error("Zero pixels in image")
+        elif size0_val == 3 and size2_val is None:
+            # Ambiguous: either disconnected pv in color cam
+            # or really strange IOC config with missing pv
+            return show_sizing_error("Ambiguous sizing")
+        elif size0_val != 3 and size2_val is not None and size2_val > 0:
+            # Weird multidimensional thing??
+            return show_sizing_error("Invalid cam dimensions")
+
+        # No errors, proceed!
+        if size2_val in (0, None):
             # Just B/W!
             self.rowPv = size1
             self.colPv = size0
             self.disconnectPv(size2)
             self.isColor = False
-        elif size0.value == 3:
+        elif size0_val == 3:
             # It's a color camera!
             self.rowPv = size2
             self.colPv = size1
             self.disconnectPv(size0)
             self.isColor = True
         else:
-            # Something else? e.g. 100x100x100
-            self.ui.label_status.setText("Invalid cam dimemsions")
-            print("Invalid cam dimensions in setup (3d or more)")
-            return
+            # It shouldn't be possible to get here, but if we do...
+            return show_sizing_error("Unknown sizing error")
 
-        # See if we've connected to a camera with valid height and width
-        if (
-            self.rowPv is None
-            or self.rowPv.value == 0
-            or self.colPv is None
-            or self.colPv.value == 0
-        ):
-            # Clear the image so that we don't have a stale image from the previous cam
-            self.ui.display_image.image.fill(0)
-            self.ui.display_image.repaint()
-            # Report which issue we had
-            if self.rowPv is None or self.colPv is None:
-                self.ui.label_status.setText("IOC timeout in setup")
-                print("IOC timeout in setup (rows/cols)")
-            else:
-                self.ui.label_status.setText("Zero pixels in image")
-                print("Zero pixels in image (no width/height)")
-            return
-        else:
-            self.count = self.rowPv.value * self.colPv.value
-            if self.isColor:
-                self.count *= 3
+        self.count = self.rowPv.value * self.colPv.value
+        if self.isColor:
+            self.count *= 3
 
         if self.lFlags[index] != "":
             self.bits = int(self.lFlags[index])
