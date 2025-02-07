@@ -51,6 +51,8 @@ extraFlags = "-std=c++11 -I%s -I%s/QtCore -I%s/QtGui -I%s -DQT_NO_VERSION_TAGGIN
     qt_inc_dir,
     np_inc_dir,
 )
+# If you need debug symbols
+# extraFlags += " -g"
 makefile.extra_cflags = [extraFlags]
 makefile.extra_cxxflags = [extraFlags]
 makefile.extra_lflags = ["-Wl,-R" + target_dir + " -Wl,-R" + qt_lib_dir]
