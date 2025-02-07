@@ -2089,14 +2089,18 @@ class GraphicUserInterface(QMainWindow):
                 self.bits = 12
                 print("Bits PV did not connect or had bad value, using default 12")
 
-        # Ensure positive bit depth no bigger than 32
-        # Negative bit depth and very large bit depths both break the app
-        self.bits = min(max(1, self.bits), 32)
-        self.maxcolor = (1 << self.bits) - 1
+        # Ensure positive bit depth no bigger than 16
+        # Negative bit depth and large bit depths both break the app
+        self.bits = min(max(1, self.bits), 16)
+        self.maxcolor = 2**self.bits - 1
+        if self.isColor:
+            self.maxcolor *= 3
+            self.maxcolor = min(self.maxcolor, 2**16 - 1)
+
         self.ui.horizontalSliderRangeMin.setMaximum(self.maxcolor)
-        self.ui.horizontalSliderRangeMin.setTickInterval((1 << self.bits) / 4)
+        self.ui.horizontalSliderRangeMin.setTickInterval(self.maxcolor // 4)
         self.ui.horizontalSliderRangeMax.setMaximum(self.maxcolor)
-        self.ui.horizontalSliderRangeMax.setTickInterval((1 << self.bits) / 4)
+        self.ui.horizontalSliderRangeMax.setTickInterval(self.maxcolor // 4)
         self.ui.spinbox_range_max.setMaximum(self.maxcolor)
         self.ui.spinbox_range_min.setMaximum(self.maxcolor)
 
