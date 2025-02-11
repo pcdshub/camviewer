@@ -9,62 +9,53 @@
 #
 from __future__ import annotations
 
-from camviewer_ui import Ui_MainWindow
-from psp.Pv import Pv
-from dialogs import advdialog
-from dialogs import markerdialog
-from dialogs import specificdialog
-from dialogs import forcedialog
-from cam_types import CamTypeScreenGenerator
-
-import sys
-import os
-from pycaqtimage import pycaqtimage
-import pyca
-import math
-import re
-import time
+import contextlib
 import functools
+import math
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import typing
+
 import numpy as np
 import numpy.typing as npt
-import tempfile
-import shutil
-import typing
-import contextlib
-import subprocess
-
+import pyca
+from psp.Pv import Pv
+from PyQt5.QtCore import (
+    QEvent,
+    QMimeData,
+    QObject,
+    QPoint,
+    QSettings,
+    QSize,
+    Qt,
+    QTimer,
+    pyqtSignal,
+)
+from PyQt5.QtGui import QClipboard, QDrag, QFontMetricsF, QImageWriter, QPixmap
 from PyQt5.QtWidgets import (
-    QSizePolicy,
+    QAction,
+    QApplication,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
     QLabel,
     QMainWindow,
-    QSpacerItem,
-    QFileDialog,
     QMessageBox,
-    QAction,
-    QDialogButtonBox,
-    QApplication,
-    QFormLayout,
-)
-from PyQt5.QtGui import (
-    QClipboard,
-    QPixmap,
-    QDrag,
-    QImageWriter,
-    QFontMetricsF,
-)
-from PyQt5.QtCore import (
-    QTimer,
-    QPoint,
-    QSize,
-    QObject,
-    QEvent,
-    Qt,
-    QMimeData,
-    QSettings,
-    pyqtSignal,
+    QSizePolicy,
+    QSpacerItem,
 )
 
 import param
+from cam_types import CamTypeScreenGenerator
+from camviewer_ui import Ui_MainWindow
+from dialogs import advdialog, forcedialog, markerdialog, specificdialog
+from DisplayImage import default_markers, reset_markers
+from pycaqtimage import pycaqtimage
 
 
 #
@@ -311,10 +302,8 @@ class GraphicUserInterface(QMainWindow):
         self.iRangeMax = 1023
         self.camactions = []
         self.lastwidth = 0
-        self.useglobmarks = False
-        self.useglobmarks2 = False
-        self.globmarkpvs = []
-        self.globmarkpvs2 = []
+        self.useglobmarks = True
+        self.globmarkpvs = {}
         self.lastimagetime = [0, 0]
         self.dispspec = 0
         self.otherpvs = []
@@ -331,6 +320,8 @@ class GraphicUserInterface(QMainWindow):
         self.acquire_image_timer = QTimer()
         self.rate_limit_timer = QTimer()
         self.refresh_timeout_display_timer = QTimer()
+        self.cam_changeable_restore = QTimer()
+        self.glob_changeable_restore = QTimer()
 
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
@@ -389,6 +380,8 @@ class GraphicUserInterface(QMainWindow):
             None,
         ]
         self.markerdialog.hide()
+        self.local_marker_points = default_markers()
+        self.global_marker_points = default_markers()
 
         self.specificdialog = specificdialog(self)
         self.specificdialog.hide()
@@ -440,7 +433,6 @@ class GraphicUserInterface(QMainWindow):
         )
 
         self.updateRoiText()
-        self.updateMarkerText(True, True, 0, 15)
 
         self.max_px = 0
         self.min_px = 0
@@ -602,6 +594,8 @@ class GraphicUserInterface(QMainWindow):
         self.ui.showexpert.triggered.connect(self.onExpertMode)
         self.ui.showspecific.triggered.connect(self.doShowSpecific)
         self.ui.actionGlobalMarkers.triggered.connect(self.onGlobMarks)
+        self.ui.global_button.clicked.connect(self.global_clicked)
+        self.ui.local_button.clicked.connect(self.local_clicked)
         self.advdialog.ui.showexpert.clicked.connect(self.on_open_expert)
         self.ui.show_expert_button.clicked.connect(self.on_open_expert)
         self.onExpertMode()
@@ -700,7 +694,15 @@ class GraphicUserInterface(QMainWindow):
             if cameraIndex < 0 or cameraIndex >= len(self.lCameraList):
                 print("Invalid camera index %d" % cameraIndex)
                 cameraIndex = 0
-            self.onCameraSelect(int(cameraIndex))
+            cameraIndex = int(cameraIndex)
+            # Camera select is gated by our camconn list of connected statuses
+            # We could wait on the pv connected status but that might let us through early
+            # Most robust is this simple sleep/wait loop
+            for _ in range(30):
+                if self.camconn[cameraIndex]:
+                    break
+                time.sleep(0.1)
+            self.onCameraSelect(cameraIndex)
         except Exception:
             pass
 
@@ -745,8 +747,7 @@ class GraphicUserInterface(QMainWindow):
     def end_monitors(self):
         all_mons = []
         all_mons.extend(self.camconn_pvs)
-        all_mons.extend(self.globmarkpvs)
-        all_mons.extend(self.globmarkpvs2)
+        all_mons.extend(list(self.globmarkpvs.values()))
         all_mons.extend(self.otherpvs)
         all_mons.append(self.notify)
         all_mons.append(self.rowPv)
@@ -883,30 +884,67 @@ class GraphicUserInterface(QMainWindow):
         caput(self.cameraBase + ":ROI_WIDTH2", box[2])
         caput(self.cameraBase + ":ROI_HEIGHT2", box[3])
 
-    def onGlobMarks(self):
-        self.setUseGlobalMarkers(self.ui.actionGlobalMarkers.isChecked())
+    def global_clicked(self):
+        """When the global marker radio button is clicked, go to global mode."""
+        self.ui.actionGlobalMarkers.setChecked(True)
+        self.onGlobMarks()
 
-    def setUseGlobalMarkers(self, ugm):
-        if ugm != self.useglobmarks:  # If something has changed...
-            if ugm:
-                self.useglobmarks = self.connectMarkerPVs()
-                if self.useglobmarks:
-                    self.onCrossUpdate(0)
-                    self.onCrossUpdate(1)
-            else:
-                self.useglobmarks = self.disconnectMarkerPVs()
-            if self.cfg is None:
-                self.dumpConfig()
+    def local_clicked(self):
+        """When the local marker radio button is clicked, go to local mode."""
+        self.ui.actionGlobalMarkers.setChecked(False)
+        self.onGlobMarks()
 
-    def setUseGlobalMarkers2(self, ugm):
-        if ugm != self.useglobmarks2:  # If something has changed...
+    def onGlobMarks(self, on_init: bool = False):
+        """
+        Apply global or local mode based on the UI state.
+
+        Parameters
+        ----------
+        on_init : bool
+            If False (the default) assume we're not initalizing a camera.
+            Therefore, we only need to take further action if the mode
+            is changing. Set this to True while initializing a camera
+            to ensure that the new camera's markers replace the
+            previous camera's markers.
+        """
+        use_global = self.ui.actionGlobalMarkers.isChecked()
+        self.ui.global_button.setChecked(use_global)
+        self.ui.local_button.setChecked(not use_global)
+        self.setUseGlobalMarkers(use_global, on_init=on_init)
+
+    def allow_glob_changes(self, allow: bool = True):
+        """
+        Helper function to briefly disable all the global vs local widgets.
+        """
+        self.ui.actionGlobalMarkers.setEnabled(allow)
+        self.ui.global_button.setEnabled(allow)
+        self.ui.local_button.setEnabled(allow)
+        if not allow:
+            self.glob_changeable_restore.singleShot(1000, self.allow_glob_changes)
+
+    def setUseGlobalMarkers(self, ugm: bool, on_init: bool = False):
+        """
+        Apply global or local mode.
+
+        Parameters
+        ----------
+        ugm: bool
+            True to apply global markers, False to apply local markers.
+        on_init : bool
+            If False (the default) assume we're not initalizing a camera.
+            Therefore, we only need to take further action if the mode
+            is changing. Set this to True while initializing a camera
+            to ensure that the new camera's markers replace the
+            previous camera's markers.
+        """
+        if ugm != self.useglobmarks or on_init:
+            self.allow_glob_changes(False)
+            self.useglobmarks = ugm
             if ugm:
-                self.useglobmarks2 = self.connectMarkerPVs2()
-                if self.useglobmarks2:
-                    self.onCrossUpdate(2)
-                    self.onCrossUpdate(3)
+                self.connectMarkerPVs()
             else:
-                self.useglobmarks2 = self.disconnectMarkerPVs2()
+                self.disconnectMarkerPVs()
+            self.updateMarkerText(do_puts=False)
             if self.cfg is None:
                 self.dumpConfig()
 
@@ -914,10 +952,7 @@ class GraphicUserInterface(QMainWindow):
         self.ui.display_image.lMarker[n].setRel(
             float(self.ui.xmark[n].text()), float(self.ui.ymark[n].text())
         )
-        if n <= 1:
-            self.updateMarkerText(False, True, 1 << n, 1 << n)
-        else:
-            self.updateMarkerText(False, True, 0, 1 << n)
+        self.updateMarkerText(False, True, 1 << n, 1 << n)
         self.updateMarkerValue()
         self.updateall()
         if self.cfg is None:
@@ -928,16 +963,15 @@ class GraphicUserInterface(QMainWindow):
             float(self.markerdialog.xmark[n].text()),
             float(self.markerdialog.ymark[n].text()),
         )
-        if n <= 1:
-            self.updateMarkerText(False, True, 1 << n, 1 << n)
-        else:
-            self.updateMarkerText(False, True, 0, 1 << n)
+        self.updateMarkerText(False, True, 1 << n, 1 << n)
         self.updateMarkerValue()
         self.updateall()
         if self.cfg is None:
             self.dumpConfig()
 
-    def updateMarkerText(self, do_main=True, do_dialog=True, pvmask=0, change=15):
+    def updateMarkerText(
+        self, do_main=True, do_dialog=True, pvmask=0, change=15, do_puts=True
+    ):
         if do_main:
             for i in range(4):
                 if change & (1 << i):
@@ -950,14 +984,31 @@ class GraphicUserInterface(QMainWindow):
                     pt = self.ui.display_image.lMarker[i].oriented()
                     self.markerdialog.xmark[i].setText("%.0f" % pt.x())
                     self.markerdialog.ymark[i].setText("%.0f" % pt.y())
-        if self.useglobmarks:
-            for i in range(2):
+        if self.useglobmarks and do_puts:
+            for i in range(4):
                 if pvmask & (1 << i):
                     pt = self.ui.display_image.lMarker[i].abs()
                     newx = int(pt.x())
                     newy = int(pt.y())
-                    self.globmarkpvs[2 * i + 0].put(newx)
-                    self.globmarkpvs[2 * i + 1].put(newy)
+                    try:
+                        cross_x_pv = self.globmarkpvs[f"cross_{i+1}x"]
+                        cross_y_pv = self.globmarkpvs[f"cross_{i+1}y"]
+                    except KeyError:
+                        return
+                    if cross_x_pv.isinitialized and cross_y_pv.isinitialized:
+                        try:
+                            cross_x_pv.put(newx)
+                            cross_y_pv.put(newy)
+                        except Exception as exc:
+                            # Move it back...
+                            self.onCrossUpdate(i)
+                            QMessageBox.warning(
+                                None,
+                                "Error",
+                                ("Unable to write to Marker PV!\n" f"{exc}"),
+                                QMessageBox.Ok,
+                                QMessageBox.Ok,
+                            )
         self.updateMarkerValue()
 
     def updateMarkerValue(self):
@@ -1071,13 +1122,8 @@ class GraphicUserInterface(QMainWindow):
         self.ui.display_image.update()
 
     def onMarkerReset(self):
-        self.ui.display_image.lMarker = [
-            param.Point(-100, -100),
-            param.Point(param.x + 100, -100),
-            param.Point(param.x + 100, param.y + 100),
-            param.Point(-100, param.y + 100),
-        ]
-        self.updateMarkerText(True, True, 3, 15)
+        reset_markers(self.local_marker_points)
+        self.updateMarkerText(True, True, 3, 15, do_puts=False)
         self.updateall()
         if self.cfg is None:
             self.dumpConfig()
@@ -1172,35 +1218,22 @@ class GraphicUserInterface(QMainWindow):
     def clear(self):
         self.ui.label_dispRate.setText("-")
         self.ui.label_status.setText("-")
-        if self.camera is not None:
-            try:
-                self.camera.disconnect()
-            except Exception:
-                pass
-            self.camera = None
-        if self.notify is not None:
-            try:
-                self.notify.disconnect()
-            except Exception:
-                pass
-            self.notify = None
-        if self.lensPv is not None:
-            try:
-                self.lensPv.disconnect()
-            except Exception:
-                pass
-            self.lensPv = None
-        if self.putlensPv is not None:
-            try:
-                self.putlensPv.disconnect()
-            except Exception:
-                pass
-            self.putlensPv = None
+        self.camera = self.disconnectPv(self.camera)
+        self.notify = self.disconnectPv(self.notify)
+        self.rowPv = self.disconnectPv(self.rowPv)
+        self.colPv = self.disconnectPv(self.colPv)
+        self.bits_pv = self.disconnectPv(self.bits_pv)
+        self.calibPV = self.disconnectPv(self.calibPV)
+        self.calibPVName = ""
+        self.launch_gui_pv = self.disconnectPv(self.launch_gui_pv)
+        self.launch_edm_pv = self.disconnectPv(self.launch_edm_pv)
+        self.launch_gui_script = ""
+        self.launch_edm_script = ""
+        self.lensPv = self.disconnectPv(self.lensPv)
+        self.putlensPv = self.disconnectPv(self.putlensPv)
+        self.disconnectMarkerPVs()
         for pv in self.otherpvs:
-            try:
-                pv.disconnect()
-            except Exception:
-                pass
+            self.disconnectPv(pv)
         self.otherpvs = []
         self.cameraBase = ""
         self.ctrlBase = ""
@@ -1457,8 +1490,6 @@ class GraphicUserInterface(QMainWindow):
             return
         try:
             self.dispUpdates += 1
-            if self.useglobmarks2:
-                self.updateCross3and4()
             self.updateMarkerValue()
             self.updateMiscInfo()
             self.updateall()
@@ -1779,6 +1810,7 @@ class GraphicUserInterface(QMainWindow):
     def disconnectPv(self, pv):
         if pv is not None:
             try:
+                pv.monitor_stop()
                 pv.disconnect()
                 pyca.flush_io()
             except Exception:
@@ -1813,51 +1845,30 @@ class GraphicUserInterface(QMainWindow):
             return None
 
     def onCrossUpdate(self, n):
-        if n >= 2:
-            if (
-                self.globmarkpvs2[2 * n - 4].nsec != self.camera.nsec
-                or self.globmarkpvs2[2 * n - 3].nsec != self.camera.nsec
-                or self.globmarkpvs2[2 * n - 4].secs != self.camera.secs
-                or self.globmarkpvs2[2 * n - 3].secs != self.camera.secs
-            ):
-                return
-            self.ui.display_image.lMarker[n].setAbs(
-                self.globmarkpvs2[2 * n - 4].value, self.globmarkpvs2[2 * n - 3].value
-            )
-        else:
-            self.ui.display_image.lMarker[n].setAbs(
-                self.globmarkpvs[2 * n + 0].value, self.globmarkpvs[2 * n + 1].value
-            )
-        self.updateMarkerText(True, True, 0, 1 << n)
-        self.updateMarkerValue()
-        self.updateall()
-        if self.cfg is None:
-            self.dumpConfig()
-
-    def updateCross3and4(self):
         try:
-            fid = self.camera.nsec & 0x1FFFF
-            secs = self.camera.secs
-            if self.markhash[fid][0] == secs and self.markhash[fid][1] == secs:
-                self.ui.display_image.lMarker[2].setAbs(
-                    self.markhash[fid][4], self.markhash[fid][5]
-                )
-            if self.markhash[fid][2] == secs and self.markhash[fid][3] == secs:
-                self.ui.display_image.lMarker[3].setAbs(
-                    self.markhash[fid][6], self.markhash[fid][7]
-                )
-            self.updateMarkerText(True, True, 0, 12)
-        except Exception as e:
-            print("updateCross3and4 exception: %s" % e)
+            cross_x_pv = self.globmarkpvs[f"cross_{n + 1}x"]
+            cross_y_pv = self.globmarkpvs[f"cross_{n + 1}y"]
+        except KeyError:
+            return
+        if not (cross_x_pv.isinitialized and cross_y_pv.isinitialized):
+            return
 
-    def addmarkhash(self, pv, idx):
-        fid = pv.nsec & 0x1FFFF
-        secs = pv.secs
-        if self.markhash[fid][idx] == secs:
-            return False
-        self.markhash[fid][idx] = secs
-        self.markhash[fid][idx + 4] = pv.value
-        return True
+        status_label = getattr(self.ui, f"cross{n + 1}_status")
+        status_label.setText("G")
+
+        old_point = self.ui.display_image.lMarker[n]
+        new_point = self.global_marker_points[n]
+        self.ui.display_image.set_one_marker(n, new_point)
+
+        newx = cross_x_pv.value
+        newy = cross_y_pv.value
+        if old_point.x == newx and old_point.y == newy:
+            return
+
+        new_point.setAbs(newx, newy)
+
+        self.updateMarkerText(True, True, 0, 1 << n, do_puts=False)
+        self.updateMarkerValue()
 
     def cross1mon(self, exception=None):
         if exception is None:
@@ -1867,108 +1878,37 @@ class GraphicUserInterface(QMainWindow):
         if exception is None:
             self.cross2Update.emit()
 
-    def cross3Xmon(self, exception=None):
+    def cross3mon(self, exception=None):
         if exception is None:
-            if self.addmarkhash(self.globmarkpvs2[0], 0):
-                self.cross3Update.emit()
+            self.cross3Update.emit()
 
-    def cross3Ymon(self, exception=None):
+    def cross4mon(self, exception=None):
         if exception is None:
-            if self.addmarkhash(self.globmarkpvs2[1], 1):
-                self.cross3Update.emit()
-
-    def cross4Xmon(self, exception=None):
-        if exception is None:
-            if self.addmarkhash(self.globmarkpvs2[2], 2):
-                self.cross4Update.emit()
-
-    def cross4Ymon(self, exception=None):
-        if exception is None:
-            if self.addmarkhash(self.globmarkpvs2[3], 3):
-                self.cross4Update.emit()
+            self.cross4Update.emit()
 
     def connectMarkerPVs(self):
-        self.globmarkpvs = [
-            self.connectPv(self.ctrlBase + ":Cross1X"),
-            self.connectPv(self.ctrlBase + ":Cross1Y"),
-            self.connectPv(self.ctrlBase + ":Cross2X"),
-            self.connectPv(self.ctrlBase + ":Cross2Y"),
-        ]
-        if None in self.globmarkpvs:
-            return self.disconnectMarkerPVs()
-        self.globmarkpvs[0].monitor_cb = self.cross1mon
-        self.globmarkpvs[1].monitor_cb = self.cross1mon
-        self.globmarkpvs[2].monitor_cb = self.cross2mon
-        self.globmarkpvs[3].monitor_cb = self.cross2mon
-        for i in self.globmarkpvs:
-            i.monitor(pyca.DBE_VALUE)
-        self.ui.Disp_Xmark1.readpvname = self.globmarkpvs[0].name
-        self.markerdialog.ui.Disp_Xmark1.readpvname = self.globmarkpvs[0].name
-        self.ui.Disp_Ymark1.readpvname = self.globmarkpvs[1].name
-        self.markerdialog.ui.Disp_Ymark1.readpvname = self.globmarkpvs[1].name
-        self.ui.Disp_Xmark2.readpvname = self.globmarkpvs[2].name
-        self.markerdialog.ui.Disp_Xmark2.readpvname = self.globmarkpvs[2].name
-        self.ui.Disp_Ymark2.readpvname = self.globmarkpvs[3].name
-        self.markerdialog.ui.Disp_Ymark2.readpvname = self.globmarkpvs[3].name
-        return True
-
-    def connectMarkerPVs2(self):
-        self.globmarkpvs2 = [
-            self.connectPv(self.ctrlBase + ":DX1_SLOW"),
-            self.connectPv(self.ctrlBase + ":DY1_SLOW"),
-            self.connectPv(self.ctrlBase + ":DX2_SLOW"),
-            self.connectPv(self.ctrlBase + ":DY2_SLOW"),
-        ]
-        if None in self.globmarkpvs2:
-            return self.disconnectMarkerPVs2()
-        self.globmarkpvs2[0].add_monitor_callback(self.cross3Xmon)
-        self.globmarkpvs2[1].add_monitor_callback(self.cross3Ymon)
-        self.globmarkpvs2[2].add_monitor_callback(self.cross4Xmon)
-        self.globmarkpvs2[3].add_monitor_callback(self.cross4Ymon)
-        for i in self.globmarkpvs2:
-            i.monitor(pyca.DBE_VALUE)
-        self.ui.Disp_Xmark3.readpvname = self.globmarkpvs2[0].name
-        self.markerdialog.ui.Disp_Xmark3.readpvname = self.globmarkpvs2[0].name
-        self.ui.Disp_Ymark3.readpvname = self.globmarkpvs2[1].name
-        self.markerdialog.ui.Disp_Ymark3.readpvname = self.globmarkpvs2[1].name
-        self.ui.Disp_Xmark4.readpvname = self.globmarkpvs2[2].name
-        self.markerdialog.ui.Disp_Xmark4.readpvname = self.globmarkpvs2[2].name
-        self.ui.Disp_Ymark4.readpvname = self.globmarkpvs2[3].name
-        self.markerdialog.ui.Disp_Ymark4.readpvname = self.globmarkpvs2[3].name
+        self.disconnectMarkerPVs()
+        # Dict containing e.g. cross_1x: Pv object for cross 1 xpos
+        self.globmarkpvs = {}
+        for axis in ("x", "y"):
+            for num in range(4):
+                pv = Pv(self.ctrlBase + f":Cross{num + 1}{axis.upper()}")
+                self.globmarkpvs[f"cross_{num + 1}{axis}"] = pv
+                monitor_on_connect(pv, getattr(self, f"cross{num + 1}mon"))
         return True
 
     def disconnectMarkerPVs(self):
-        self.ui.Disp_Xmark1.readpvname = None
-        self.markerdialog.ui.Disp_Xmark1.readpvname = None
-        self.ui.Disp_Ymark1.readpvname = None
-        self.markerdialog.ui.Disp_Ymark1.readpvname = None
-        self.ui.Disp_Xmark2.readpvname = None
-        self.markerdialog.ui.Disp_Xmark2.readpvname = None
-        self.ui.Disp_Ymark2.readpvname = None
-        self.markerdialog.ui.Disp_Ymark2.readpvname = None
-        for i in self.globmarkpvs:
+        for pv in self.globmarkpvs.values():
             try:
-                i.disconnect()
+                self.disconnectPv(pv)
             except Exception:
                 pass
-        self.globmarkpvs = []
-        return False
-
-    def disconnectMarkerPVs2(self):
-        self.ui.Disp_Xmark3.readpvname = None
-        self.markerdialog.ui.Disp_Xmark3.readpvname = None
-        self.ui.Disp_Ymark3.readpvname = None
-        self.markerdialog.ui.Disp_Ymark3.readpvname = None
-        self.ui.Disp_Xmark4.readpvname = None
-        self.markerdialog.ui.Disp_Xmark4.readpvname = None
-        self.ui.Disp_Ymark4.readpvname = None
-        self.markerdialog.ui.Disp_Ymark4.readpvname = None
-        for i in self.globmarkpvs2:
-            try:
-                i.disconnect()
-            except Exception:
-                pass
-        self.globmarkpvs2 = []
+        self.globmarkpvs = {}
+        self.ui.cross1_status.setText("L")
+        self.ui.cross2_status.setText("L")
+        self.ui.cross3_status.setText("L")
+        self.ui.cross4_status.setText("L")
+        self.ui.display_image.set_markers(self.local_marker_points)
         return False
 
     def setupDrags(self):
@@ -1984,23 +1924,11 @@ class GraphicUserInterface(QMainWindow):
             self.ui.lineEditLens.readpvname = None
 
     def connectCamera(self, sCameraPv, index, sNotifyPv=None):
-        self.selected_cam_ready = False
-        self.ui.label_status.setText("Cleaning up...")
-        self.set_color_scaling_enabled(False)
-        self.camera = self.disconnectPv(self.camera)
-        self.notify = self.disconnectPv(self.notify)
-        self.rowPv = self.disconnectPv(self.rowPv)
-        self.colPv = self.disconnectPv(self.colPv)
-        self.bits_pv = self.disconnectPv(self.bits_pv)
-        self.calibPV = self.disconnectPv(self.calibPV)
-        self.launch_gui_pv = self.disconnectPv(self.launch_gui_pv)
-        self.launch_edm_pv = self.disconnectPv(self.launch_edm_pv)
-        self.launch_gui_script = ""
-        self.launch_edm_script = ""
-        self.calibPVName = ""
-        self.displayFormat = "%12.8g"
-
         self.ui.label_status.setText("Initializing...")
+
+        self.selected_cam_ready = False
+        self.set_color_scaling_enabled(False)
+        self.displayFormat = "%12.8g"
 
         self.cfgname = self.cameraBase + ",GE"
         if self.lFlags[index] != "":
@@ -2015,18 +1943,10 @@ class GraphicUserInterface(QMainWindow):
         # Connect to expert PVs first
         # In event of a connection failure in a later step,
         # having these PVs available is helpful for debug.
-        self.launch_gui_pv = Pv(
-            self.ctrlBase + ":LAUNCH_GUI",
-            initialize=True,
-            monitor=self.new_launch_gui_script,
-            use_numpy=True,
-        )
-        self.launch_edm_pv = Pv(
-            self.ctrlBase + ":LAUNCH_EDM",
-            initialize=True,
-            monitor=self.new_launch_edm_script,
-            use_numpy=True,
-        )
+        self.launch_gui_pv = Pv(self.ctrlBase + ":LAUNCH_GUI", use_numpy=True)
+        monitor_on_connect(self.launch_gui_pv, self.new_launch_gui_script)
+        self.launch_edm_pv = Pv(self.ctrlBase + ":LAUNCH_EDM", use_numpy=True)
+        monitor_on_connect(self.launch_edm_pv, self.new_launch_edm_script)
 
         # Try to get the camera size!
         size0 = self.connectPv(self.cameraBase + ":ArraySize0_RBV")
@@ -2224,7 +2144,18 @@ class GraphicUserInterface(QMainWindow):
         if index >= 0 and index < len(self.camactions):
             self.onCameraSelect(index)
 
+    def allow_cam_changes(self, allow: bool = True):
+        """
+        Helper function to briefly disable switching cams.
+        """
+        for act in self.camactions:
+            act.setEnabled(allow)
+        self.ui.comboBoxCamera.setEnabled(allow)
+        if not allow:
+            self.cam_changeable_restore.singleShot(1000, self.allow_cam_changes)
+
     def onCameraSelect(self, index):
+        self.allow_cam_changes(False)
         if index < 0:
             return
         if index >= len(self.lCameraList):
@@ -2302,14 +2233,11 @@ class GraphicUserInterface(QMainWindow):
                     self.ui.horizontalSliderLens.setMaximum(100)
                 if len(lensName) > 1:
                     self.putlensPv = Pv(lensName[0], initialize=True)
-                    self.lensPv = Pv(
-                        lensName[1], initialize=True, monitor=self.lensPvUpdateCallback
-                    )
+                    self.lensPv = Pv(lensName[1])
                 else:
                     self.putlensPv = None
-                    self.lensPv = Pv(
-                        lensName[0], initialize=True, monitor=self.lensPvUpdateCallback
-                    )
+                    self.lensPv = Pv(lensName[0])
+                monitor_on_connect(self.lensPv, self.lensPvUpdateCallback)
                 self.lensPv.wait_ready(timeout)
                 if self.putlensPv is not None:
                     self.putlensPv.wait_ready(timeout)
@@ -2444,6 +2372,9 @@ class GraphicUserInterface(QMainWindow):
 
     def setupSpecific(self):
         self.ui.actionGlobalMarkers.setChecked(self.useglobmarks)
+        self.ui.global_button.setChecked(self.useglobmarks)
+        self.ui.local_button.setChecked(not self.useglobmarks)
+
         self.setupComboMonitor(
             ":TriggerMode_RBV", self.specificdialog.ui.cameramodeG, ":TriggerMode"
         )
@@ -3000,15 +2931,12 @@ class GraphicUserInterface(QMainWindow):
             return
         self.cfg = cfginfo()
         # Global defaults.
-        self.cfg.add("config", "0")
-        self.cfg.add("projection", "0")
+        self.cfg.add("config", "1")
+        self.cfg.add("projection", "1")
         self.cfg.add("markers", "0")
         self.cfg.add("dispspec", "0")
-        if not self.cfg.read(self.cfgdir + "GLOBAL"):
-            self.cfg.add("config", "1")
-            self.cfg.add("projection", "1")
-            self.cfg.add("markers", "1")
-            self.cfg.add("dispspec", "0")
+        self.cfg.read(self.cfgdir + "GLOBAL")
+
         if self.options is not None:
             # Let the command line options override the config file!
             if self.options.config is not None:
@@ -3031,39 +2959,8 @@ class GraphicUserInterface(QMainWindow):
         else:
             # OK, didn't work, look for a new one!
             self.oldcfg = False
-            if not self.cfg.read(self.cfgdir + self.cameraBase):
-                # Bail if we can't find it
-                # But first, let's immediately process the command line options, if any.
-                mk = int(self.cfg.markers)
-                self.ui.showmarker.setChecked(mk)
-                self.doShowMarker()
-                dc = int(self.cfg.dispspec)
-                self.setDispSpec(dc)
-                self.ui.showconf.setChecked(int(self.cfg.config))
-                self.doShowConf()
-                self.ui.showproj.setChecked(int(self.cfg.projection))
-                self.doShowProj()
-                if self.options is not None:
-                    if self.options.orientation is not None:
-                        self.setOrientation(int(self.options.orientation))
-                    elif self.options.lportrait is not None:
-                        if int(self.options.lportrait):
-                            self.setOrientation(param.ORIENT90)
-                        else:
-                            self.setOrientation(param.ORIENT0)
-                    if self.options.cmap is not None:
-                        self.ui.comboBoxColor.setCurrentIndex(
-                            self.ui.comboBoxColor.findText(self.options.cmap)
-                        )
-                        self.colorMap = self.options.cmap.lower()
-                        self.ui.grayScale.setChecked(
-                            True
-                        )  # If we want a color map, force gray scale!
-                        self.setColorMap()
-                    self.options = None
-                self.dumpConfig()
-                self.cfg = None
-                return
+            self.cfg.read(self.cfgdir + self.cameraBase)
+            # No need to check anything. If it didn't work we'll use defaults later.
 
         # Let command line options override local config file
         if self.options is not None:
@@ -3078,10 +2975,9 @@ class GraphicUserInterface(QMainWindow):
                 self.cfg.add("colormap", self.options.cmap)
             self.options = None
 
-        try:
-            use_abs = int(self.cfg.use_abs)
-        except Exception:
-            use_abs = 0
+        # use_abs may be missing if there was no camera config
+        # but actually, only a value of 1 is supported now
+        use_abs = 1
 
         # Set the window size
         settings = QSettings("SLAC", "CamViewer")
@@ -3094,40 +2990,70 @@ class GraphicUserInterface(QMainWindow):
         if v is not None:
             self.restoreState(v)
 
-        # I think we're going to assume that since we've written this file, it's correct.
-        # Do, or do not.  There is no try.
-        newwidth = self.cfg.viewwidth
-        newheight = self.cfg.viewheight
-        if int(newwidth) < self.minwidth:
-            newwidth = str(self.minwidth)
-        if int(newheight) < self.minheight:
-            newheight = str(self.minheight)
-        newproj = self.cfg.projsize
-        self.advdialog.ui.viewWidth.setText(newwidth)
-        self.advdialog.ui.viewHeight.setText(newheight)
-        self.advdialog.ui.projSize.setText(newproj)
+        # viewwidth may be missing if there was no camera config
+        try:
+            newwidth = self.cfg.viewwidth
+        except AttributeError:
+            # Skip resize display if missing
+            ...
+        else:
+            if int(newwidth) < self.minwidth:
+                newwidth = str(self.minwidth)
+            self.advdialog.ui.viewWidth.setText(newwidth)
+
+        # viewheight may be missing if there was no camera config
+        try:
+            newheight = self.cfg.viewheight
+        except AttributeError:
+            # Skip resize display if missing
+            ...
+        else:
+            if int(newheight) < self.minheight:
+                newheight = str(self.minheight)
+            self.advdialog.ui.viewHeight.setText(newheight)
+
+        # projsize may be missing if there was no camera config
+        try:
+            newproj = self.cfg.projsize
+        except AttributeError:
+            # Skip changing projsize text if missing
+            ...
+        else:
+            self.advdialog.ui.projSize.setText(newproj)
+
+        # config is guaranteed to be present due to global defaults
         self.ui.showconf.setChecked(int(self.cfg.config))
         self.doShowConf()
+
+        # projection is guaranteed to be present due to global defaults
         self.ui.showproj.setChecked(int(self.cfg.projection))
         self.doShowProj()
-        # These are new fields, so they might not be in old configs!
-        try:
-            mk = int(self.cfg.markers)
-        except Exception:
-            mk = 1
-        self.ui.showmarker.setChecked(mk)
+
+        # markers is guaranteed to be present due to global defaults
+        self.ui.showmarker.setChecked(int(self.cfg.markers))
         self.doShowMarker()
-        try:
-            dc = int(self.cfg.dispspec)
-        except Exception:
-            dc = 0
-        self.setDispSpec(dc)
+
+        # dispspec is guaranteed to be present due to global defaults
+        self.setDispSpec(int(self.cfg.dispspec))
+
+        # orientation may be missing if there was no camera config
         try:
             orientation = self.cfg.orientation
         except Exception:
+            # No rotation is a sensible default
             orientation = param.ORIENT0
         self.setOrientation(int(orientation))
-        self.ui.checkBoxProjAutoRange.setChecked(int(self.cfg.autorange))
+
+        # autorange may be missing if there was no camera config
+        try:
+            autorange = int(self.cfg.autorange)
+        except Exception:
+            # This checkbox defaults to the checked state in the ui file
+            autorange = 1
+        finally:
+            self.ui.checkBoxProjAutoRange.setChecked(autorange)
+
+        # rectzoom may be missing if there was no camera config
         try:
             self.ui.display_image.setRectZoom(
                 float(self.cfg.rectzoom[0]),
@@ -3136,7 +3062,10 @@ class GraphicUserInterface(QMainWindow):
                 float(self.cfg.rectzoom[3]),
             )
         except Exception:
-            pass
+            # Usually this is a full image view, which is a sensible default.
+            ...
+
+        # ROI may be missing if there was no camera config
         try:
             self.ui.display_image.roiSet(
                 float(self.cfg.ROI[0]),
@@ -3146,90 +3075,113 @@ class GraphicUserInterface(QMainWindow):
                 rel=(use_abs == 0),
             )
         except Exception:
-            pass
+            # Usually this is a full image view, which is a sensible default.
+            ...
         self.updateall()
-        self.ui.comboBoxColor.setCurrentIndex(
-            self.ui.comboBoxColor.findText(self.cfg.colormap)
-        )
-        self.colorMap = self.cfg.colormap.lower()
-        # OK, we're changing this to introduce more scales!  So,
-        # "Log Scale" --> "Log2 Scale" and "Exp Scale" --> "Exp2 Scale"
-        if self.cfg.colorscale[0] == "Log":
-            self.cfg.colorscale[0] = "Log2"
-        elif self.cfg.colorscale[0] == "Exp":
-            self.cfg.colorscale[0] = "Exp2"
-        self.iScaleIndex = self.ui.comboBoxScale.findText(
-            self.cfg.colorscale[0] + " " + self.cfg.colorscale[1]
-        )
-        self.ui.comboBoxScale.setCurrentIndex(self.iScaleIndex)
+
+        # colormap may be missing if there was no camera config
         try:
-            self.set_new_min_pixel(int(self.cfg.colormin))
-            self.set_new_max_pixel(int(self.cfg.colormax))
-        except Exception:
-            print("Failed to load min or max pixel value from config file.")
+            colormap = self.cfg.colormap
+        except AttributeError:
+            # Same default as the combobox in the UI file
+            colormap = "Hot"
+        finally:
+            self.ui.comboBoxColor.setCurrentIndex(
+                self.ui.comboBoxColor.findText(colormap)
+            )
+            self.colorMap = colormap.lower()
+
+        # colorscale may be missing if there was no camera config
         try:
-            self.ui.grayScale.setChecked(int(self.cfg.grayscale))
-            self.onCheckGrayUpdate(int(self.cfg.grayscale))
+            colorscale = self.cfg.colorscale
         except Exception:
-            pass
+            # Same default as the combobox in the UI file
+            colorscale = ["Linear", "Scale"]
+        finally:
+            # Backcompat for really really really old names
+            if colorscale[0] == "Log":
+                colorscale[0] = "Log2"
+            elif colorscale[0] == "Exp":
+                colorscale[0] = "Exp2"
+            self.iScaleIndex = self.ui.comboBoxScale.findText(
+                colorscale[0] + " " + colorscale[1]
+            )
+            self.ui.comboBoxScale.setCurrentIndex(self.iScaleIndex)
+
+        # colormin may be missing if there was no camera config
+        try:
+            colormin = int(self.cfg.colormin)
+        except Exception:
+            # This is always the lowest the slider can go
+            colormin = 0
+        finally:
+            self.set_new_min_pixel(colormin)
+
+        # colormax may be missing if there was no camera config
+        try:
+            colormax = int(self.cfg.colormax)
+        except Exception:
+            # This updates to match the last successfully loaded cam
+            colormax = self.maxcolor
+        finally:
+            self.set_new_max_pixel(colormax)
+
+        # grayscale may be missing if there was no camera config
+        try:
+            grayscale = int(self.cfg.grayscale)
+        except Exception:
+            # Same default as checkbox in UI file
+            grayscale = 0
+        finally:
+            self.ui.grayScale.setChecked(grayscale)
+            self.onCheckGrayUpdate(grayscale)
+
         self.setColorMap()
+
+        # Reset markers
+        reset_markers(self.local_marker_points)
+        reset_markers(self.global_marker_points)
+        # Always load the local marker values in case we need them
+        # Any of m1, m2, m3, m4 may be missing if there was no camera config.
+        try:
+            m1, m2, m3, m4 = self.cfg.m1, self.cfg.m2, self.cfg.m3, self.cfg.m4
+        except AttributeError:
+            # If these are missing, just use the values from the reset
+            ...
+        else:
+            if use_abs == 1:
+                self.local_marker_points[0].setAbs(int(m1[0]), int(m1[1]))
+                self.local_marker_points[1].setAbs(int(m2[0]), int(m2[1]))
+                self.local_marker_points[2].setAbs(int(m3[0]), int(m3[1]))
+                self.local_marker_points[3].setAbs(int(m4[0]), int(m4[1]))
+            else:
+                self.local_marker_points[0].setRel(int(m1[0]), int(m1[1]))
+                self.local_marker_points[1].setRel(int(m2[0]), int(m2[1]))
+                self.local_marker_points[2].setRel(int(m3[0]), int(m3[1]))
+                self.local_marker_points[3].setRel(int(m4[0]), int(m4[1]))
+        # Pick between local and global
+        # globmarks may be missing if there was no camera config
         try:
             self.useglobmarks = bool(int(self.cfg.globmarks))
         except Exception:
-            self.useglobmarks = False
-        if self.useglobmarks:
-            self.useglobmarks = self.connectMarkerPVs()
+            # We typically want to use the shared markers in most cases
+            self.useglobmarks = True
         self.ui.actionGlobalMarkers.setChecked(self.useglobmarks)
+        self.onGlobMarks(on_init=True)
+
         try:
-            self.useglobmarks2 = bool(int(self.cfg.globmarks2))
+            self.changeSize(int(newwidth), int(newheight), int(newproj), False)
         except Exception:
-            self.useglobmarks2 = False
-        if self.useglobmarks2:
-            self.useglobmarks2 = self.connectMarkerPVs2()
-        if self.useglobmarks:
-            self.onCrossUpdate(0)
-            self.onCrossUpdate(1)
-        else:
-            if use_abs == 1:
-                self.ui.display_image.lMarker[0].setAbs(
-                    int(self.cfg.m1[0]), int(self.cfg.m1[1])
-                )
-                self.ui.display_image.lMarker[1].setAbs(
-                    int(self.cfg.m2[0]), int(self.cfg.m2[1])
-                )
-            else:
-                self.ui.display_image.lMarker[0].setRel(
-                    int(self.cfg.m1[0]), int(self.cfg.m1[1])
-                )
-                self.ui.display_image.lMarker[1].setRel(
-                    int(self.cfg.m2[0]), int(self.cfg.m2[1])
-                )
-        if self.useglobmarks2:
-            self.onCrossUpdate(2)
-            self.onCrossUpdate(3)
-        else:
-            if use_abs == 1:
-                self.ui.display_image.lMarker[2].setAbs(
-                    int(self.cfg.m3[0]), int(self.cfg.m3[1])
-                )
-                self.ui.display_image.lMarker[3].setAbs(
-                    int(self.cfg.m4[0]), int(self.cfg.m4[1])
-                )
-            else:
-                self.ui.display_image.lMarker[2].setRel(
-                    int(self.cfg.m3[0]), int(self.cfg.m3[1])
-                )
-                self.ui.display_image.lMarker[3].setRel(
-                    int(self.cfg.m4[0]), int(self.cfg.m4[1])
-                )
-        self.updateMarkerText()
-        self.changeSize(int(newwidth), int(newheight), int(newproj), False)
+            # In case any of these wasn't loaded. Usually a NameError but can be others.
+            ...
+
         try:
             # OK, see if we've delayed the command line orientation setting until now.
             orientation = self.cfg.cmd_orientation
             self.setOrientation(int(orientation))
         except Exception:
             pass
+
         # Process projection settings, if any.
         try:
             self.ui.checkBoxProjRoi.setChecked(self.cfg.projroi == "1")
@@ -3310,8 +3262,7 @@ def write_camera_config(gui: GraphicUserInterface) -> None:
             "ROI         %d %d %d %d\n" % (roi.x(), roi.y(), roi.width(), roi.height())
         )
         fd.write("globmarks   " + str(int(gui.useglobmarks)) + "\n")
-        fd.write("globmarks2  " + str(int(gui.useglobmarks2)) + "\n")
-        lMarker = gui.ui.display_image.lMarker
+        lMarker = gui.local_marker_points
         for i in range(4):
             fd.write(
                 "m%d          %d %d\n"
@@ -3390,3 +3341,28 @@ def decode_char_waveform(waveform: npt.NDArray[np.int8]) -> str:
     if zeros.size > 0:
         waveform = waveform[: zeros[0]]
     return waveform.tobytes().decode(encoding="ascii", errors="ignore")
+
+
+def monitor_on_connect(pv: Pv, cb: typing.Callable[[Exception | None], None]):
+    """
+    More solid initializer for psp.Pv objects than the built-in options.
+
+    Ensures only 1 monitor gets created (unlike psp...)
+
+    Parameters
+    ----------
+    pv : psp.Pv
+        A Pv object that hasn't been connected, initialized, or had any callbacks
+        added yet.
+    cb : callable
+        A valid pyca monitor callback function
+    """
+
+    def inner(is_connected: bool):
+        if is_connected:
+            pv.del_connection_callback(cbid)
+            pv.monitor()
+
+    cbid = pv.add_connection_callback(inner)
+    pv.add_monitor_callback(cb)
+    pv.connect(None)

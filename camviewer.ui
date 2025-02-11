@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1222</width>
-    <height>1197</height>
+    <width>1242</width>
+    <height>1255</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -211,7 +211,7 @@
          <x>0</x>
          <y>0</y>
          <width>300</width>
-         <height>1155</height>
+         <height>1213</height>
         </rect>
        </property>
        <property name="sizePolicy">
@@ -875,6 +875,36 @@
           </property>
           <layout class="QVBoxLayout" name="horizontalLayoutMarker">
            <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_2">
+             <property name="leftMargin">
+              <number>36</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>16</number>
+             </property>
+             <item>
+              <widget class="QRadioButton" name="global_button">
+               <property name="text">
+                <string>Global</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="local_button">
+               <property name="text">
+                <string>Local</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
             <layout class="QHBoxLayout" name="horizontalLayout_Marker1">
              <item>
               <widget class="QPushButton" name="pushButtonMarker1">
@@ -1000,6 +1030,19 @@
                </item>
               </layout>
              </item>
+             <item>
+              <widget class="QLabel" name="cross1_status">
+               <property name="font">
+                <font>
+                 <family>Monospace</family>
+                 <pointsize>12</pointsize>
+                </font>
+               </property>
+               <property name="text">
+                <string>L</string>
+               </property>
+              </widget>
+             </item>
             </layout>
            </item>
            <item>
@@ -1118,6 +1161,19 @@
                 </widget>
                </item>
               </layout>
+             </item>
+             <item>
+              <widget class="QLabel" name="cross2_status">
+               <property name="font">
+                <font>
+                 <family>Monospace</family>
+                 <pointsize>12</pointsize>
+                </font>
+               </property>
+               <property name="text">
+                <string>L</string>
+               </property>
+              </widget>
              </item>
             </layout>
            </item>
@@ -1238,6 +1294,19 @@
                </item>
               </layout>
              </item>
+             <item>
+              <widget class="QLabel" name="cross3_status">
+               <property name="font">
+                <font>
+                 <family>Monospace</family>
+                 <pointsize>12</pointsize>
+                </font>
+               </property>
+               <property name="text">
+                <string>L</string>
+               </property>
+              </widget>
+             </item>
             </layout>
            </item>
            <item>
@@ -1356,6 +1425,19 @@
                 </widget>
                </item>
               </layout>
+             </item>
+             <item>
+              <widget class="QLabel" name="cross4_status">
+               <property name="font">
+                <font>
+                 <family>Monospace</family>
+                 <pointsize>12</pointsize>
+                </font>
+               </property>
+               <property name="text">
+                <string>L</string>
+               </property>
+              </widget>
              </item>
             </layout>
            </item>
@@ -2384,7 +2466,7 @@ Vmin\</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1222</width>
+     <width>1242</width>
      <height>20</height>
     </rect>
    </property>
@@ -2620,7 +2702,7 @@ Vmin\</string>
   </action>
   <action name="actionResetMarkers">
    <property name="text">
-    <string>Reset All Markers</string>
+    <string>Reset Local Markers</string>
    </property>
   </action>
   <action name="actionMS">
