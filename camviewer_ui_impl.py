@@ -1953,49 +1953,25 @@ class GraphicUserInterface(QMainWindow):
         size1 = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
         size2 = self.connectPv(self.cameraBase + ":ArraySize2_RBV")
 
-        def get_size_val(pv_or_none: Pv | None) -> int | None:
-            """
-            Get the actual size given the Pv after connectPv.
+        size0_val = self._get_size_val(size0)
+        size1_val = self._get_size_val(size1)
+        size2_val = self._get_size_val(size2)
 
-            Disconnected PVs will return None
-            Bad values will return 0
-            """
-            if pv_or_none is None:
-                return None
-            try:
-                val = int(pv_or_none.value)
-            except Exception:
-                val = 0
-            return max(0, val)
-
-        size0_val = get_size_val(size0)
-        size1_val = get_size_val(size1)
-        size2_val = get_size_val(size2)
-
-        def show_sizing_error(error_text: str):
-            self.disconnectPv(size0)
-            self.disconnectPv(size1)
-            self.disconnectPv(size2)
-            # Clear the image so that we don't have a stale image from the previous cam
-            self.ui.display_image.image.fill(0)
-            self.ui.display_image.repaint()
-            # Report which issue we had
-            self.ui.label_status.setText(error_text)
-            print(f"{error_text} (rows/cols)")
+        error_info = (size0, size1, size2, size0_val, size1_val, size2_val)
 
         if None in (size0_val, size1_val):
             # pvs must be connected
-            return show_sizing_error("IOC timeout")
+            return self._show_sizing_error("IOC timeout", error_info)
         elif 0 in (size0_val, size1_val):
             # pvs must be nonzero
-            return show_sizing_error("Zero pixels in image")
+            return self._show_sizing_error("Zero pixels in image", error_info)
         elif size0_val == 3 and size2_val is None:
             # Ambiguous: either disconnected pv in color cam
             # or really strange IOC config with missing pv
-            return show_sizing_error("Ambiguous sizing")
+            return self._show_sizing_error("Ambiguous sizing", error_info)
         elif size0_val != 3 and size2_val is not None and size2_val > 0:
             # Weird multidimensional thing??
-            return show_sizing_error("Invalid cam dimensions")
+            return self._show_sizing_error("Invalid cam dimensions", error_info)
 
         # No errors, proceed!
         if size2_val in (0, None):
@@ -2012,7 +1988,7 @@ class GraphicUserInterface(QMainWindow):
             self.isColor = True
         else:
             # It shouldn't be possible to get here, but if we do...
-            return show_sizing_error("Unknown sizing error")
+            return self._show_sizing_error("Unknown sizing error", error_info)
 
         self.count = self.rowPv.value * self.colPv.value
         if self.isColor:
@@ -2112,6 +2088,75 @@ class GraphicUserInterface(QMainWindow):
 
         self.selected_cam_ready = True
         self.update_cam_status_connected()
+
+    @staticmethod
+    def _get_size_val(pv_or_none: Pv | None) -> int | None:
+        """
+        Helper method for disambiguating array size information.
+
+        Gets the actual size given the Pv after connectPv.
+
+        Disconnected PVs will return None
+        Bad values will return 0
+
+        Intended only for use in connectCamera
+
+        Parameters
+        ----------
+        pv_or_none : Pv or None
+            The PV to check, which could be None if it did not connect earlier.
+
+        Returns
+        -------
+        value : int or None
+            The true postiive value, zero, or None depending on the status of the PV.
+        """
+        if pv_or_none is None:
+            return None
+        try:
+            val = int(pv_or_none.value)
+        except Exception:
+            val = 0
+        return max(0, val)
+
+    def _show_sizing_error(
+        self,
+        error_text: str,
+        error_info: tuple[
+            Pv | None, Pv | None, Pv | None, int | None, int | None, int | None
+        ],
+    ) -> None:
+        """
+        Common routines needed when we have an error determining the size of an image.
+
+        - Disconnect the sizing PVs
+        - Clear the image to avoid stale shots
+        - Set the error text on the GUI
+        - Print some debug info to the console log
+
+        Intended only for use in connectCamera
+
+        Parameters
+        ----------
+        error_text : str
+            The error text to display to the user.
+        error_info : tuple
+            The three Pv objects and their three values, which are already available
+            in connectCamera and are useful for cleanup and debug.
+            These are packaged as a tuple to avoid verbose calls with many arguments.
+        """
+        size0, size1, size2, size0_val, size1_val, size2_val = error_info
+        self.disconnectPv(size0)
+        self.disconnectPv(size1)
+        self.disconnectPv(size2)
+        # Clear the image so that we don't have a stale image from the previous cam
+        self.ui.display_image.image.fill(0)
+        self.ui.display_image.repaint()
+        # Report which issue we had
+        self.ui.label_status.setText(error_text)
+        print(
+            f"{error_text} (rows/cols) with sizes {size0_val}, {size1_val}, {size2_val}"
+        )
 
     def setup_model_specific(self):
         if self.cam_type_screen_generator is None:
