@@ -267,7 +267,7 @@ class GraphicUserInterface(QMainWindow):
         # Default to VGA!
         param.setImageSize(640, 480)
         self.isColor = False
-        self.bits = 10
+        self.bits = 12
         self.maxcolor = 1023
         self.lastUpdateTime = time.time()
         self.dispUpdates = 0
@@ -285,17 +285,14 @@ class GraphicUserInterface(QMainWindow):
         self.wantNewImage = True
         self.lensPv = None
         self.putlensPv = None
-        self.nordPv = None
-        self.nelmPv = None
         self.count = None
-        self.maxcount = None
         self.rowPv = None
         self.colPv = None
+        self.bits_pv = None
         self.launch_gui_pv = None
         self.launch_edm_pv = None
         self.launch_gui_script = ""
         self.launch_edm_script = ""
-        self.scale = 1
         self.fLensPrevValue = -1
         self.fLensValue = 0
         self.avgState = SINGLE_FRAME
@@ -1223,13 +1220,15 @@ class GraphicUserInterface(QMainWindow):
         self.ui.label_status.setText("-")
         self.camera = self.disconnectPv(self.camera)
         self.notify = self.disconnectPv(self.notify)
-        self.nordPv = self.disconnectPv(self.nordPv)
-        self.nelmPv = self.disconnectPv(self.nelmPv)
         self.rowPv = self.disconnectPv(self.rowPv)
         self.colPv = self.disconnectPv(self.colPv)
+        self.bits_pv = self.disconnectPv(self.bits_pv)
         self.calibPV = self.disconnectPv(self.calibPV)
+        self.calibPVName = ""
         self.launch_gui_pv = self.disconnectPv(self.launch_gui_pv)
         self.launch_edm_pv = self.disconnectPv(self.launch_edm_pv)
+        self.launch_gui_script = ""
+        self.launch_edm_script = ""
         self.lensPv = self.disconnectPv(self.lensPv)
         self.putlensPv = self.disconnectPv(self.putlensPv)
         self.disconnectMarkerPVs()
@@ -1376,8 +1375,8 @@ class GraphicUserInterface(QMainWindow):
 
     def onSizeUpdate(self):
         try:
-            newx = self.colPv.value / self.scale
-            newy = self.rowPv.value / self.scale
+            newx = self.colPv.value
+            newy = self.rowPv.value
             if newx != param.x or newy != self.y:
                 self.setImageSize(newx, newy, False)
         except Exception:
@@ -1455,15 +1454,20 @@ class GraphicUserInterface(QMainWindow):
             and self.camera is not None
         ):
             try:
-                if self.nordPv:
-                    self.count = int(self.nordPv.value)
-                    if self.count == 0:
-                        sz = int(self.rowPv.value) * int(self.colPv.value)
-                        if sz > 0 and sz < self.maxcount:
-                            self.count = sz
-                        else:
-                            self.count = self.maxcount
-                self.camera.get(timeout=None)
+                try:
+                    new_count = int(self.rowPv.value) * int(self.colPv.value)
+                except Exception:
+                    # Something went wrong with our row/col PVs
+                    # One of disconnected, bad data, etc.
+                    # Use the previous frame's count for now
+                    # If it's wrong, the frame will get dropped by pycaqtimage
+                    ...
+                else:
+                    # Our PVs are OK, let's make sure we get the right amount of data
+                    if self.isColor:
+                        new_count *= 3
+                    self.count = new_count
+                self.camera.get(count=self.count, timeout=None)
                 pyca.flush_io()
             except Exception:
                 pass
@@ -1920,15 +1924,11 @@ class GraphicUserInterface(QMainWindow):
             self.ui.lineEditLens.readpvname = None
 
     def connectCamera(self, sCameraPv, index, sNotifyPv=None):
-        self.selected_cam_ready = False
-        self.ui.label_status.setText("Cleaning up...")
-        self.set_color_scaling_enabled(False)
-        self.launch_gui_script = ""
-        self.launch_edm_script = ""
-        self.calibPVName = ""
-        self.displayFormat = "%12.8g"
-
         self.ui.label_status.setText("Initializing...")
+
+        self.selected_cam_ready = False
+        self.set_color_scaling_enabled(False)
+        self.displayFormat = "%12.8g"
 
         self.cfgname = self.cameraBase + ",GE"
         if self.lFlags[index] != "":
@@ -1948,76 +1948,82 @@ class GraphicUserInterface(QMainWindow):
         self.launch_edm_pv = Pv(self.ctrlBase + ":LAUNCH_EDM", use_numpy=True)
         monitor_on_connect(self.launch_edm_pv, self.new_launch_edm_script)
 
+        # Try to get the camera size!
+        size0 = self.connectPv(self.cameraBase + ":ArraySize0_RBV")
+        size1 = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
+        size2 = self.connectPv(self.cameraBase + ":ArraySize2_RBV")
+
+        size0_val = self._get_size_val(size0)
+        size1_val = self._get_size_val(size1)
+        size2_val = self._get_size_val(size2)
+
+        error_info = (size0, size1, size2, size0_val, size1_val, size2_val)
+
+        if None in (size0_val, size1_val):
+            # pvs must be connected
+            return self._show_sizing_error("IOC timeout", error_info)
+        elif 0 in (size0_val, size1_val):
+            # pvs must be nonzero
+            return self._show_sizing_error("Zero pixels in image", error_info)
+        elif size0_val == 3 and size2_val is None:
+            # Ambiguous: either disconnected pv in color cam
+            # or really strange IOC config with missing pv
+            return self._show_sizing_error("Ambiguous sizing", error_info)
+        elif size0_val != 3 and size2_val is not None and size2_val > 0:
+            # Weird multidimensional thing??
+            return self._show_sizing_error("Invalid cam dimensions", error_info)
+
+        # No errors, proceed!
+        if size2_val in (0, None):
+            # Just B/W!
+            self.rowPv = size1
+            self.colPv = size0
+            self.disconnectPv(size2)
+            self.isColor = False
+        elif size0_val == 3:
+            # It's a color camera!
+            self.rowPv = size2
+            self.colPv = size1
+            self.disconnectPv(size0)
+            self.isColor = True
+        else:
+            # It shouldn't be possible to get here, but if we do...
+            return self._show_sizing_error("Unknown sizing error", error_info)
+
+        self.count = self.rowPv.value * self.colPv.value
+        if self.isColor:
+            self.count *= 3
+
+        if self.lFlags[index] != "":
+            self.bits = int(self.lFlags[index])
+        else:
+            self.bits_pv = self.connectPv(self.cameraBase + ":BitsPerPixel_RBV")
+            try:
+                self.bits = int(self.bits_pv.value)
+            except Exception:
+                self.bits = 12
+                print("Bits PV did not connect or had bad value, using default 12")
+
+        # Ensure positive bit depth no bigger than 16
+        # Negative bit depth and large bit depths both break the app
+        self.bits = min(max(1, self.bits), 16)
+        self.maxcolor = 2**self.bits - 1
+        if self.isColor:
+            self.maxcolor *= 3
+            self.maxcolor = min(self.maxcolor, 2**16 - 1)
+
+        self.ui.horizontalSliderRangeMin.setMaximum(self.maxcolor)
+        self.ui.horizontalSliderRangeMin.setTickInterval(self.maxcolor // 4)
+        self.ui.horizontalSliderRangeMax.setMaximum(self.maxcolor)
+        self.ui.horizontalSliderRangeMax.setTickInterval(self.maxcolor // 4)
+        self.ui.spinbox_range_max.setMaximum(self.maxcolor)
+        self.ui.spinbox_range_min.setMaximum(self.maxcolor)
+
         # Try to connect to the camera
-        try:
-            self.nordPv = self.connectPv(sCameraPv + ".NORD")
-            self.count = int(self.nordPv.value)
-        except Exception:
-            self.nordPv = None
-            self.count = None
-        try:
-            self.nelmPv = self.connectPv(sCameraPv + ".NELM")
-            self.maxcount = int(self.nelmPv.value)
-        except Exception:
-            self.nelmPv = None
-            self.maxcount = None
-        if self.count is None or self.count == 0:
-            self.count = self.maxcount
         self.camera = self.connectPv(sCameraPv, count=self.count)
         if self.camera is None:
             self.ui.label_status.setText("IOC timeout in setup")
             print("IOC timeout in setup (main camera PV)")
-            return
-
-        # Try to get the camera size!
-        self.scale = 1
-        if caget(self.cameraBase + ":ArraySize0_RBV") == 3:
-            # It's a color camera!
-            self.rowPv = self.connectPv(self.cameraBase + ":ArraySize2_RBV")
-            self.colPv = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
-            self.isColor = True
-            self.bits = caget(self.cameraBase + ":BIT_DEPTH")
-            if self.bits is None:
-                self.bits = 10
-        else:
-            # Just B/W!
-            self.rowPv = self.connectPv(self.cameraBase + ":ArraySize1_RBV")
-            self.colPv = self.connectPv(self.cameraBase + ":ArraySize0_RBV")
-            self.isColor = False
-            if self.lFlags[index] != "":
-                self.bits = int(self.lFlags[index])
-            else:
-                self.bits = caget(self.cameraBase + ":BitsPerPixel_RBV")
-                if self.bits is None:
-                    self.bits = caget(self.cameraBase + ":BIT_DEPTH")
-                    if self.bits is None:
-                        self.bits = 8
-
-        self.maxcolor = (1 << self.bits) - 1
-        self.ui.horizontalSliderRangeMin.setMaximum(self.maxcolor)
-        self.ui.horizontalSliderRangeMin.setTickInterval((1 << self.bits) / 4)
-        self.ui.horizontalSliderRangeMax.setMaximum(self.maxcolor)
-        self.ui.horizontalSliderRangeMax.setTickInterval((1 << self.bits) / 4)
-        self.ui.spinbox_range_max.setMaximum(self.maxcolor)
-        self.ui.spinbox_range_min.setMaximum(self.maxcolor)
-
-        # See if we've connected to a camera with valid height and width
-        if (
-            self.rowPv is None
-            or self.rowPv.value == 0
-            or self.colPv is None
-            or self.colPv.value == 0
-        ):
-            # Clear the image so that we don't have a stale image from the previous cam
-            self.ui.display_image.image.fill(0)
-            self.ui.display_image.repaint()
-            # Report which issue we had
-            if self.rowPv is None or self.colPv is None:
-                self.ui.label_status.setText("IOC timeout in setup")
-                print("IOC timeout in setup (rows/cols)")
-            else:
-                self.ui.label_status.setText("Zero pixels in image")
-                print("Zero pixels in image (no width/height)")
             return
 
         if sNotifyPv is None:
@@ -2043,9 +2049,7 @@ class GraphicUserInterface(QMainWindow):
         self.rowPv.add_monitor_callback(self.sizeCallback)
         self.colPv.add_monitor_callback(self.sizeCallback)
         # Now, before we monitor, update the camera size!
-        self.setImageSize(
-            self.colPv.value / self.scale, self.rowPv.value / self.scale, True
-        )
+        self.setImageSize(self.colPv.value, self.rowPv.value, True)
         self.updateMarkerText(True, True, 0, 15)
         self.notify.monitor(
             pyca.DBE_VALUE, False, 1
@@ -2084,6 +2088,75 @@ class GraphicUserInterface(QMainWindow):
 
         self.selected_cam_ready = True
         self.update_cam_status_connected()
+
+    @staticmethod
+    def _get_size_val(pv_or_none: Pv | None) -> int | None:
+        """
+        Helper method for disambiguating array size information.
+
+        Gets the actual size given the Pv after connectPv.
+
+        Disconnected PVs will return None
+        Bad values will return 0
+
+        Intended only for use in connectCamera
+
+        Parameters
+        ----------
+        pv_or_none : Pv or None
+            The PV to check, which could be None if it did not connect earlier.
+
+        Returns
+        -------
+        value : int or None
+            The true postiive value, zero, or None depending on the status of the PV.
+        """
+        if pv_or_none is None:
+            return None
+        try:
+            val = int(pv_or_none.value)
+        except Exception:
+            val = 0
+        return max(0, val)
+
+    def _show_sizing_error(
+        self,
+        error_text: str,
+        error_info: tuple[
+            Pv | None, Pv | None, Pv | None, int | None, int | None, int | None
+        ],
+    ) -> None:
+        """
+        Common routines needed when we have an error determining the size of an image.
+
+        - Disconnect the sizing PVs
+        - Clear the image to avoid stale shots
+        - Set the error text on the GUI
+        - Print some debug info to the console log
+
+        Intended only for use in connectCamera
+
+        Parameters
+        ----------
+        error_text : str
+            The error text to display to the user.
+        error_info : tuple
+            The three Pv objects and their three values, which are already available
+            in connectCamera and are useful for cleanup and debug.
+            These are packaged as a tuple to avoid verbose calls with many arguments.
+        """
+        size0, size1, size2, size0_val, size1_val, size2_val = error_info
+        self.disconnectPv(size0)
+        self.disconnectPv(size1)
+        self.disconnectPv(size2)
+        # Clear the image so that we don't have a stale image from the previous cam
+        self.ui.display_image.image.fill(0)
+        self.ui.display_image.repaint()
+        # Report which issue we had
+        self.ui.label_status.setText(error_text)
+        print(
+            f"{error_text} (rows/cols) with sizes {size0_val}, {size1_val}, {size2_val}"
+        )
 
     def setup_model_specific(self):
         if self.cam_type_screen_generator is None:
@@ -2394,9 +2467,7 @@ class GraphicUserInterface(QMainWindow):
                     self.ui.projectionFrame.setFixedSize(
                         QSize(self.projsize, self.projsize)
                     )
-            self.setImageSize(
-                self.colPv.value / self.scale, self.rowPv.value / self.scale, False
-            )
+            self.setImageSize(self.colPv.value, self.rowPv.value, False)
             if self.cfg is None:
                 self.dumpConfig()
 
