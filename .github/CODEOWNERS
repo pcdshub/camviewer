@@ -3,12 +3,12 @@
 
 # language-specific group(s)
 ## PYTHON files
-*.py ui-sme @pcdshub/python-reviewers
-*.pyi ui-sme @pcdshub/python-reviewers
-*.pyc ui-sme @pcdshub/python-reviewers
-*.pyw ui-sme @pcdshub/python-reviewers
-*.pyx ui-sme @pcdshub/python-reviewers
-*.pyd ui-sme @pcdshub/python-reviewers
+*.py @pcdshub/ui-sme @pcdshub/python-reviewers
+*.pyi @pcdshub/ui-sme @pcdshub/python-reviewers
+*.pyc @pcdshub/ui-sme @pcdshub/python-reviewers
+*.pyw @pcdshub/ui-sme @pcdshub/python-reviewers
+*.pyx @pcdshub/ui-sme @pcdshub/python-reviewers
+*.pyd @pcdshub/ui-sme @pcdshub/python-reviewers
 
 # github folder holds administrative files
 .github/** @pcdshub/software-admin
