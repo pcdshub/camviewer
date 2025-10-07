@@ -10,5 +10,11 @@
 *.pyx @pcdshub/ui-sme @pcdshub/python-reviewers
 *.pyd @pcdshub/ui-sme @pcdshub/python-reviewers
 
+## C++ sip plugin
+pycaqtimage/** @pcdshub/ui-sme @pcdshub/c-reviewers
+
+## Makefile
+Makefile @pcdshub/ui-sme @pcdshub/python-reviewers @pcdshub/c-reviewers
+
 # github folder holds administrative files
 .github/** @pcdshub/software-admin
