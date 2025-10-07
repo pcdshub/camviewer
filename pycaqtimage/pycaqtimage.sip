@@ -458,7 +458,7 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
     ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
 
     if (count != imageBuffer->size * 3) {
-        fprintf(stderr, "Wrong data size %d, expected %d. unsafe to continue\n", count, imageBuffer->size * 3);
+        fprintf(stderr, "Wrong data size %ld, expected %d. unsafe to continue\n", count, imageBuffer->size * 3);
         return;
     }
 
@@ -481,7 +481,7 @@ static void _pyImagePvCallback(void* cadata, long count, size_t size, void* usr)
   ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
 
   if (count != imageBuffer->size) {
-    fprintf(stderr, "Wrong data size %d, expected %d. unsafe to continue\n", count, imageBuffer->size);
+    fprintf(stderr, "Wrong data size %ld, expected %d. unsafe to continue\n", count, imageBuffer->size);
     return;
   }
 
