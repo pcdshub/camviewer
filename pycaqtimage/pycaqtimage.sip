@@ -396,10 +396,10 @@ void _pyDoAvg(ImageBuffer *imageBuffer, T *cadata)
 	_pyCopyToQImage(imageBuffer, 1);
 }
 
-static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void* usr)
+template <class T>
+void _pyDoAvgColor(ImageBuffer *imageBuffer, T *cadata)
 {
-    ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
-    uint8_t*  src    = reinterpret_cast<uint8_t*>(cadata); /* R, G, B! */
+    T*  src    = cadata; /* R, G, B! */
     uint32_t *dst    = imageBuffer->imageData;
     float    *dstF   = imageBuffer->imageDataF;
     int orientation  = imageBuffer->orientation;
@@ -412,13 +412,6 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
     int col_inc      = imageBuffer->srcwidth * colIncMult[orientation] +
                        colIncK[orientation];
     int iNewAverage  = imageBuffer->iNumAveraged + 1;
-
-    UNUSED(size);
-
-    if (count != imageBuffer->size * 3) {
-        // Wrong data size, unsafe to continue
-        return;
-    }
 
     /* If we're using the color image, don't average, just copy and we're done! */
     if (!imageBuffer->useGray) {
@@ -460,12 +453,35 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
     }
 }
 
+static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void* usr)
+{
+    ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
+
+    if (count != imageBuffer->size * 3) {
+        fprintf(stderr, "Wrong data size %ld, expected %d. Unsafe to continue\n", count, imageBuffer->size * 3);
+        return;
+    }
+
+    switch (size) {
+        // size 4 will crash the rgb accumulator
+        case 2:
+        _pyDoAvgColor(imageBuffer, reinterpret_cast<uint16_t*>(cadata));
+            break;
+        case 1:
+        _pyDoAvgColor(imageBuffer, reinterpret_cast<uint8_t*>(cadata));
+            break;
+        default:
+            fprintf(stderr, "Image pixel size is %d bytes, must be 1 or 2.\n", (int) size);
+        break;
+    }
+}
+
 static void _pyImagePvCallback(void* cadata, long count, size_t size, void* usr)
 {
   ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
 
   if (count != imageBuffer->size) {
-    // Wrong data size, unsafe to continue
+    fprintf(stderr, "Wrong data size %ld, expected %d. Unsafe to continue\n", count, imageBuffer->size);
     return;
   }
 
@@ -480,7 +496,7 @@ static void _pyImagePvCallback(void* cadata, long count, size_t size, void* usr)
 	_pyDoAvg(imageBuffer, reinterpret_cast<uint8_t*>(cadata));
         break;
     default:
-        fprintf(stderr, "Image pixel size is %d bytes?\n", (int) size);
+        fprintf(stderr, "Image pixel size is %d bytes, must be 1, 2, or 4.\n", (int) size);
 	break;
   }
 }
