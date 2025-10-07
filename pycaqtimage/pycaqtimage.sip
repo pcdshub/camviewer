@@ -463,9 +463,6 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
     }
 
     switch (size) {
-        case 4:
-        _pyDoAvgColor(imageBuffer, reinterpret_cast<uint32_t*>(cadata));
-            break;
         case 2:
         _pyDoAvgColor(imageBuffer, reinterpret_cast<uint16_t*>(cadata));
             break;
