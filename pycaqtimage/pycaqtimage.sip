@@ -396,10 +396,10 @@ void _pyDoAvg(ImageBuffer *imageBuffer, T *cadata)
 	_pyCopyToQImage(imageBuffer, 1);
 }
 
-static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void* usr)
+template <class T>
+void _pyDoAvgColor(ImageBuffer *imageBuffer, T *cadata)
 {
-    ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
-    uint8_t*  src    = reinterpret_cast<uint8_t*>(cadata); /* R, G, B! */
+    T*  src    = cadata; /* R, G, B! */
     uint32_t *dst    = imageBuffer->imageData;
     float    *dstF   = imageBuffer->imageDataF;
     int orientation  = imageBuffer->orientation;
@@ -412,13 +412,6 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
     int col_inc      = imageBuffer->srcwidth * colIncMult[orientation] +
                        colIncK[orientation];
     int iNewAverage  = imageBuffer->iNumAveraged + 1;
-
-    UNUSED(size);
-
-    if (count != imageBuffer->size * 3) {
-        // Wrong data size, unsafe to continue
-        return;
-    }
 
     /* If we're using the color image, don't average, just copy and we're done! */
     if (!imageBuffer->useGray) {
@@ -457,6 +450,31 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
 
 	if (iNewAverage == imageBuffer->iAverage)
 	    _pyCopyToQImage(imageBuffer, 1);
+    }
+}
+
+static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void* usr)
+{
+    ImageBuffer*  imageBuffer = reinterpret_cast<ImageBuffer*>(usr);
+
+    if (count != imageBuffer->size * 3) {
+        // Wrong data size, unsafe to continue
+        return;
+    }
+
+    switch (size) {
+        case 4:
+        _pyDoAvgColor(imageBuffer, reinterpret_cast<uint32_t*>(cadata));
+            break;
+        case 2:
+        _pyDoAvgColor(imageBuffer, reinterpret_cast<uint16_t*>(cadata));
+            break;
+        case 1:
+        _pyDoAvgColor(imageBuffer, reinterpret_cast<uint8_t*>(cadata));
+            break;
+        default:
+            fprintf(stderr, "Image pixel size is %d bytes?\n", (int) size);
+        break;
     }
 }
 
