@@ -463,6 +463,7 @@ static void _pyColorImagePvCallback(void* cadata, long count, size_t size, void*
     }
 
     switch (size) {
+        // size 4 will crash the rgb accumulator
         case 2:
         _pyDoAvgColor(imageBuffer, reinterpret_cast<uint16_t*>(cadata));
             break;
