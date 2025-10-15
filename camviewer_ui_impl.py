@@ -48,6 +48,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QSizePolicy,
     QSpacerItem,
+    QWidget,
 )
 
 import param
@@ -201,6 +202,19 @@ class ScrollSizeFilter(QObject):
         elif event.type() == QEvent.Hide:
             self.set_no_scroll_size()
         return False
+
+
+class NoScrollWheelFilter(QObject):
+    """
+    A filter that prevents the scroll wheel from being used to interact with widgets.
+    """
+
+    def eventFilter(self, _, event) -> bool:
+        if event.type() == QEvent.Wheel:
+            # True stops all other event processing
+            return True
+        return False
+
 
 
 SINGLE_FRAME = 0
@@ -716,6 +730,9 @@ class GraphicUserInterface(QMainWindow):
         self.ui.rightPanelWidget.setFixedWidth(width)
 
         self.efilter = FilterObject(self.app, self)
+        self.no_scroll_filter = NoScrollWheelFilter(parent=self)
+        for child_widget in self.ui.rightPanelWidget.findChildren(QWidget):
+            child_widget.installEventFilter(self.no_scroll_filter)
 
         # Timer with 0 delay = end of event queue
         # i.e. immediately after all the queued initial rendering
