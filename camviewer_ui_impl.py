@@ -216,7 +216,6 @@ class NoScrollWheelFilter(QObject):
         return False
 
 
-
 SINGLE_FRAME = 0
 LOCAL_AVERAGE = 2
 
