@@ -40,6 +40,7 @@ class CamTypeScreenGenerator(QObject):
     final_name = pyqtSignal(str)
     manuf_ready = pyqtSignal()
     model_ready = pyqtSignal()
+    form_finalized = pyqtSignal()
 
     def __init__(self, base_pv: str, form: QFormLayout, parent: QObject | None = None):
         super().__init__(parent=parent)
@@ -56,6 +57,7 @@ class CamTypeScreenGenerator(QObject):
         ]
         self.finish_ran = False
         self.finish_lock = Lock()
+        self.finalized = False
 
         # Put in the form elements that always should be there
         self.acq_label = QLabel(STOP_TEXT)
@@ -178,6 +180,8 @@ class CamTypeScreenGenerator(QObject):
             )
         self.pvs_to_clean_up.extend(finisher_pvs)
         self.sigs_to_clean_up.extend(finisher_sigs)
+        self.finalized = True
+        self.form_finalized.emit()
 
     def new_acq_value(self, error: Exception | None) -> None:
         """

@@ -48,6 +48,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QSizePolicy,
     QSpacerItem,
+    QWidget,
 )
 
 import param
@@ -201,6 +202,24 @@ class ScrollSizeFilter(QObject):
         elif event.type() == QEvent.Hide:
             self.set_no_scroll_size()
         return False
+
+
+class NoScrollWheelFilter(QObject):
+    """
+    A filter that prevents the scroll wheel from being used to interact with widgets.
+    """
+
+    def eventFilter(self, _, event) -> bool:
+        """Override default eventFilter to ignore scroll wheel."""
+        if event.type() == QEvent.Wheel:
+            # True stops all other event processing
+            return True
+        return False
+
+    def install_on_children(self, widget: QWidget):
+        """Helper for disabling scrollwheel on all widgets in a container."""
+        for child_widget in widget.findChildren(QWidget):
+            child_widget.installEventFilter(self)
 
 
 SINGLE_FRAME = 0
@@ -716,6 +735,10 @@ class GraphicUserInterface(QMainWindow):
         self.ui.rightPanelWidget.setFixedWidth(width)
 
         self.efilter = FilterObject(self.app, self)
+        self.no_scroll_filter = NoScrollWheelFilter(parent=self)
+        self.no_scroll_filter.install_on_children(self.ui.rightPanelWidget)
+        # specificdialog is sometimes in the scroll area, sometimes not
+        self.no_scroll_filter.install_on_children(self.specificdialog)
 
         # Timer with 0 delay = end of event queue
         # i.e. immediately after all the queued initial rendering
@@ -2167,11 +2190,17 @@ class GraphicUserInterface(QMainWindow):
             form = self.ui.groupBoxControls.layout()
         self.cam_type_screen_generator = CamTypeScreenGenerator(self.ctrlBase, form)
         self.cam_type_screen_generator.final_name.connect(self.new_model_name)
+        self.cam_type_screen_generator.form_finalized.connect(self.disable_scroll_in_cam_controls)
         if self.cam_type_screen_generator.full_name:
             self.new_model_name(self.cam_type_screen_generator.full_name)
+        if self.cam_type_screen_generator.finalized:
+            self.disable_scroll_in_cam_controls()
 
     def new_model_name(self, name: str):
         self.ui.groupBoxControls.setTitle(f"{name} Controls")
+
+    def disable_scroll_in_cam_controls(self):
+        self.no_scroll_filter.install_on_children(self.ui.groupBoxControls)
 
     def normalize_selectors(self):
         """
