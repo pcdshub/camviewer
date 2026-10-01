@@ -1446,17 +1446,11 @@ class GraphicUserInterface(QMainWindow):
                 np.interp(rate, [5, 30], [self.max_timeout, self.min_timeout])
             )
 
-    # This monitors LIVE_IMAGE_FULL... which updates at 5 Hz, whether we have an image or not!
-    # Therefore, we need to check the time and just skip it if it's a repeat!
     def haveImageCallback(self, exception=None):
         if exception is None:
-            if (
-                self.notify.secs != self.lastimagetime[0]
-                or self.notify.nsec != self.lastimagetime[1]
-            ):
-                self.lastimagetime = [self.notify.secs, self.notify.nsec]
-                self.haveNewImage = True
-                self.wantImage(False)
+            self.lastimagetime = [self.notify.secs, self.notify.nsec]
+            self.haveNewImage = True
+            self.wantImage(False)
 
     # This is called when we might want a new image.
     #
