@@ -24,6 +24,7 @@ import typing
 import numpy as np
 import numpy.typing as npt
 import pyca
+import traceback
 from psp.Pv import Pv
 from PyQt5.QtCore import (
     QEvent,
@@ -40,15 +41,23 @@ from PyQt5.QtGui import QClipboard, QDrag, QFontMetricsF, QImageWriter, QPixmap
 from PyQt5.QtWidgets import (
     QAction,
     QApplication,
+    QDialog,
     QDialogButtonBox,
     QFileDialog,
     QFormLayout,
+    QVBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
     QSizePolicy,
     QSpacerItem,
     QWidget,
+    QPushButton,
+    QCheckBox,
+    QHBoxLayout,
+    QSpinBox,
+    QLineEdit,
+    QComboBox,
 )
 
 import param
@@ -57,6 +66,7 @@ from camviewer_ui import Ui_MainWindow
 from dialogs import advdialog, forcedialog, markerdialog, specificdialog
 from DisplayImage import default_markers, reset_markers
 from pycaqtimage import pycaqtimage
+from ProjWidget import ProjWidget
 
 
 #
@@ -628,6 +638,12 @@ class GraphicUserInterface(QMainWindow):
         self.ui.radioSG4.toggled.connect(self.onGenericConfigChange)
         self.ui.radioSG6.toggled.connect(self.onGenericConfigChange)
         self.ui.checkBoxFits.stateChanged.connect(self.onCheckFitsUpdate)
+        # Open a separate projection/fitting window when user toggles "Plot against PV"
+        try:
+            self.ui.checkBoxPlotPV.toggled.connect(self.on_plot_against_pv_toggled)
+        except Exception:
+            # Older UI versions may not have this control; fail gracefully
+            pass
         self.ui.lineEditCalib.returnPressed.connect(self.onCalibTextEnter)
         self.calib = 1.0
         self.calibPVName = ""
@@ -1096,6 +1112,1185 @@ class GraphicUserInterface(QMainWindow):
         self.ui.groupBoxFits.setVisible(self.ui.checkBoxFits.isChecked())
         if self.cfg is None:
             self.dumpConfig()
+    def _connect_plotpv_pv(self, pv_name: str) -> bool:
+        """Connect to the PV for plot-vs-pv mode. Returns True if successful."""
+        try:
+            # Disconnect any existing PV first
+            self._disconnect_plotpv_pv()
+            if not pv_name:
+                return False
+            import pyca
+            from psp.Pv import Pv
+            self._plotpv_pv_obj = Pv(pv_name, initialize=True)
+            try:
+                self._plotpv_pv_obj.wait_ready(0.1)
+                return self._plotpv_pv_obj.isconnected
+            except (pyca.pyexc, pyca.caexc, TimeoutError, Exception):
+                self._disconnect_plotpv_pv()
+                return False
+        except Exception:
+            self._disconnect_plotpv_pv()
+            return False
+
+    def _disconnect_plotpv_pv(self):
+        """Disconnect the PV for plot-vs-pv mode."""
+        try:
+            if self._plotpv_pv_obj is not None:
+                try:
+                    self._plotpv_pv_obj.disconnect()
+                except Exception:
+                    pass
+                self._plotpv_pv_obj = None
+            # Clear the last value when disconnecting
+            self._plotpv_last_value = None
+        except Exception:
+            pass
+
+    def _connect_plotpv_movn_pv(self, pv_name: str) -> bool:
+        """Connect to the MOVN PV for pause-when-stopped mode. Returns True if successful."""
+        try:
+            # Disconnect any existing MOVN PV first
+            self._disconnect_plotpv_movn_pv()
+            if not pv_name:
+                return False
+            # Derive MOVN PV name by replacing last 3 chars before end with "MOVN"
+            if len(pv_name) >= 3:
+                movn_pv_name = pv_name[:-3] + "MOVN"
+            else:
+                return False
+            import pyca
+            from psp.Pv import Pv
+            self._plotpv_movn_pv_obj = Pv(movn_pv_name, initialize=True)
+            try:
+                self._plotpv_movn_pv_obj.wait_ready(0.1)
+                return self._plotpv_movn_pv_obj.isconnected
+            except (pyca.pyexc, pyca.caexc, TimeoutError, Exception):
+                self._disconnect_plotpv_movn_pv()
+                return False
+        except Exception:
+            self._disconnect_plotpv_movn_pv()
+            return False
+
+    def _disconnect_plotpv_movn_pv(self):
+        """Disconnect the MOVN PV for pause-when-stopped mode."""
+        try:
+            if hasattr(self, '_plotpv_movn_pv_obj') and self._plotpv_movn_pv_obj is not None:
+                try:
+                    self._plotpv_movn_pv_obj.disconnect()
+                except Exception:
+                    pass
+                self._plotpv_movn_pv_obj = None
+        except Exception:
+            pass
+
+    def on_plot_against_pv_toggled(self, checked: bool):
+        """Show/hide a separate dialog containing a ProjWidget when the checkbox is toggled.
+
+        The dialog and its ProjWidget are kept as attributes on self so they
+        are not garbage-collected. The dialog contains controls to Record/Pause/Clear
+        the FWHM history and the history is persisted on close.
+        """
+        # If unchecked, close dialog if present
+        if not checked:
+            try:
+                if hasattr(self, "_plotpv_dialog") and self._plotpv_dialog is not None:
+                    self._plotpv_dialog.close()
+            except Exception:
+                pass
+            self._disconnect_plotpv_pv()
+            self._disconnect_plotpv_movn_pv()
+            self._plotpv_dialog = None
+            self._plotpv_pw = None
+            return
+
+        # Create the dialog and ProjWidget with a small control bar (Record/Pause/Clear)
+        try:
+            dlg = QDialog(self)
+            dlg.setWindowTitle("Plot against PV")
+            dlg.setAttribute(Qt.WA_DeleteOnClose, True)
+            layout = QVBoxLayout(dlg)
+
+            # control bar
+            ctrl_h = QHBoxLayout()
+            record_chk = QCheckBox("Record history")
+            # Load saved record state or default to True
+            record_chk.setChecked(self._plotpv_config.get("record", True) if hasattr(self, "_plotpv_config") else True)
+            pause_btn = QPushButton("Pause")
+            clear_btn = QPushButton("Clear History")
+            save_plot_btn = QPushButton("Save Plot")
+            save_plot_btn.setToolTip("Save plot to ~/camfitters/<timestamp>")
+            elog_btn = QPushButton("Post to Elog")
+            elog_btn.setToolTip("Save and post plot data to electronic logbook")
+            ctrl_h.addWidget(record_chk)
+            ctrl_h.addWidget(pause_btn)
+            ctrl_h.addWidget(clear_btn)
+            ctrl_h.addWidget(save_plot_btn)
+            ctrl_h.addWidget(elog_btn)
+            # Max history control
+            max_label = QLabel("Max history:")
+            max_spin = QSpinBox()
+            max_spin.setRange(1, 100000)
+            max_spin.setSingleStep(10)
+            # Load saved max history or default to 1000
+            max_spin.setValue(self._plotpv_config.get("max_history", 1000) if hasattr(self, "_plotpv_config") else 1000)
+            ctrl_h.addWidget(max_label)
+            ctrl_h.addWidget(max_spin)
+            # PV mode controls
+            pv_mode_chk = QCheckBox("Plot vs PV")
+            # Load saved PV mode state
+            pv_mode_chk.setChecked(self._plotpv_config.get("use_pv_for_x", False) if hasattr(self, "_plotpv_config") else False)
+            pv_name_label = QLabel("PV:")
+            pv_name_edit = QLineEdit()
+            pv_name_edit.setPlaceholderText("PV name")
+            pv_name_edit.setMaximumWidth(200)
+            # Load saved PV name
+            if hasattr(self, "_plotpv_config") and self._plotpv_config.get("pv_name"):
+                pv_name_edit.setText(self._plotpv_config.get("pv_name", ""))
+            pv_name_edit.setEnabled(pv_mode_chk.isChecked())
+            pv_test_btn = QPushButton("Test")
+            pv_test_btn.setMaximumWidth(60)
+            pv_test_btn.setEnabled(pv_mode_chk.isChecked())
+            pv_status_label = QLabel("")
+            pv_status_label.setMaximumWidth(100)
+            ctrl_h.addWidget(pv_mode_chk)
+            ctrl_h.addWidget(pv_name_label)
+            ctrl_h.addWidget(pv_name_edit)
+            ctrl_h.addWidget(pv_test_btn)
+            ctrl_h.addWidget(pv_status_label)
+            # Pause when motor not moving control
+            pause_when_stopped_chk = QCheckBox("Pause when stopped")
+            # Load saved pause-when-stopped state
+            pause_when_stopped_chk.setChecked(self._plotpv_config.get("pause_when_stopped", False) if hasattr(self, "_plotpv_config") else False)
+            pause_when_stopped_chk.setEnabled(pv_mode_chk.isChecked())
+            pause_when_stopped_chk.setToolTip("Pause plotting when MOVN PV == 0")
+            ctrl_h.addWidget(pause_when_stopped_chk)
+            ctrl_widget = QWidget(dlg)
+            ctrl_widget.setLayout(ctrl_h)
+            layout.addWidget(ctrl_widget)
+
+            pw = ProjWidget(dlg)
+            # Match horizontal projection default like the main window's projH
+            try:
+                pw.set_x()
+            except Exception:
+                pass
+            try:
+                pw.set_show_history(True)
+            except Exception:
+                pw._show_history = True
+            try:
+                # The PlotPV widget should not perform its own fits; the main
+                # window computes fits once and supplies the FWHM values.
+                pw.set_use_external_fits(True)
+                # Only show the FWHM history plot (no projection/lineout)
+                pw.set_show_only_history(True)
+            except Exception:
+                pass
+
+            layout.addWidget(pw)
+            dlg.setLayout(layout)
+
+            # Load persisted history if present
+            try:
+                pw.load_history()
+            except Exception:
+                pass
+
+            # initialize max history spinbox to the widget's current cap
+            try:
+                max_spin.setValue(int(pw.max_history))
+            except Exception:
+                pass
+
+            # Restore subplot visibility and Y-axis settings from saved config
+            if hasattr(self, "_plotpv_config") and self._plotpv_config:
+                try:
+                    # Apply subplot visibility settings
+                    pw.set_show_fwhm_subplot(self._plotpv_config.get("show_fwhm", True))
+                    pw.set_show_center_subplot(self._plotpv_config.get("show_center", True))
+                    pw.set_show_amplitude_subplot(self._plotpv_config.get("show_amplitude", True))
+                    pw.set_split_center_xy(self._plotpv_config.get("split_center_xy", False))
+                    
+                    # Apply per-subplot Y-axis settings
+                    for subplot_name in ["fwhm", "center", "center_x", "center_y", "amplitude"]:
+                        y_auto = self._plotpv_config.get(f"y_auto_{subplot_name}", True)
+                        pw.set_y_auto(y_auto, subplot_name)
+                        
+                        if not y_auto:
+                            limits = self._plotpv_config.get(f"y_limits_{subplot_name}")
+                            if limits and isinstance(limits, tuple) and len(limits) == 2:
+                                pw.set_y_limits(limits[0], limits[1], subplot_name)
+                    
+                    # Apply recording state
+                    pw.set_recording(self._plotpv_config.get("record", True))
+                except Exception:
+                    pass
+
+            # Wire controls
+            def _on_record_toggled(state):
+                try:
+                    pw.set_recording(bool(state))
+                except Exception:
+                    pass
+
+            def _on_pause_clicked():
+                try:
+                    new_state = pw.toggle_pause()
+                    if new_state:
+                        pause_btn.setText("Pause")
+                    else:
+                        pause_btn.setText("Resume")
+                except Exception:
+                    pass
+
+            def _on_clear_clicked():
+                try:
+                    pw.clear_history()
+                except Exception:
+                    pass
+
+            def _on_save_plot_clicked():
+                try:
+                    import os
+                    from datetime import datetime
+                    # Create directory if it doesn't exist
+                    save_dir = os.path.expanduser("~/camfitters")
+                    os.makedirs(save_dir, exist_ok=True)
+                    # Generate timestamp filename base
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    png_path = os.path.join(save_dir, f"plot_{timestamp}.png")
+                    txt_path = os.path.join(save_dir, f"plot_{timestamp}.txt")
+                    
+                    # Save the plot image
+                    if hasattr(pw, "image") and pw.image is not None:
+                        pw.image.save(png_path)
+                        print(f"Plot saved to: {png_path}")
+                    else:
+                        print("No plot image available to save")
+                    
+                    # Save the raw data to text file
+                    with open(txt_path, 'w') as f:
+                        f.write(f"# PlotPV Data Export - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                        f.write(f"# PV Mode: {pw._use_pv_for_x}\n")
+                        if pw._use_pv_for_x and pw._pv_name:
+                            f.write(f"# PV Name: {pw._pv_name}\n")
+                        f.write("#\n")
+                        
+                        # Write FWHM data
+                        if pw._use_pv_for_x:
+                            if len(pw.pv_history_fwhm_x) > 0 or len(pw.pv_history_fwhm_y) > 0:
+                                f.write("\n# FWHM vs PV Data\n")
+                                f.write("# PV_Value\tFWHM_X\tFWHM_Y\n")
+                                # Merge x and y data by PV value
+                                all_pvs = sorted(set([pv for pv, _ in pw.pv_history_fwhm_x] + [pv for pv, _ in pw.pv_history_fwhm_y]))
+                                x_dict = dict(pw.pv_history_fwhm_x)
+                                y_dict = dict(pw.pv_history_fwhm_y)
+                                for pv in all_pvs:
+                                    fx = x_dict.get(pv, '')
+                                    fy = y_dict.get(pv, '')
+                                    f.write(f"{pv}\t{fx}\t{fy}\n")
+                        else:
+                            if len(pw.fit_history_x) > 0 or len(pw.fit_history_y) > 0:
+                                f.write("\n# FWHM vs Time Data\n")
+                                f.write("# Timestamp\tFWHM_X\tFWHM_Y\n")
+                                # Merge x and y data by timestamp
+                                all_times = sorted(set([t for t, _ in pw.fit_history_x] + [t for t, _ in pw.fit_history_y]))
+                                x_dict = dict(pw.fit_history_x)
+                                y_dict = dict(pw.fit_history_y)
+                                for t in all_times:
+                                    fx = x_dict.get(t, '')
+                                    fy = y_dict.get(t, '')
+                                    f.write(f"{t}\t{fx}\t{fy}\n")
+                        
+                        # Write Center data
+                        if pw._use_pv_for_x:
+                            if len(pw.pv_history_center_x) > 0 or len(pw.pv_history_center_y) > 0:
+                                f.write("\n# Center vs PV Data\n")
+                                f.write("# PV_Value\tCenter_X\tCenter_Y\n")
+                                all_pvs = sorted(set([pv for pv, _ in pw.pv_history_center_x] + [pv for pv, _ in pw.pv_history_center_y]))
+                                x_dict = dict(pw.pv_history_center_x)
+                                y_dict = dict(pw.pv_history_center_y)
+                                for pv in all_pvs:
+                                    cx = x_dict.get(pv, '')
+                                    cy = y_dict.get(pv, '')
+                                    f.write(f"{pv}\t{cx}\t{cy}\n")
+                        else:
+                            if len(pw.center_history_x) > 0 or len(pw.center_history_y) > 0:
+                                f.write("\n# Center vs Time Data\n")
+                                f.write("# Timestamp\tCenter_X\tCenter_Y\n")
+                                all_times = sorted(set([t for t, _ in pw.center_history_x] + [t for t, _ in pw.center_history_y]))
+                                x_dict = dict(pw.center_history_x)
+                                y_dict = dict(pw.center_history_y)
+                                for t in all_times:
+                                    cx = x_dict.get(t, '')
+                                    cy = y_dict.get(t, '')
+                                    f.write(f"{t}\t{cx}\t{cy}\n")
+                        
+                        # Write Amplitude data
+                        if pw._use_pv_for_x:
+                            if len(pw.pv_history_ampl_x) > 0 or len(pw.pv_history_ampl_y) > 0:
+                                f.write("\n# Amplitude vs PV Data\n")
+                                f.write("# PV_Value\tAmplitude_X\tAmplitude_Y\n")
+                                all_pvs = sorted(set([pv for pv, _ in pw.pv_history_ampl_x] + [pv for pv, _ in pw.pv_history_ampl_y]))
+                                x_dict = dict(pw.pv_history_ampl_x)
+                                y_dict = dict(pw.pv_history_ampl_y)
+                                for pv in all_pvs:
+                                    ax = x_dict.get(pv, '')
+                                    ay = y_dict.get(pv, '')
+                                    f.write(f"{pv}\t{ax}\t{ay}\n")
+                        else:
+                            if len(pw.ampl_history_x) > 0 or len(pw.ampl_history_y) > 0:
+                                f.write("\n# Amplitude vs Time Data\n")
+                                f.write("# Timestamp\tAmplitude_X\tAmplitude_Y\n")
+                                all_times = sorted(set([t for t, _ in pw.ampl_history_x] + [t for t, _ in pw.ampl_history_y]))
+                                x_dict = dict(pw.ampl_history_x)
+                                y_dict = dict(pw.ampl_history_y)
+                                for t in all_times:
+                                    ax = x_dict.get(t, '')
+                                    ay = y_dict.get(t, '')
+                                    f.write(f"{t}\t{ax}\t{ay}\n")
+                    
+                    print(f"Data saved to: {txt_path}")
+                    # Show success message with option to post to elog
+                    msg_box = QMessageBox(dlg)
+                    msg_box.setWindowTitle("Plot Saved")
+                    msg_box.setText(f"Plot saved to:\n{png_path}\n{txt_path}")
+                    msg_box.setIcon(QMessageBox.Information)
+                    msg_box.setStandardButtons(QMessageBox.Ok)
+                    
+                    # Add "Post to Elog" button
+                    elog_button = msg_box.addButton("Post to Elog", QMessageBox.ActionRole)
+                    
+                    msg_box.exec_()
+                    
+                    # Check if user clicked "Post to Elog"
+                    if msg_box.clickedButton() == elog_button:
+                        # Post to elog
+                        try:
+                            import sys
+                            import os
+                            # Add camfitter directory to path to import elog
+                            camfitter_dir = os.path.dirname(os.path.abspath(__file__))
+                            if camfitter_dir not in sys.path:
+                                sys.path.insert(0, camfitter_dir)
+                            
+                            from elog import HutchELog
+                            
+                            # Get camera name for context
+                            camera_name = getattr(self, 'cameraBase', 'Unknown')
+                            
+                            # Build elog message
+                            msg = f"Camera Viewer Plot Data\n\n"
+                            msg += f"Camera: {camera_name}\n"
+                            msg += f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                            if pw._use_pv_for_x and pw._pv_name:
+                                msg += f"PV Name: {pw._pv_name}\n"
+                            msg += f"\nData points collected:\n"
+                            if pw._use_pv_for_x:
+                                msg += f"  FWHM: {len(pw.pv_history_fwhm_x) + len(pw.pv_history_fwhm_y)} points\n"
+                                msg += f"  Center: {len(pw.pv_history_center_x) + len(pw.pv_history_center_y)} points\n"
+                                msg += f"  Amplitude: {len(pw.pv_history_ampl_x) + len(pw.pv_history_ampl_y)} points\n"
+                            else:
+                                msg += f"  FWHM: {len(pw.fit_history_x) + len(pw.fit_history_y)} points\n"
+                                msg += f"  Center: {len(pw.center_history_x) + len(pw.center_history_y)} points\n"
+                                msg += f"  Amplitude: {len(pw.ampl_history_x) + len(pw.ampl_history_y)} points\n"
+                            msg += f"\nFiles saved to: {save_dir}\n"
+                            
+                            # Create elog instance - try to determine instrument from camera name
+                            instrument = camera_name.split(':')[0] if ':' in camera_name else 'TST'
+                            
+                            try:
+                                # Try Kerberos authentication (should work for operator accounts)
+                                elog = HutchELog(instrument)
+                                
+                                # Post with attachments
+                                elog.post(
+                                    msg=msg,
+                                    title="Camera Viewer Plot Data",
+                                    attachments=[(png_path, "Plot Image"), (txt_path, "Raw Data")],
+                                    tags='camera_viewer,plot_data'
+                                )
+                                print(f"Posted to elog for {instrument}")
+                                QMessageBox.information(dlg, "Elog Posted", 
+                                    f"Plot data posted to {instrument} elog successfully!")
+                            except Exception as e:
+                                error_msg = str(e)
+                                print(f"Failed to post to elog: {error_msg}")
+                                
+                                # Check if it's a credential error
+                                if "credentials" in error_msg.lower() or "kerberos" in error_msg.lower():
+                                    import getpass
+                                    current_user = getpass.getuser()
+                                    # Check if running as operator account
+                                    if current_user.endswith('opr'):
+                                        QMessageBox.warning(dlg, "Elog Authentication Failed", 
+                                            f"Authentication failed even though you're logged in as '{current_user}'.\n\n"
+                                            f"This may be a Kerberos ticket issue. Try running 'kinit' in a terminal.\n\n"
+                                            f"Error: {error_msg}")
+                                    else:
+                                        QMessageBox.warning(dlg, "Elog Authentication Failed", 
+                                            f"Authentication failed. Please run 'kinit' to get Kerberos credentials.\n\n"
+                                            f"Error: {error_msg}")
+                                else:
+                                    QMessageBox.warning(dlg, "Elog Post Failed", 
+                                        f"Could not post to elog: {error_msg}")
+                        except ImportError as e:
+                            print(f"Elog module not available: {e}")
+                            QMessageBox.warning(dlg, "Elog Not Available", 
+                                f"Elog module not available: {str(e)}")
+                except Exception as e:
+                    print(f"Failed to save plot: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    QMessageBox.warning(dlg, "Save Failed", f"Failed to save plot:\n{str(e)}")
+
+            def _on_elog_post_clicked():
+                try:
+                    import os
+                    from datetime import datetime
+                    # Create directory if it doesn't exist
+                    save_dir = os.path.expanduser("~/camfitters")
+                    os.makedirs(save_dir, exist_ok=True)
+                    # Generate timestamp filename base
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    png_path = os.path.join(save_dir, f"plot_{timestamp}.png")
+                    txt_path = os.path.join(save_dir, f"plot_{timestamp}.txt")
+                    
+                    # Save the plot image
+                    if hasattr(pw, "image") and pw.image is not None:
+                        pw.image.save(png_path)
+                        print(f"Plot saved to: {png_path}")
+                    else:
+                        print("No plot image available to save")
+                    
+                    # Save the raw data to text file (same code as save)
+                    with open(txt_path, 'w') as f:
+                        f.write(f"# PlotPV Data Export - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                        f.write(f"# PV Mode: {pw._use_pv_for_x}\n")
+                        if pw._use_pv_for_x and pw._pv_name:
+                            f.write(f"# PV Name: {pw._pv_name}\n")
+                        f.write("#\n")
+                        
+                        # Write FWHM data
+                        if pw._use_pv_for_x:
+                            if len(pw.pv_history_fwhm_x) > 0 or len(pw.pv_history_fwhm_y) > 0:
+                                f.write("\n# FWHM vs PV Data\n")
+                                f.write("# PV_Value\tFWHM_X\tFWHM_Y\n")
+                                all_pvs = sorted(set([pv for pv, _ in pw.pv_history_fwhm_x] + [pv for pv, _ in pw.pv_history_fwhm_y]))
+                                x_dict = dict(pw.pv_history_fwhm_x)
+                                y_dict = dict(pw.pv_history_fwhm_y)
+                                for pv in all_pvs:
+                                    fx = x_dict.get(pv, '')
+                                    fy = y_dict.get(pv, '')
+                                    f.write(f"{pv}\t{fx}\t{fy}\n")
+                        else:
+                            if len(pw.fit_history_x) > 0 or len(pw.fit_history_y) > 0:
+                                f.write("\n# FWHM vs Time Data\n")
+                                f.write("# Timestamp\tFWHM_X\tFWHM_Y\n")
+                                all_times = sorted(set([t for t, _ in pw.fit_history_x] + [t for t, _ in pw.fit_history_y]))
+                                x_dict = dict(pw.fit_history_x)
+                                y_dict = dict(pw.fit_history_y)
+                                for t in all_times:
+                                    fx = x_dict.get(t, '')
+                                    fy = y_dict.get(t, '')
+                                    f.write(f"{t}\t{fx}\t{fy}\n")
+                        
+                        # Write Center data
+                        if pw._use_pv_for_x:
+                            if len(pw.pv_history_center_x) > 0 or len(pw.pv_history_center_y) > 0:
+                                f.write("\n# Center vs PV Data\n")
+                                f.write("# PV_Value\tCenter_X\tCenter_Y\n")
+                                all_pvs = sorted(set([pv for pv, _ in pw.pv_history_center_x] + [pv for pv, _ in pw.pv_history_center_y]))
+                                x_dict = dict(pw.pv_history_center_x)
+                                y_dict = dict(pw.pv_history_center_y)
+                                for pv in all_pvs:
+                                    cx = x_dict.get(pv, '')
+                                    cy = y_dict.get(pv, '')
+                                    f.write(f"{pv}\t{cx}\t{cy}\n")
+                        else:
+                            if len(pw.center_history_x) > 0 or len(pw.center_history_y) > 0:
+                                f.write("\n# Center vs Time Data\n")
+                                f.write("# Timestamp\tCenter_X\tCenter_Y\n")
+                                all_times = sorted(set([t for t, _ in pw.center_history_x] + [t for t, _ in pw.center_history_y]))
+                                x_dict = dict(pw.center_history_x)
+                                y_dict = dict(pw.center_history_y)
+                                for t in all_times:
+                                    cx = x_dict.get(t, '')
+                                    cy = y_dict.get(t, '')
+                                    f.write(f"{t}\t{cx}\t{cy}\n")
+                        
+                        # Write Amplitude data
+                        if pw._use_pv_for_x:
+                            if len(pw.pv_history_ampl_x) > 0 or len(pw.pv_history_ampl_y) > 0:
+                                f.write("\n# Amplitude vs PV Data\n")
+                                f.write("# PV_Value\tAmplitude_X\tAmplitude_Y\n")
+                                all_pvs = sorted(set([pv for pv, _ in pw.pv_history_ampl_x] + [pv for pv, _ in pw.pv_history_ampl_y]))
+                                x_dict = dict(pw.pv_history_ampl_x)
+                                y_dict = dict(pw.pv_history_ampl_y)
+                                for pv in all_pvs:
+                                    ax = x_dict.get(pv, '')
+                                    ay = y_dict.get(pv, '')
+                                    f.write(f"{pv}\t{ax}\t{ay}\n")
+                        else:
+                            if len(pw.ampl_history_x) > 0 or len(pw.ampl_history_y) > 0:
+                                f.write("\n# Amplitude vs Time Data\n")
+                                f.write("# Timestamp\tAmplitude_X\tAmplitude_Y\n")
+                                all_times = sorted(set([t for t, _ in pw.ampl_history_x] + [t for t, _ in pw.ampl_history_y]))
+                                x_dict = dict(pw.ampl_history_x)
+                                y_dict = dict(pw.ampl_history_y)
+                                for t in all_times:
+                                    ax = x_dict.get(t, '')
+                                    ay = y_dict.get(t, '')
+                                    f.write(f"{t}\t{ax}\t{ay}\n")
+                    
+                    print(f"Data saved to: {txt_path}")
+                    
+                    # Try to import and use elog
+                    try:
+                        import sys
+                        import os
+                        # Add camfitter directory to path to import elog
+                        camfitter_dir = os.path.dirname(os.path.abspath(__file__))
+                        if camfitter_dir not in sys.path:
+                            sys.path.insert(0, camfitter_dir)
+                        
+                        from elog import HutchELog
+                        
+                        # Get camera name for context
+                        camera_name = getattr(self, 'cameraBase', 'Unknown')
+                        
+                        # Build elog message
+                        msg = f"Camera Viewer Plot Data\n\n"
+                        msg += f"Camera: {camera_name}\n"
+                        msg += f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                        if pw._use_pv_for_x and pw._pv_name:
+                            msg += f"PV Name: {pw._pv_name}\n"
+                        msg += f"\nData points collected:\n"
+                        if pw._use_pv_for_x:
+                            msg += f"  FWHM: {len(pw.pv_history_fwhm_x) + len(pw.pv_history_fwhm_y)} points\n"
+                            msg += f"  Center: {len(pw.pv_history_center_x) + len(pw.pv_history_center_y)} points\n"
+                            msg += f"  Amplitude: {len(pw.pv_history_ampl_x) + len(pw.pv_history_ampl_y)} points\n"
+                        else:
+                            msg += f"  FWHM: {len(pw.fit_history_x) + len(pw.fit_history_y)} points\n"
+                            msg += f"  Center: {len(pw.center_history_x) + len(pw.center_history_y)} points\n"
+                            msg += f"  Amplitude: {len(pw.ampl_history_x) + len(pw.ampl_history_y)} points\n"
+                        msg += f"\nFiles saved to: {save_dir}\n"
+                        
+                        # Create elog instance - try to determine instrument from camera name
+                        # Default to a generic instrument if we can't determine it
+                        instrument = camera_name.split(':')[0] if ':' in camera_name else 'TST'
+                        
+                        try:
+                            # Try Kerberos authentication (should work for operator accounts)
+                            elog = HutchELog(instrument)
+                            
+                            # Post with attachments
+                            elog.post(
+                                msg=msg,
+                                title="Camera Viewer Plot Data",
+                                attachments=[(png_path, "Plot Image"), (txt_path, "Raw Data")],
+                                tags='camera_viewer,plot_data'
+                            )
+                            print(f"Posted to elog for {instrument}")
+                            QMessageBox.information(dlg, "Elog Posted", 
+                                f"Plot data posted to {instrument} elog\n\nFiles saved to:\n{png_path}\n{txt_path}")
+                        except Exception as e:
+                            error_msg = str(e)
+                            print(f"Failed to post to elog: {error_msg}")
+                            
+                            # Check if it's a credential error
+                            if "credentials" in error_msg.lower() or "kerberos" in error_msg.lower():
+                                import getpass
+                                current_user = getpass.getuser()
+                                # Check if running as operator account
+                                if current_user.endswith('opr'):
+                                    QMessageBox.warning(dlg, "Elog Authentication Failed", 
+                                        f"Authentication failed even though you're logged in as '{current_user}'.\n\n"
+                                        f"This may be a Kerberos ticket issue. Try running 'kinit' in a terminal.\n\n"
+                                        f"Files were saved to:\n{png_path}\n{txt_path}\n\n"
+                                        f"Error: {error_msg}")
+                                else:
+                                    QMessageBox.warning(dlg, "Elog Authentication Failed", 
+                                        f"Authentication failed. Please run 'kinit' to get Kerberos credentials.\n\n"
+                                        f"Files were saved to:\n{png_path}\n{txt_path}\n\n"
+                                        f"Error: {error_msg}")
+                            else:
+                                QMessageBox.warning(dlg, "Elog Post Failed", 
+                                    f"Could not post to elog: {error_msg}\n\nFiles were saved to:\n{png_path}\n{txt_path}")
+                    except ImportError as e:
+                        print(f"Elog module not available: {e}")
+                        QMessageBox.information(dlg, "Elog Not Available", 
+                            f"Elog module not available.\n\nFiles were saved to:\n{png_path}\n{txt_path}")
+                    
+                except Exception as e:
+                    print(f"Failed to save/post: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    QMessageBox.warning(dlg, "Operation Failed", f"Failed to save/post:\n{str(e)}")
+
+            record_chk.toggled.connect(_on_record_toggled)
+            pause_btn.clicked.connect(_on_pause_clicked)
+            clear_btn.clicked.connect(_on_clear_clicked)
+            save_plot_btn.clicked.connect(_on_save_plot_clicked)
+            elog_btn.clicked.connect(_on_elog_post_clicked)
+            # max history change handler
+            def _on_max_changed(val):
+                try:
+                    pw.set_max_history(int(val))
+                except Exception:
+                    pass
+
+            max_spin.valueChanged.connect(_on_max_changed)
+
+            # PV mode toggle handler
+            def _on_pv_mode_toggled(state):
+                try:
+                    pv_name_edit.setEnabled(bool(state))
+                    pv_test_btn.setEnabled(bool(state))
+                    pause_when_stopped_chk.setEnabled(bool(state))
+                    pv_name = pv_name_edit.text().strip() if state else ""
+                    pw.set_use_pv_for_x(bool(state), pv_name)
+                    if state and pv_name:
+                        # Connect to PV when mode is enabled
+                        if self._connect_plotpv_pv(pv_name):
+                            pv_status_label.setText("✓ Connected")
+                            pv_status_label.setStyleSheet("color: green;")
+                            # Also connect to MOVN PV if pause-when-stopped is enabled
+                            if pause_when_stopped_chk.isChecked():
+                                self._connect_plotpv_movn_pv(pv_name)
+                        else:
+                            pv_status_label.setText("✗ Not connected")
+                            pv_status_label.setStyleSheet("color: red;")
+                    else:
+                        # Disconnect when mode is disabled
+                        self._disconnect_plotpv_pv()
+                        self._disconnect_plotpv_movn_pv()
+                        pv_status_label.setText("")
+                except Exception:
+                    pass
+
+            def _validate_pv_async(pv_name):
+                """Asynchronously validate PV connectivity and update status label."""
+                try:
+                    if not pv_name:
+                        pv_status_label.setText("")
+                        return
+                    pv_status_label.setText("Checking...")
+                    pv_status_label.setStyleSheet("")
+                    pv_test_btn.setEnabled(False)
+                    # Force UI update before blocking operation
+                    QApplication.processEvents()
+                    try:
+                        import pyca
+                        from psp.Pv import Pv
+                        # Quick connection test with very short timeout
+                        test_pv = Pv(pv_name, initialize=True)
+                        try:
+                            test_pv.wait_ready(0.1)
+                            if test_pv.isconnected:
+                                pv_status_label.setText("✓ Connected")
+                                pv_status_label.setStyleSheet("color: green;")
+                            else:
+                                pv_status_label.setText("✗ Not found")
+                                pv_status_label.setStyleSheet("color: red;")
+                        except (pyca.pyexc, pyca.caexc, TimeoutError, Exception):
+                            pv_status_label.setText("✗ Timeout")
+                            pv_status_label.setStyleSheet("color: orange;")
+                        finally:
+                            try:
+                                test_pv.disconnect()
+                            except Exception:
+                                pass
+                    except Exception:
+                        pv_status_label.setText("✗ Error")
+                        pv_status_label.setStyleSheet("color: red;")
+                    finally:
+                        pv_test_btn.setEnabled(True)
+                except Exception:
+                    pv_test_btn.setEnabled(True)
+
+            def _on_test_pv_clicked():
+                try:
+                    pv_name = pv_name_edit.text().strip()
+                    if pv_name:
+                        # Schedule validation to run after event loop returns
+                        QTimer.singleShot(0, lambda: _validate_pv_async(pv_name))
+                except Exception:
+                    pass
+
+            def _on_pv_name_changed():
+                try:
+                    if pv_mode_chk.isChecked():
+                        pv_name = pv_name_edit.text().strip()
+                        pw.set_use_pv_for_x(True, pv_name)
+                        # Reconnect with new PV name
+                        if pv_name:
+                            if self._connect_plotpv_pv(pv_name):
+                                pv_status_label.setText("✓ Connected")
+                                pv_status_label.setStyleSheet("color: green;")
+                                # Also reconnect MOVN PV if pause-when-stopped is enabled
+                                if pause_when_stopped_chk.isChecked():
+                                    self._connect_plotpv_movn_pv(pv_name)
+                            else:
+                                pv_status_label.setText("✗ Not connected")
+                                pv_status_label.setStyleSheet("color: red;")
+                        else:
+                            self._disconnect_plotpv_pv()
+                            self._disconnect_plotpv_movn_pv()
+                            pv_status_label.setText("")
+                except Exception:
+                    pass
+
+            def _on_pause_when_stopped_toggled(state):
+                try:
+                    if pv_mode_chk.isChecked():
+                        pv_name = pv_name_edit.text().strip()
+                        if state and pv_name:
+                            self._connect_plotpv_movn_pv(pv_name)
+                        else:
+                            self._disconnect_plotpv_movn_pv()
+                except Exception:
+                    pass
+
+            pv_mode_chk.toggled.connect(_on_pv_mode_toggled)
+            pv_name_edit.editingFinished.connect(_on_pv_name_changed)
+            pv_test_btn.clicked.connect(_on_test_pv_clicked)
+            pause_when_stopped_chk.toggled.connect(_on_pause_when_stopped_toggled)
+
+            # Subplot visibility controls
+            show_fwhm_chk = QCheckBox("Show FWHM")
+            show_fwhm_chk.setChecked(self._plotpv_config.get("show_fwhm", True) if hasattr(self, "_plotpv_config") else True)
+            show_center_chk = QCheckBox("Show Center")
+            show_center_chk.setChecked(self._plotpv_config.get("show_center", True) if hasattr(self, "_plotpv_config") else True)
+            show_amplitude_chk = QCheckBox("Show Amplitude")
+            show_amplitude_chk.setChecked(self._plotpv_config.get("show_amplitude", True) if hasattr(self, "_plotpv_config") else True)
+            split_center_chk = QCheckBox("Split Center X/Y")
+            split_center_chk.setChecked(self._plotpv_config.get("split_center_xy", False) if hasattr(self, "_plotpv_config") else False)
+            split_center_chk.setToolTip("Plot Center X and Center Y on separate subplots")
+            ctrl_h.addWidget(show_fwhm_chk)
+            ctrl_h.addWidget(show_center_chk)
+            ctrl_h.addWidget(show_amplitude_chk)
+            ctrl_h.addWidget(split_center_chk)
+            
+            # Y-axis controls for the history plot
+            y_subplot_label = QLabel("Y for:")
+            y_subplot_combo = QComboBox()
+            # Populate combo based on split_center_xy setting
+            def _update_y_combo_items():
+                current = y_subplot_combo.currentText()
+                y_subplot_combo.clear()
+                if split_center_chk.isChecked():
+                    y_subplot_combo.addItems(["FWHM", "Center X", "Center Y", "Amplitude"])
+                else:
+                    y_subplot_combo.addItems(["FWHM", "Center", "Amplitude"])
+                # Try to restore previous selection
+                idx = y_subplot_combo.findText(current)
+                if idx >= 0:
+                    y_subplot_combo.setCurrentIndex(idx)
+            _update_y_combo_items()
+            y_subplot_combo.setMaximumWidth(100)
+            # Restore saved Y subplot selection
+            if hasattr(self, "_plotpv_config") and "y_subplot" in self._plotpv_config:
+                idx = y_subplot_combo.findText(self._plotpv_config["y_subplot"])
+                if idx >= 0:
+                    y_subplot_combo.setCurrentIndex(idx)
+            auto_y_chk = QCheckBox("Auto Y")
+            auto_y_chk.setChecked(self._plotpv_config.get("auto_y", True) if hasattr(self, "_plotpv_config") else True)
+            y_min_label = QLabel("Y min:")
+            y_min_edit = QLineEdit()
+            y_min_edit.setMaximumWidth(80)
+            y_min_edit.setPlaceholderText("min")
+            # Restore saved Y min
+            if hasattr(self, "_plotpv_config") and "y_min" in self._plotpv_config:
+                y_min_edit.setText(self._plotpv_config["y_min"])
+            y_max_label = QLabel("Y max:")
+            y_max_edit = QLineEdit()
+            y_max_edit.setMaximumWidth(80)
+            y_max_edit.setPlaceholderText("max")
+            # Restore saved Y max
+            if hasattr(self, "_plotpv_config") and "y_max" in self._plotpv_config:
+                y_max_edit.setText(self._plotpv_config["y_max"])
+            set_y_btn = QPushButton("Set Y")
+            clear_y_btn = QPushButton("Clear Y")
+            ctrl_h.addWidget(y_subplot_label)
+            ctrl_h.addWidget(y_subplot_combo)
+            ctrl_h.addWidget(auto_y_chk)
+            ctrl_h.addWidget(y_min_label)
+            ctrl_h.addWidget(y_min_edit)
+            ctrl_h.addWidget(y_max_label)
+            ctrl_h.addWidget(y_max_edit)
+            ctrl_h.addWidget(set_y_btn)
+            ctrl_h.addWidget(clear_y_btn)
+
+            def _on_auto_y_toggled(state):
+                try:
+                    subplot = y_subplot_combo.currentText().lower().replace(" ", "_")
+                    pw.set_y_auto(bool(state), subplot)
+                    # redraw widget with current proj bounds
+                    try:
+                        pw.set_x()
+                        (
+                            _rm,
+                            _rv,
+                            pxmin,
+                            pxmax,
+                            pymin,
+                            pymax,
+                            _,
+                            _,
+                        ) = pycaqtimage.pyUpdateProj(
+                            self.imageBuffer,
+                            self.ui.checkBoxProjAutoRange.isChecked(),
+                            self.iRangeMin,
+                            self.iRangeMax,
+                            self.ui.display_image.rectRoi.oriented(),
+                        )
+                        pw.makeImage(pxmin, pxmax, pymin, pymax)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+            def _on_set_y_clicked():
+                try:
+                    ymin = float(y_min_edit.text())
+                    ymax = float(y_max_edit.text())
+                    subplot = y_subplot_combo.currentText().lower().replace(" ", "_")
+                    pw.set_y_limits(ymin, ymax, subplot)
+                    pw.set_y_auto(False, subplot)
+                    try:
+                        pw.set_x()
+                        (
+                            _rm,
+                            _rv,
+                            pxmin,
+                            pxmax,
+                            pymin,
+                            pymax,
+                            _,
+                            _,
+                        ) = pycaqtimage.pyUpdateProj(
+                            self.imageBuffer,
+                            self.ui.checkBoxProjAutoRange.isChecked(),
+                            self.iRangeMin,
+                            self.iRangeMax,
+                            self.ui.display_image.rectRoi.oriented(),
+                        )
+                        pw.makeImage(pxmin, pxmax, pymin, pymax)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+            def _on_clear_y_clicked():
+                try:
+                    subplot = y_subplot_combo.currentText().lower().replace(" ", "_")
+                    pw.clear_y_limits(subplot)
+                    pw.set_y_auto(True, subplot)
+                    try:
+                        pw.set_x()
+                        (
+                            _rm,
+                            _rv,
+                            pxmin,
+                            pxmax,
+                            pymin,
+                            pymax,
+                            _,
+                            _,
+                        ) = pycaqtimage.pyUpdateProj(
+                            self.imageBuffer,
+                            self.ui.checkBoxProjAutoRange.isChecked(),
+                            self.iRangeMin,
+                            self.iRangeMax,
+                            self.ui.display_image.rectRoi.oriented(),
+                        )
+                        pw.makeImage(pxmin, pxmax, pymin, pymax)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+            auto_y_chk.toggled.connect(_on_auto_y_toggled)
+            set_y_btn.clicked.connect(_on_set_y_clicked)
+            clear_y_btn.clicked.connect(_on_clear_y_clicked)
+
+            # Wire subplot visibility toggles
+            def _on_show_fwhm_toggled(state):
+                try:
+                    pw.set_show_fwhm_subplot(bool(state))
+                    try:
+                        (
+                            _rm,
+                            _rv,
+                            pxmin,
+                            pxmax,
+                            pymin,
+                            pymax,
+                            _,
+                            _,
+                        ) = pycaqtimage.pyUpdateProj(
+                            self.imageBuffer,
+                            self.ui.checkBoxProjAutoRange.isChecked(),
+                            self.iRangeMin,
+                            self.iRangeMax,
+                            self.ui.display_image.rectRoi.oriented(),
+                        )
+                        pw.makeImage(pxmin, pxmax, pymin, pymax)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+            def _on_show_center_toggled(state):
+                try:
+                    pw.set_show_center_subplot(bool(state))
+                    try:
+                        (
+                            _rm,
+                            _rv,
+                            pxmin,
+                            pxmax,
+                            pymin,
+                            pymax,
+                            _,
+                            _,
+                        ) = pycaqtimage.pyUpdateProj(
+                            self.imageBuffer,
+                            self.ui.checkBoxProjAutoRange.isChecked(),
+                            self.iRangeMin,
+                            self.iRangeMax,
+                            self.ui.display_image.rectRoi.oriented(),
+                        )
+                        pw.makeImage(pxmin, pxmax, pymin, pymax)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+            def _on_show_amplitude_toggled(state):
+                try:
+                    pw.set_show_amplitude_subplot(bool(state))
+                    try:
+                        (
+                            _rm,
+                            _rv,
+                            pxmin,
+                            pxmax,
+                            pymin,
+                            pymax,
+                            _,
+                            _,
+                        ) = pycaqtimage.pyUpdateProj(
+                            self.imageBuffer,
+                            self.ui.checkBoxProjAutoRange.isChecked(),
+                            self.iRangeMin,
+                            self.iRangeMax,
+                            self.ui.display_image.rectRoi.oriented(),
+                        )
+                        pw.makeImage(pxmin, pxmax, pymin, pymax)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+            def _on_split_center_toggled(state):
+                try:
+                    pw.set_split_center_xy(bool(state))
+                    _update_y_combo_items()
+                    try:
+                        (
+                            _rm,
+                            _rv,
+                            pxmin,
+                            pxmax,
+                            pymin,
+                            pymax,
+                            _,
+                            _,
+                        ) = pycaqtimage.pyUpdateProj(
+                            self.imageBuffer,
+                            self.ui.checkBoxProjAutoRange.isChecked(),
+                            self.iRangeMin,
+                            self.iRangeMax,
+                            self.ui.display_image.rectRoi.oriented(),
+                        )
+                        pw.makeImage(pxmin, pxmax, pymin, pymax)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+            show_fwhm_chk.toggled.connect(_on_show_fwhm_toggled)
+            show_center_chk.toggled.connect(_on_show_center_toggled)
+            show_amplitude_chk.toggled.connect(_on_show_amplitude_toggled)
+            split_center_chk.toggled.connect(_on_split_center_toggled)
+
+            # Apply saved config if available
+            if hasattr(self, "_plotpv_config") and self._plotpv_config:
+                cfg = self._plotpv_config
+                if "max_history" in cfg:
+                    max_spin.setValue(cfg["max_history"])
+                if "show_fwhm" in cfg:
+                    show_fwhm_chk.setChecked(cfg["show_fwhm"])
+                if "show_center" in cfg:
+                    show_center_chk.setChecked(cfg["show_center"])
+                if "show_amplitude" in cfg:
+                    show_amplitude_chk.setChecked(cfg["show_amplitude"])
+                if "split_center_xy" in cfg:
+                    split_center_chk.setChecked(cfg["split_center_xy"])
+                if "use_pv_for_x" in cfg:
+                    pv_mode_chk.setChecked(cfg["use_pv_for_x"])
+                if "pv_name" in cfg:
+                    pv_name_edit.setText(cfg["pv_name"])
+                if "record" in cfg:
+                    record_chk.setChecked(cfg["record"])
+                if "auto_y" in cfg:
+                    auto_y_chk.setChecked(cfg["auto_y"])
+                if "y_subplot" in cfg:
+                    idx = y_subplot_combo.findText(cfg["y_subplot"])
+                    if idx >= 0:
+                        y_subplot_combo.setCurrentIndex(idx)
+                if "y_min" in cfg:
+                    y_min_edit.setText(cfg["y_min"])
+                if "y_max" in cfg:
+                    y_max_edit.setText(cfg["y_max"])
+                # Restore Y-axis limits for each subplot
+                try:
+                    for subplot_name in ["fwhm", "center", "center_x", "center_y", "amplitude"]:
+                        y_auto_key = f"y_auto_{subplot_name}"
+                        y_limits_key = f"y_limits_{subplot_name}"
+                        if y_auto_key in cfg:
+                            setattr(pw, y_auto_key, cfg[y_auto_key])
+                        if y_limits_key in cfg:
+                            setattr(pw, y_limits_key, cfg[y_limits_key])
+                except Exception:
+                    pass
+
+            # Cleanup: when dialog is closed, save history, uncheck the checkbox and clear refs
+            def _on_dialog_closed(*_):
+                try:
+                    # Save current state before closing
+                    if not hasattr(self, "_plotpv_config"):
+                        self._plotpv_config = {}
+                    self._plotpv_config["max_history"] = max_spin.value()
+                    self._plotpv_config["show_fwhm"] = show_fwhm_chk.isChecked()
+                    self._plotpv_config["show_center"] = show_center_chk.isChecked()
+                    self._plotpv_config["show_amplitude"] = show_amplitude_chk.isChecked()
+                    self._plotpv_config["split_center_xy"] = split_center_chk.isChecked()
+                    self._plotpv_config["use_pv_for_x"] = pv_mode_chk.isChecked()
+                    self._plotpv_config["pv_name"] = pv_name_edit.text()
+                    self._plotpv_config["record"] = record_chk.isChecked()
+                    self._plotpv_config["pause_when_stopped"] = pause_when_stopped_chk.isChecked()
+                    self._plotpv_config["auto_y"] = auto_y_chk.isChecked()
+                    self._plotpv_config["y_subplot"] = y_subplot_combo.currentText()
+                    self._plotpv_config["y_min"] = y_min_edit.text()
+                    self._plotpv_config["y_max"] = y_max_edit.text()
+                    # Save Y-axis limits for each subplot from the widget
+                    try:
+                        for subplot_name in ["fwhm", "center", "center_x", "center_y", "amplitude"]:
+                            y_auto_attr = f"y_auto_{subplot_name}"
+                            y_limits_attr = f"y_limits_{subplot_name}"
+                            if hasattr(pw, y_auto_attr):
+                                self._plotpv_config[f"y_auto_{subplot_name}"] = getattr(pw, y_auto_attr)
+                            if hasattr(pw, y_limits_attr):
+                                limits = getattr(pw, y_limits_attr)
+                                if limits is not None:
+                                    self._plotpv_config[f"y_limits_{subplot_name}"] = limits
+                    except Exception:
+                        pass
+                    # avoid recursive signal handling if already unchecked
+                    if self.ui.checkBoxPlotPV.isChecked():
+                        self.ui.checkBoxPlotPV.setChecked(False)
+                except Exception:
+                    pass
+
+            def _on_dialog_finished(result):
+                try:
+                    pw.save_history()
+                except Exception:
+                    pass
+                _on_dialog_closed()
+
+            dlg.finished.connect(_on_dialog_finished)
+            dlg.show()
+            self._plotpv_dialog = dlg
+            self._plotpv_pw = pw
+
+            # Auto-connect to PV if PV mode was previously enabled and we have a PV name
+            if pv_mode_chk.isChecked() and pv_name_edit.text().strip():
+                try:
+                    pv_name = pv_name_edit.text().strip()
+                    pw.set_use_pv_for_x(True, pv_name)
+                    if self._connect_plotpv_pv(pv_name):
+                        pv_status_label.setText("✓ Connected")
+                        pv_status_label.setStyleSheet("color: green;")
+                        # Also connect to MOVN PV if pause-when-stopped is enabled
+                        if pause_when_stopped_chk.isChecked():
+                            self._connect_plotpv_movn_pv(pv_name)
+                    else:
+                        pv_status_label.setText("✗ Not connected")
+                        pv_status_label.setStyleSheet("color: red;")
+                except Exception:
+                    pass
+
+            # Ensure the ProjWidget has a reasonable size and perform the initial draw
+            try:
+                # Resize the widget to match main window projection defaults
+
+                try:
+                    pw.doResize(QSize(self.viewwidth, self.projsize))
+                except Exception:
+                    # fallback to a simple resize
+                    try:
+                        pw.resize(self.viewwidth, self.projsize)
+                    except Exception:
+                        pass
+                try:
+                    # ensure it can expand and has a minimum size so layout won't collapse it
+                    pw.setMinimumSize(self.viewwidth, self.projsize)
+                    pw.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+                except Exception:
+                    pass
+
+                # Schedule initial draw after the event loop so the widget is visible
+                def _initial_draw():
+                    try:
+                        (
+                            roiMean,
+                            roiVar,
+                            projXmin,
+                            projXmax,
+                            projYmin,
+                            projYmax,
+                            _,
+                            _,
+                        ) = pycaqtimage.pyUpdateProj(
+                            self.imageBuffer,
+                            self.ui.checkBoxProjAutoRange.isChecked(),
+                            self.iRangeMin,
+                            self.iRangeMax,
+                            self.ui.display_image.rectRoi.oriented(),
+                        )
+                        try:
+                            pw.makeImage(projXmin, projXmax, projYmin, projYmax)
+                        except Exception as e:
+                            print("PlotPV initial draw failed:", e)
+                            traceback.print_exc()
+                    except Exception as e:
+                        print("pyUpdateProj failed during PlotPV initial draw:", e)
+                        traceback.print_exc()
+
+                # Give the event loop a short moment to lay out the widget before drawing
+                QTimer.singleShot(100, _initial_draw)
+            except Exception:
+                pass
+        except Exception as e:
+            print("Failed to open PlotPV dialog:", e)
+            try:
+                self.ui.checkBoxPlotPV.setChecked(False)
+            except Exception:
+                pass
 
     def onGenericConfigChange(self):
         if self.cfg is None:
@@ -1446,11 +2641,17 @@ class GraphicUserInterface(QMainWindow):
                 np.interp(rate, [5, 30], [self.max_timeout, self.min_timeout])
             )
 
+    # This monitors LIVE_IMAGE_FULL... which updates at 5 Hz, whether we have an image or not!
+    # Therefore, we need to check the time and just skip it if it's a repeat!
     def haveImageCallback(self, exception=None):
         if exception is None:
-            self.lastimagetime = [self.notify.secs, self.notify.nsec]
-            self.haveNewImage = True
-            self.wantImage(False)
+            if (
+                self.notify.secs != self.lastimagetime[0]
+                or self.notify.nsec != self.lastimagetime[1]
+            ):
+                self.lastimagetime = [self.notify.secs, self.notify.nsec]
+                self.haveNewImage = True
+                self.wantImage(False)
 
     # This is called when we might want a new image.
     #
@@ -1548,6 +2749,179 @@ class GraphicUserInterface(QMainWindow):
             (projYmin, projYmax) = self.ui.projV.makeImage(
                 projXmin, projXmax, projYmin, projYmax
             )
+            # If the user has opened the "Plot against PV" dialog, update its ProjWidget as well
+            try:
+                if hasattr(self, "_plotpv_pw") and self._plotpv_pw is not None:
+                    pw = self._plotpv_pw
+                    # To avoid performing expensive duplicate fits/renders we
+                    # only ask the PlotPV widget to render when it needs to show
+                    # history or when the history display is enabled. If the
+                    # widget is only recording history but not displaying it,
+                    # we can cheaply append the already-computed FWHM values
+                    # from the main window's UI fields instead of re-running
+                    # full makeImage (which repeats the same fit work).
+                    try:
+                        show_history = getattr(pw, "_show_history", False)
+                        recording = getattr(pw, "_recording", False)
+                        # If recording is enabled, copy the latest FWHM values
+                        # from the main projection widgets (or fall back to UI
+                        # fields) into the PlotPV widget so the history plot
+                        # has data regardless of whether the PlotPV widget
+                        # performs local fits.
+                        if recording:
+                            try:
+                                import time as _time
+
+                                ts_now = _time.time()
+                                fx = None
+                                fxts = None
+                                cx = None
+                                ax = None
+                                try:
+                                    ph = self.ui.projH
+                                    if hasattr(ph, "fit_history_x") and len(ph.fit_history_x) > 0:
+                                        fxts, fx = ph.fit_history_x[-1]
+                                    if hasattr(ph, "center_history_x") and len(ph.center_history_x) > 0:
+                                        _, cx = ph.center_history_x[-1]
+                                    if hasattr(ph, "ampl_history_x") and len(ph.ampl_history_x) > 0:
+                                        _, ax = ph.ampl_history_x[-1]
+                                except Exception:
+                                    fx = None
+                                    fxts = None
+                                    cx = None
+                                    ax = None
+                                fy = None
+                                fyts = None
+                                cy = None
+                                ay = None
+                                try:
+                                    pv = self.ui.projV
+                                    if hasattr(pv, "fit_history_y") and len(pv.fit_history_y) > 0:
+                                        fyts, fy = pv.fit_history_y[-1]
+                                    if hasattr(pv, "center_history_y") and len(pv.center_history_y) > 0:
+                                        _, cy = pv.center_history_y[-1]
+                                    if hasattr(pv, "ampl_history_y") and len(pv.ampl_history_y) > 0:
+                                        _, ay = pv.ampl_history_y[-1]
+                                except Exception:
+                                    fy = None
+                                    fyts = None
+                                    cy = None
+                                    ay = None
+
+                                if fx is None:
+                                    try:
+                                        fx = float(self.ui.lineEditFWHMx.text())
+                                        fxts = ts_now
+                                    except Exception:
+                                        fx = None
+                                        fxts = None
+                                if fy is None:
+                                    try:
+                                        fy = float(self.ui.lineEditFWHMy.text())
+                                        fyts = ts_now
+                                    except Exception:
+                                        fy = None
+                                        fyts = None
+
+                                # Check if PV mode is enabled
+                                use_pv_mode = getattr(pw, "_use_pv_for_x", False)
+                                pv_value = None
+                                # Check if we should pause when motor is not moving
+                                should_pause = False
+                                if use_pv_mode and hasattr(self, '_plotpv_movn_pv_obj') and self._plotpv_movn_pv_obj is not None:
+                                    try:
+                                        if self._plotpv_movn_pv_obj.isconnected:
+                                            self._plotpv_movn_pv_obj.get(ctrl=False, timeout=0.01)
+                                            movn_value = int(self._plotpv_movn_pv_obj.value)
+                                            # Debug output
+                                            # print(f"DEBUG: MOVN PV value = {movn_value}, should_pause will be {movn_value == 0}")
+                                            # Pause plotting if MOVN == 1 (motor not moving)
+                                            if movn_value == 1:
+                                                should_pause = True
+                                    except Exception as e:
+                                        print(f"DEBUG: Exception reading MOVN PV: {e}")
+                                
+                                if use_pv_mode and self._plotpv_pv_obj is not None:
+                                    # Use the persistent PV connection and fetch latest value
+                                    try:
+                                        if self._plotpv_pv_obj.isconnected:
+                                            # Actively get the current value (don't use cached .value)
+                                            self._plotpv_pv_obj.get(ctrl=False, timeout=0.01)
+                                            pv_value = float(self._plotpv_pv_obj.value)
+                                            # Store last valid value
+                                            if not hasattr(self, '_plotpv_last_value'):
+                                                self._plotpv_last_value = pv_value
+                                            else:
+                                                self._plotpv_last_value = pv_value
+                                    except Exception:
+                                        # If reading fails, use last valid value if available
+                                        if hasattr(self, '_plotpv_last_value'):
+                                            pv_value = self._plotpv_last_value
+                                        else:
+                                            pv_value = None
+
+                                # Skip appending data if we're paused due to motor not moving
+                                if should_pause:
+                                    pass
+                                else:
+                                    if fx is not None:
+                                        try:
+                                            if use_pv_mode and pv_value is not None:
+                                                pw.append_pv_data(True, pv_value, float(fx), cx, ax)
+                                            else:
+                                                pw.append_fwhm(True, (fxts if fxts is not None else ts_now), float(fx), cx, ax)
+                                        except Exception:
+                                            pass
+                                    if fy is not None:
+                                        try:
+                                            if use_pv_mode and pv_value is not None:
+                                                pw.append_pv_data(False, pv_value, float(fy), cy, ay)
+                                            else:
+                                                pw.append_fwhm(False, (fyts if fyts is not None else ts_now), float(fy), cy, ay)
+                                        except Exception:
+                                            pass
+                            except Exception:
+                                pass
+
+                        # If the widget is showing history, we need to render
+                        # the widget so the small history subplot is drawn.
+                        if show_history:
+                            try:
+                                pw.set_x()
+                            except Exception:
+                                pass
+                            try:
+                                pw.makeImage(projXmin, projXmax, projYmin, projYmax)
+                            except Exception:
+                                pass
+                            try:
+                                pw.set_y()
+                            except Exception:
+                                pass
+                            try:
+                                pw.makeImage(projXmin, projXmax, projYmin, projYmax)
+                            except Exception:
+                                pass
+                            try:
+                                pw.set_x()
+                            except Exception:
+                                pass
+                        else:
+                            # If not showing history and not recording, update a
+                            # single image so the widget remains responsive.
+                            if (not recording) and pw.isVisible():
+                                try:
+                                    pw.set_x()
+                                except Exception:
+                                    pass
+                                try:
+                                    pw.makeImage(projXmin, projXmax, projYmin, projYmax)
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+            except Exception:
+                pass
             if self.ui.checkbox_auto_range.isChecked():
                 self.set_new_max_pixel(self.max_px)
                 self.set_new_min_pixel(self.min_px)
@@ -3294,6 +4668,101 @@ class GraphicUserInterface(QMainWindow):
         except Exception:
             self.displayFormat = "%12.8g"
 
+        # Process PlotPV window settings, if any.
+        try:
+            if hasattr(self, "_plotpv_config"):
+                # Store config to be applied when PlotPV window is created
+                pass
+            else:
+                self._plotpv_config = {}
+            try:
+                self._plotpv_config["show_history"] = self.cfg.plotpv_show_history == "1"
+            except Exception:
+                pass
+            try:
+                self._plotpv_config["max_history"] = int(self.cfg.plotpv_max_history)
+            except Exception:
+                pass
+            try:
+                self._plotpv_config["show_fwhm"] = self.cfg.plotpv_show_fwhm == "1"
+            except Exception:
+                pass
+            try:
+                self._plotpv_config["show_center"] = self.cfg.plotpv_show_center == "1"
+            except Exception:
+                pass
+            try:
+                self._plotpv_config["show_amplitude"] = self.cfg.plotpv_show_amplitude == "1"
+            except Exception:
+                pass
+            try:
+                self._plotpv_config["use_pv_for_x"] = self.cfg.plotpv_use_pv_for_x == "1"
+            except Exception:
+                pass
+            try:
+                pv_name = self.cfg.plotpv_pv_name
+                if pv_name[0] == '"' and pv_name[-1] == '"':
+                    self._plotpv_config["pv_name"] = pv_name[1:-1]
+                else:
+                    self._plotpv_config["pv_name"] = pv_name
+            except Exception:
+                pass
+            try:
+                self._plotpv_config["record"] = self.cfg.plotpv_record == "1"
+            except Exception:
+                pass
+            try:
+                self._plotpv_config["pause_when_stopped"] = self.cfg.plotpv_pause_when_stopped == "1"
+            except Exception:
+                pass
+            try:
+                self._plotpv_config["auto_y"] = self.cfg.plotpv_auto_y == "1"
+            except Exception:
+                pass
+            try:
+                y_subplot = self.cfg.plotpv_y_subplot
+                if y_subplot[0] == '"' and y_subplot[-1] == '"':
+                    self._plotpv_config["y_subplot"] = y_subplot[1:-1]
+                else:
+                    self._plotpv_config["y_subplot"] = y_subplot
+            except Exception:
+                pass
+            try:
+                y_min = self.cfg.plotpv_y_min
+                if y_min[0] == '"' and y_min[-1] == '"':
+                    self._plotpv_config["y_min"] = y_min[1:-1]
+                else:
+                    self._plotpv_config["y_min"] = y_min
+            except Exception:
+                pass
+            try:
+                y_max = self.cfg.plotpv_y_max
+                if y_max[0] == '"' and y_max[-1] == '"':
+                    self._plotpv_config["y_max"] = y_max[1:-1]
+                else:
+                    self._plotpv_config["y_max"] = y_max
+            except Exception:
+                pass
+            # Load per-subplot Y-axis settings
+            try:
+                for subplot_name in ["fwhm", "center", "amplitude"]:
+                    try:
+                        self._plotpv_config[f"y_auto_{subplot_name}"] = getattr(self.cfg, f"plotpv_y_auto_{subplot_name}", "1") == "1"
+                    except Exception:
+                        pass
+                    try:
+                        limits_str = getattr(self.cfg, f"plotpv_y_limits_{subplot_name}", None)
+                        if limits_str:
+                            parts = limits_str.split('"')
+                            if len(parts) >= 4:
+                                self._plotpv_config[f"y_limits_{subplot_name}"] = (float(parts[1]), float(parts[3]))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        except Exception:
+            pass
+
         self.cfg = None
 
 
@@ -3362,6 +4831,30 @@ def write_camera_config(gui: GraphicUserInterface) -> None:
         fd.write("projcalib   %g\n" % gui.calib)
         fd.write('projcalibPV "%s"\n' % gui.calibPVName)
         fd.write('projdisplayFormat "%s"\n' % gui.displayFormat)
+        # PlotPV window settings
+        try:
+            if hasattr(gui, "_plotpv_config") and gui._plotpv_config is not None:
+                cfg = gui._plotpv_config
+                fd.write("plotpv_max_history " + str(cfg.get("max_history", 1000)) + "\n")
+                fd.write("plotpv_show_fwhm " + str(int(cfg.get("show_fwhm", True))) + "\n")
+                fd.write("plotpv_show_center " + str(int(cfg.get("show_center", True))) + "\n")
+                fd.write("plotpv_show_amplitude " + str(int(cfg.get("show_amplitude", True))) + "\n")
+                fd.write("plotpv_use_pv_for_x " + str(int(cfg.get("use_pv_for_x", False))) + "\n")
+                fd.write('plotpv_pv_name "%s"\n' % cfg.get("pv_name", ""))
+                fd.write("plotpv_record " + str(int(cfg.get("record", True))) + "\n")
+                fd.write("plotpv_pause_when_stopped " + str(int(cfg.get("pause_when_stopped", False))) + "\n")
+                fd.write("plotpv_auto_y " + str(int(cfg.get("auto_y", True))) + "\n")
+                fd.write('plotpv_y_subplot "%s"\n' % cfg.get("y_subplot", "FWHM"))
+                fd.write('plotpv_y_min "%s"\n' % cfg.get("y_min", ""))
+                fd.write('plotpv_y_max "%s"\n' % cfg.get("y_max", ""))
+                # Save per-subplot Y-axis settings
+                for subplot_name in ["fwhm", "center", "amplitude"]:
+                    fd.write(f"plotpv_y_auto_{subplot_name} " + str(int(cfg.get(f"y_auto_{subplot_name}", True))) + "\n")
+                    limits = cfg.get(f"y_limits_{subplot_name}")
+                    if limits is not None and isinstance(limits, tuple) and len(limits) == 2:
+                        fd.write(f'plotpv_y_limits_{subplot_name} "{limits[0]}" "{limits[1]}"\n')
+        except Exception:
+            pass
 
 
 def write_global_config(gui: GraphicUserInterface) -> None:
